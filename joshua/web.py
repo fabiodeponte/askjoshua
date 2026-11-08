@@ -1,0 +1,1712 @@
+import copy, html, inspect, json, os, pathlib, re, secrets, shutil, subprocess, sys, threading, time
+from concurrent.futures import ThreadPoolExecutor, wait
+from itertools import zip_longest
+import gradio as gr, ollama
+import agent, tune_ui
+from agent import FAST, MODEL, tools
+
+ROOT = (pathlib.Path(__file__).parent / "conversations").resolve()
+ROOT.mkdir(exist_ok=True)
+IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+ICONS = {"web_search": "🔎", "read_page": "📄", "run_python": "🐍", "read_file": "📂", "write_file": "💾", "get_datetime": "🕒", "look_at_image": "🖼️", "generate_image": "🎨", "edit_image": "🖌️", "goal_done": "✅", "give_up": "🛑", "install_package": "📦", "list_files": "🗂️", "remember": "🧠", "forget": "🧹", "read_memory": "📒"}
+SKIP = (gr.skip(),) * 4
+
+IMAGE_RULE = " When the user asks to change, combine or add to photos they shared, use edit_image with those photo files and never answer with an invented picture; use generate_image only for brand-new pictures." if "edit_image" in tools else " You cannot create or edit pictures on this computer: say so if asked."
+SYSTEM = "You are Joshua, an AI assistant running on the user's computer; you have no job or personal life of your own. Today is {now}." + IMAGE_RULE + " Results returned by your tools are real and current. For any factual question (figures, people, events, prices, anything that may change), always use web_search before answering; never answer such questions from memory. Search snippets are often incomplete: if they don't clearly contain the answer, open the most relevant result with read_page before answering, and never fill gaps with guesses. Always address the user directly, in the second person, in the user's language. Files the user shares are in your workspace folder."
+GOAL_RULES = " You are in goal mode: the user gives you a goal to accomplish, not a question. Work step by step with your tools until the goal is fully achieved, and check your own results (for example, read back files you wrote). Do not ask the user questions; make reasonable assumptions. When the goal is achieved and verified, call goal_done with a short summary. Only if it is truly impossible with your tools, call give_up with the reason."
+NUDGE = "The goal is not marked as done yet. Review what you have done so far, fix anything missing or wrong, and continue working. Call goal_done only when the goal is fully achieved and verified."
+
+
+def goal_done(summary: str) -> str:
+    """Call this only when the goal is fully achieved and you have verified the result. Give a short summary of what was done."""
+    return "Goal marked as done."
+
+
+def give_up(reason: str) -> str:
+    """Call this only if the goal is truly impossible to achieve with your tools. Explain why."""
+    return "Stopped."
+
+
+# ---------- available models ----------
+
+CAPS = {}
+
+
+def caps(name):
+    if name not in CAPS:
+        try:
+            CAPS[name] = set(ollama.show(name).capabilities or [])
+        except Exception:
+            CAPS[name] = set()
+    return CAPS[name]
+
+
+CLOUD = set()  # models that run on Ollama's servers, not on this computer
+
+
+def is_cloud(name):
+    return name in CLOUD or name.split(":")[-1].endswith("cloud")
+
+
+PAIR = "auto:qwen3-vl"  # one menu entry: the deep-thinking switch picks qwen3-vl or its faster instruct version
+
+
+def models():
+    try:
+        listed = ollama.list().models
+    except Exception:
+        listed = []
+    CLOUD.update(m.model for m in listed if getattr(m, "remote_host", None) or m.model.split(":")[-1].endswith("cloud"))
+    names = [n for n in (m.model for m in listed) if "tools" in caps(n)]
+    label = lambda n: "☁ " + n.removesuffix(":cloud").removesuffix("-cloud") if is_cloud(n) else "★ " + n.removeprefix("joshua-").removesuffix(":latest") if n.startswith("joshua-") else n.removesuffix(":latest")
+    choices = [(label(n), n) for n in names if not (FAST in names and n in (FAST, MODEL, MODEL + ":latest"))]
+    if FAST in names and (MODEL in names or MODEL + ":latest" in names):
+        choices.insert(0, (agent.CONFIG.get("label", "qwen3-vl"), PAIR))
+    return choices or [(FAST, FAST)]
+
+
+def default_model():
+    local = [v for _, v in models() if not is_cloud(v)]
+    return (local or [models()[0][1]])[0]  # start on a local model; cloud is always a choice you make
+
+
+CLOUD_BADGE = "<div class='cloudbadge'>☁ Cloud model: messages go to Ollama's servers; everything stays stored here</div>"
+
+
+def badge(choice):
+    return CLOUD_BADGE if choice and is_cloud(resolve(choice, False)) else ""
+
+
+CLOUD_HELP = """Bigger models running on Ollama's servers, for when this computer is too small or slow.
+**What goes to the cloud:** for every message, the conversation so far, including the text of files and web pages Joshua reads, and your photos if you send them.
+**What stays here:** your chats, files, memory notes and trained models are stored only on this computer. Memory notes are sent only if you allow it in 🧠 Memory.
+Ollama says it never logs or trains on cloud prompts. That is a promise you are trusting, not something this computer can check.
+**Cost:** Ollama's free plan includes a small monthly allowance on some models (marked "free plan"); bigger models need credit or a paid plan on ollama.com."""
+
+
+def ollama_bin():
+    return shutil.which("ollama") or "/Applications/Ollama.app/Contents/Resources/ollama"
+
+
+def cloud_catalog():
+    """The cloud models Ollama offers today that can use tools, read from ollama.com (only model names, nothing of yours is sent)."""
+    import requests
+    try:
+        names = [m["name"] for m in requests.get("https://ollama.com/api/tags", timeout=15).json()["models"]]
+        info = {n: requests.post("https://ollama.com/api/show", json={"model": n}, timeout=15).json().get("capabilities", []) for n in names}
+    except Exception:
+        return gr.Dropdown(choices=[]), "<div class='cloudstat'>Couldn't reach ollama.com to list the cloud models.</div>"
+    free = {"gemma4:31b"}  # in Ollama's free plan (November 2026); Ollama names others in its error messages
+    choices = [(("👁 " if "vision" in c else "") + n + (" · free plan" if n in free else ""), n) for n, c in info.items() if "tools" in c]
+    choices.sort(key=lambda c: c[1] not in free)
+    return gr.Dropdown(choices=choices, value=None), ""
+
+
+def cloud_connect():
+    """'ollama signin' links this computer to an Ollama account by registering its key; it prints a page to open."""
+    import tempfile
+    try:
+        with tempfile.TemporaryFile("w+") as out:
+            p = subprocess.Popen([ollama_bin(), "signin"], stdout=out, stderr=out, text=True)
+            try:
+                p.wait(8)  # it waits for the browser approval; we only need the link it prints
+            except subprocess.TimeoutExpired:
+                p.kill()
+            out.seek(0)
+            out = out.read()
+    except Exception as e:
+        return f"<div class='cloudstat'>Couldn't run ollama signin: {html.escape(str(e))}</div>"
+    url = re.search(r"https://ollama\.com/connect\S+", out)
+    if url:
+        return f"<div class='cloudstat'>Open <a href='{html.escape(url[0])}' target='_blank'>this page</a>, sign in to Ollama and approve this computer. Then come back and choose a cloud model.</div>"
+    return f"<div class='cloudstat'>{html.escape(out.strip() or 'This computer is already connected to Ollama.')}</div>"
+
+
+# ---------- local models: what ollama.com offers that fits this computer ----------
+
+def memory_budget():
+    """GB a local model may use: the graphics card's memory on a Linux PC with an NVIDIA card, otherwise the computer's."""
+    if not agent.MAC:
+        try:
+            out = subprocess.run(["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=10).stdout
+            if out.strip():
+                return int(out.split()[0]) / 1024
+        except Exception:
+            pass
+    return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30
+
+
+def _model_tags(name):
+    """Downloadable versions of one model, read from its page on ollama.com: (tag, size in GB, sees images)."""
+    import requests
+    page = requests.get(f"https://ollama.com/library/{name}/tags", timeout=20).text
+    found = {}
+    for m in re.finditer(r'href="/library/(' + re.escape(name) + r':[\w.]+)"(.{0,1500}?)(?:href="/library/|$)', page, re.S):
+        tag, info = m[1], m[2]
+        size = re.search(r"([\d.]+)\s*GB", info)
+        size_tag = re.fullmatch(r"(e?\d+(\.\d+)?[bm](-a\d+(\.\d+)?b)?|latest)", tag.split(":")[1])  # 8b, 0.6b, e4b, 30b-a3b: one entry per size
+        if size and size_tag and "cloud" not in tag and tag not in found:
+            found[tag] = (float(size[1]), "Image" in info)
+    return [(t, gb, vision) for t, (gb, vision) in found.items()]
+
+
+def _tool_models(order, limit):
+    """Model names from ollama.com/library (sorted by popularity or newest) whose label says they can use tools."""
+    import requests
+    page = requests.get(f"https://ollama.com/library?sort={order}", timeout=20).text
+    cards = re.split(r'(?=<a href="/library/[\w.-]+")', page)[1:]
+    names = [re.match(r'<a href="/library/([\w.-]+)"', c)[1] for c in cards if re.search(r">\s*tools\s*</span>", c)]
+    return names[:limit]
+
+
+def local_catalog():
+    """Models on ollama.com that can use tools, in the versions that fit this computer's memory, biggest first."""
+    try:
+        names = list(dict.fromkeys(_tool_models("popular", 30) + _tool_models("newest", 12)))
+        with ThreadPoolExecutor(8) as pool:
+            tags = [t for ts in pool.map(lambda n: _try(_model_tags, n), names) for t in ts]
+    except Exception:
+        return gr.Dropdown(choices=[]), "<div class='cloudstat'>Couldn't reach ollama.com to list the models.</div>"
+    sized = {(t.split(":")[0], gb) for t, gb, _ in tags if not t.endswith(":latest")}
+    tags = [x for x in tags if not (x[0].endswith(":latest") and (x[0].split(":")[0], x[1]) in sized)]  # 'latest' is usually a copy of another size
+    budget, free = memory_budget(), shutil.disk_usage(pathlib.Path.home()).free / 2**30
+    have = {m.model for m in _try(lambda: ollama.list().models)}
+    fits = sorted({(gb, t, v) for t, gb, v in tags if gb * 1.2 + 2 <= budget}, reverse=True)
+    choices = [(("✓ " if t in have else "") + ("👁 " if v else "") + f"{t} · {gb:g} GB", t) for gb, t, v in fits]
+    note = f"{len(choices)} versions fit this computer ({budget:.0f} GB of memory for models, {free:.0f} GB free disk). Biggest first; 👁 = also sees images, ✓ = already here."
+    return gr.Dropdown(choices=choices, value=None), f"<div class='cloudstat'>{note}</div>"
+
+
+def _try(f, *a):
+    try:
+        return f(*a)
+    except Exception:
+        return []
+
+
+def local_download(tag):
+    """Downloads a model with Ollama, showing progress as it goes."""
+    if not tag:
+        yield gr.skip(), "<div class='cloudstat'>Pick a model first.</div>"
+        return
+    done = 0
+    try:
+        for p in ollama.pull(tag, stream=True):
+            if p.total:
+                done = int(100 * (p.completed or 0) / p.total)
+            yield gr.skip(), f"<div class='cloudstat'>Downloading {html.escape(tag)}: {done}% · {html.escape(p.status or '')}</div>"
+    except Exception as e:
+        yield gr.skip(), f"<div class='cloudstat'>Download failed: {html.escape(str(e))}</div>"
+        return
+    CAPS.pop(tag, None)
+    ok = "tools" in caps(tag)
+    yield gr.Dropdown(choices=models(), value=tag if ok else gr.skip()), f"<div class='cloudstat'>{html.escape(tag)} is ready" + (" and selected in the model menu." if ok else ", but it can't use Joshua's tools, so it isn't in the menu.") + "</div>"
+
+
+def local_update():
+    """Asks Ollama for the latest version of every local model: unchanged ones are skipped in seconds."""
+    names = [m.model for m in ollama.list().models if not is_cloud(m.model)]
+    for i, n in enumerate(names, 1):
+        yield f"<div class='cloudstat'>Checking {i} of {len(names)}: {html.escape(n)}…</div>"
+        try:
+            for _ in ollama.pull(n, stream=True):
+                pass
+        except Exception as e:
+            yield f"<div class='cloudstat'>{html.escape(n)}: {html.escape(str(e))}</div>"
+    CAPS.clear()
+    yield f"<div class='cloudstat'>All {len(names)} local models are up to date.</div>"
+
+
+# ---------- updates of Joshua itself ----------
+
+VERSION = (pathlib.Path(__file__).parent / "VERSION").read_text().strip() if (pathlib.Path(__file__).parent / "VERSION").exists() else "0"
+SITE = "https://ask.joshua.earth"
+
+
+def check_update():
+    """Asks ask.joshua.earth for the latest version number (nothing about you is sent)."""
+    import requests
+    try:
+        latest = requests.get(f"{SITE}/version.txt", timeout=6).text.strip()
+    except Exception:
+        return gr.skip(), gr.skip()
+    num = lambda v: tuple(int(x) for x in v.split(".") if x.isdigit())  # versions are dates plus a counter: 2026.11.08.3
+    if re.fullmatch(r"[\d.]+", latest) and num(latest) > num(VERSION):
+        return f"<div class='updnote'>Joshua {html.escape(latest)} is available (you have {html.escape(VERSION)}).</div>", gr.Button(visible=True)
+    return "", gr.Button(visible=False)
+
+
+def do_update():
+    """Downloads the new version over this one (your chats, files, memory and settings are left alone), then restarts."""
+    import io, requests, tarfile
+    here = pathlib.Path(__file__).parent
+    try:
+        data = requests.get(f"{SITE}/joshua.tar.gz", timeout=60).content
+        with tarfile.open(fileobj=io.BytesIO(data)) as t:
+            members = [m for m in t.getmembers() if m.isfile() and m.name.startswith("joshua/") and ".." not in m.name]
+            for m in members:
+                m.name = m.name.removeprefix("joshua/")
+                (here / m.name).unlink(missing_ok=True)  # replace the file rather than write into it (it may be read-only)
+                t.extract(m, here, filter="data")
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", str(here / "requirements.txt")], timeout=600)
+    except Exception as e:
+        return f"<div class='updnote'>Update failed: {html.escape(str(e))}</div>"
+    if os.environ.get("JOSHUA_SERVICE"):  # running from login: just quit, and the system starts the new version
+        threading.Timer(1, lambda: os._exit(0)).start()
+        return "<div class='updnote'>Updated. Joshua is restarting: reload this page in a few seconds.</div>"
+    start = pathlib.Path.home() / "AskJoshua" / "start.sh"
+    if start.exists():  # start again in a moment, from a separate process, then quit this one
+        subprocess.Popen(["/bin/sh", "-c", f"sleep 3; '{start}'"], env={**os.environ, "JOSHUA_NO_OPEN": "1"}, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        threading.Timer(1, lambda: os._exit(0)).start()
+        return "<div class='updnote'>Updated. Joshua is restarting: reload this page in a few seconds.</div>"
+    return "<div class='updnote'>Updated. Quit and start Joshua again to use the new version.</div>"
+
+
+def cloud_add_model(name):
+    if not name:
+        return gr.skip(), "<div class='cloudstat'>Pick a model first.</div>"
+    tag = name + ("-cloud" if ":" in name else ":cloud")  # Ollama's naming: gpt-oss:120b → gpt-oss:120b-cloud, kimi-k3 → kimi-k3:cloud
+    r = subprocess.run([ollama_bin(), "pull", tag], capture_output=True, text=True, timeout=120)
+    if r.returncode:
+        return gr.skip(), f"<div class='cloudstat'>Couldn't add {html.escape(tag)}: {html.escape((r.stderr or r.stdout)[-200:])}</div>"
+    CAPS.pop(tag, None)
+    return gr.Dropdown(choices=models(), value=tag), f"<div class='cloudstat'>Added ☁ {html.escape(name)}: it's selected in the model menu. Nothing was downloaded: it runs on Ollama's servers.</div>"
+
+
+def share_memory_setting(value=None):
+    """Whether cloud models may see the memory notes. Off unless you switch it on; stored in memory/settings.json."""
+    f = agent.MEM / "settings.json"
+    data = json.loads(f.read_text()) if f.exists() else {}
+    if value is not None:
+        data["share_with_cloud"] = bool(value)
+        f.parent.mkdir(exist_ok=True)
+        f.write_text(json.dumps(data))
+    return data.get("share_with_cloud", False)
+
+
+def resolve(choice, thinking):
+    if choice == PAIR:
+        return MODEL if thinking else FAST
+    return choice
+
+
+# ---------- conversation storage ----------
+
+def fdir(cid):
+    return ROOT / cid / "files"
+
+
+def wdir(cid):
+    project = load(cid).get("project")
+    return pathlib.Path(project) if project else fdir(cid)
+
+
+def load(cid):
+    p = ROOT / cid / "chat.json"
+    return json.loads(p.read_text()) if p.exists() else {"title": "", "updated": 0, "display": [], "llm": []}
+
+
+def save(cid, conv):
+    conv["updated"] = time.time()
+    (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))
+
+
+def new_conv():
+    cid = time.strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
+    fdir(cid).mkdir(parents=True)
+    save(cid, load(cid))
+    return cid
+
+
+def conv_choices():
+    convs = [(load(p.name), p.name) for p in ROOT.iterdir() if (p / "chat.json").exists()]
+    return [(("⏳ " if busy(cid) else "") + (c["title"] or "New chat"), cid) for c, cid in sorted(convs, key=lambda x: -x[0]["updated"])]
+
+
+def file_list(cid):
+    if not cid or not wdir(cid).exists():
+        return []
+    return sorted(str(p) for p in wdir(cid).iterdir() if p.is_file() and not p.name.startswith("."))[:200]
+
+
+# ---------- the agent loop (runs in a background thread per chat) ----------
+
+class Job:
+    def __init__(self, view):
+        self.view, self.version, self.running, self.stop = list(view), 0, True, threading.Event()
+        self.started = time.time()
+
+    def publish(self, view):
+        self.view = list(view)
+        self.version += 1
+
+
+JOBS = {}
+
+
+def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
+    for _ in range(25):
+        content, thought, calls, live = "", "", [], []
+        mode = {"model": model, "think": thinking} if "thinking" in caps(model) else {"model": model}
+        for chunk in ollama.chat(**mode, messages=msgs, tools=list(toolset.values()), stream=True, options={"num_ctx": 16384}):
+            thought += chunk.message.thinking or ""
+            content += chunk.message.content or ""
+            calls += chunk.message.tool_calls or []
+            live = [{"role": "assistant", "content": thought, "metadata": {"title": "💭 Thinking", "status": "done" if content or calls else "pending"}}] if thought else []
+            live += [{"role": "assistant", "content": content}] if content else []
+            yield shown + live
+            if stop.is_set():
+                break
+        shown += live
+        msgs.append({"role": "assistant", "content": content, "tool_calls": [{"function": {"name": c.function.name, "arguments": dict(c.function.arguments)}} for c in calls]})
+        if not calls or stop.is_set():
+            return
+        for c in calls:
+            name, args = c.function.name, dict(c.function.arguments)
+            box = {"role": "assistant", "content": f"```json\n{json.dumps(args, ensure_ascii=False, indent=2)}\n```", "metadata": {"title": f"{ICONS.get(name, '🔧')} {name}", "status": "pending"}}
+            yield shown + [box]
+            try:
+                result = str(toolset[name](**args))
+            except Exception as e:
+                result = f"Error: {e}"
+            box["content"] += f"\n**Result**\n```\n{result[:1500]}{'…' if len(result) > 1500 else ''}\n```"
+            box["metadata"]["status"] = "done"
+            shown.append(box)
+            if name in ("generate_image", "edit_image") and getattr(agent.CTX, "last_image", None):
+                shown.append({"role": "assistant", "content": {"path": agent.CTX.last_image}})
+                agent.CTX.last_image = None
+            called.append(name)
+            yield shown
+            msgs.append({"role": "tool", "tool_name": name, "content": result})
+        if {"goal_done", "give_up"} & set(called) or stop.is_set():
+            return
+
+
+# ---------- research first: search, read and check before answering ----------
+
+PLAN = """Today is {today}. Decide whether a good answer to the user's last message needs facts from the web: names, numbers, rankings, dates, news, prices, people, places, laws, or anything that may have changed. Greetings, opinions, creative writing, translation, coding, maths, and questions only about the user or about files in the chat don't need it.
+
+Recent conversation:
+{history}
+
+User's last message: {text}
+
+Reply in JSON. If a search is needed, give 1 to 3 short, specific web search queries in {language} that would find the exact answer (include names and places; only add a year when the question is about a specific time)."""
+PLAN_SCHEMA = {"type": "object", "properties": {"search": {"type": "boolean"}, "queries": {"type": "array", "items": {"type": "string"}}}, "required": ["search", "queries"]}
+USE_SOURCES = "\n\n---\nSources found on the web just now, for this question:\n\n{evidence}\n---\nAnswer my question using these sources and cite them like [1], only for facts that come from them. If they don't contain the answer, say so honestly instead of guessing. Write to me directly, in the second person, entirely in {language}."
+CHECK = """Sources:
+
+{evidence}
+
+Answer to check:
+
+{answer}
+
+List every specific factual claim in the answer (names, numbers, dates, rankings, places) that the sources above do NOT clearly support, or that they contradict. Facts about the user themself don't count. Reply in JSON; use an empty list if every claim is supported."""
+CHECK_SCHEMA = {"type": "object", "properties": {"unsupported": {"type": "array", "items": {"type": "string"}}}, "required": ["unsupported"]}
+CONFIRM = """Source excerpts:
+
+{lines}
+
+Claim: {claim}
+
+Do the source excerpts above clearly support this claim? Look carefully at names, numbers and rankings, including table rows. Reply in JSON."""
+CONFIRM_SCHEMA = {"type": "object", "properties": {"supported": {"type": "boolean"}}, "required": ["supported"]}
+FIX = "A fact check against the sources found these problems in your answer:\n- {problems}\nRewrite your answer for me: correct these points using only what the sources say, cite them like [1], and if the sources don't say it, tell me you couldn't verify it. Don't mention the fact check. Write in {language}."
+
+
+def fast_of(model):
+    return FAST if model == MODEL else model
+
+
+def ask_json(model, prompt, schema):
+    think = {"think": False} if "thinking" in caps(model) else {}
+    r = ollama.chat(model, messages=[{"role": "user", "content": prompt}], format=schema, options={"temperature": 0, "num_ctx": 16384}, **think)
+    return json.loads(r.message.content)
+
+
+def relevant(text, words, limit=2500):
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if sum(map(len, lines)) <= limit:
+        return "\n".join(lines)
+    ranked = sorted(range(len(lines)), key=lambda i: (-sum(w in lines[i].lower() for w in words), i))
+    keep, size = set(), 0
+    for i in ranked:
+        if size >= limit:
+            break
+        keep.add(i)
+        size += len(lines[i])
+    return "\n".join(lines[i] for i in sorted(keep))
+
+
+def research(text, msgs, model, language, region, box, publish):
+    """Returns numbered sources for the question, or None when no web facts are needed."""
+    history = "\n".join(f"{m['role'].upper()}: {str(m.get('content') or '')[:300]}" for m in msgs[-7:-1] if m["role"] in ("user", "assistant") and m.get("content"))
+    try:
+        plan = ask_json(fast_of(model), PLAN.format(today=agent.get_datetime(), history=history or "(none)", text=text, language=language or "the user's language"), PLAN_SCHEMA)
+    except Exception:
+        return None
+    if not plan.get("search"):
+        return None
+    queries = [q.strip() for q in plan.get("queries", []) if str(q).strip()][:3] or [text]
+    box["content"] = "Searching: " + " · ".join(f"*{q}*" for q in queries)
+    publish()
+    with ThreadPoolExecutor(3) as ex:
+        lists = list(ex.map(lambda q: agent.search_results(q, region), queries))
+    results, seen = [], set()
+    for group in zip_longest(*lists):
+        for r in group:
+            if r and r.get("href") and r["href"] not in seen:
+                seen.add(r["href"])
+                results.append(r)
+    if not results:
+        box["content"] += "\n\nNo results found."
+        return None
+    box["content"] += f"\n\nReading {min(3, len(results))} pages…"
+    publish()
+    pages = {}
+    with ThreadPoolExecutor(3) as ex:
+        futures = {ex.submit(agent.read_page, r["href"]): i for i, r in enumerate(results[:3])}
+        done, _ = wait(futures, timeout=25)
+        for f in done:
+            try:
+                pages[futures[f]] = f.result()
+            except Exception:
+                pass
+    words = {w.lower() for w in re.findall(r"\w{4,}", " ".join(queries) + " " + text)}
+    sources = []
+    for i, r in enumerate(results[:6]):
+        page = pages.get(i, "")
+        main, _, tables = page.partition("Tables on the page:")
+        body = (relevant(main, words, 1500) + ("\nTable:\n" + tables.strip()[:2000] if tables.strip() else "")) if len(page) > 200 else r.get("body", "")
+        sources.append(f"[{i + 1}] {r.get('title', '')}\n{r['href']}\n{body}")
+    box["content"] = "Searched: " + " · ".join(f"*{q}*" for q in queries) + "\n\n" + "\n".join(f"{i + 1}. [{r.get('title', r['href'])}]({r['href']})" + (" — read" if i in pages else "") for i, r in enumerate(results[:6]))
+    return "\n\n".join(sources)[:12000]
+
+
+def key_terms(claim):
+    numbers = {re.sub(r"[.,\s]", "", n) for n in re.findall(r"\d[\d.,\s]*\d|\d", claim)}
+    names = {w.lower() for w in re.findall(r"(?<![.!?]\s)(?<!^)\b[A-ZÀ-Ý][\wÀ-ÿ'’-]{2,}", claim)}
+    return {n for n in numbers if len(n) > 1}, names
+
+
+def invented(claim, evidence):
+    """True when the claim contains a number or name that appears nowhere in the sources."""
+    flat = re.sub(r"[.,\s]", "", evidence)
+    numbers, names = key_terms(claim)
+    return any(n not in flat for n in numbers) or any(n not in evidence.lower() for n in names)
+
+
+def claim_lines(evidence, claim, limit=1800):
+    numbers, names = key_terms(claim)
+    lines = [line for line in evidence.splitlines() if line.strip()]
+    strong = [line for line in lines if any(n in re.sub(r"[.,\s]", "", line) for n in numbers) or any(n in line.lower() for n in names)]
+    out = "\n".join(strong)[:limit]
+    return out if out else relevant(evidence, {w.lower() for w in re.findall(r"\w{4,}", claim)}, limit)
+
+
+def last_answer(shown):
+    for m in reversed(shown):
+        if m["role"] == "assistant" and not m.get("metadata") and isinstance(m.get("content"), str):
+            return m
+    return None
+
+
+def verify(evidence, msgs, shown, toolset, model, thinking, language, job):
+    target = last_answer(shown)
+    if not target or not target["content"].strip():
+        return
+    box = {"role": "assistant", "content": "Checking the answer against the sources…", "metadata": {"title": "🔍 Fact check", "status": "pending"}}
+    shown.append(box)
+    job.publish(shown)
+    try:
+        flagged = [str(p) for p in ask_json(fast_of(model), CHECK.format(evidence=evidence, answer=target["content"]), CHECK_SCHEMA).get("unsupported", []) if str(p).strip()][:4]
+    except Exception:
+        flagged = []
+    problems = []
+    for claim in flagged:
+        if not invented(claim, evidence):
+            continue
+        try:
+            if not ask_json(fast_of(model), CONFIRM.format(lines=claim_lines(evidence, claim), claim=claim), CONFIRM_SCHEMA).get("supported"):
+                problems.append(claim)
+        except Exception:
+            pass
+    box["metadata"]["status"] = "done"
+    if not problems:
+        box["content"], box["metadata"]["title"] = "Every claim in the answer is supported by the sources.", "✅ Checked against sources"
+        return
+    box["content"], box["metadata"]["title"] = "Not supported by the sources:\n" + "\n".join(f"- {p}" for p in problems), "⚠️ Fact check: corrected below"
+    target["metadata"] = {"title": "📝 First draft (corrected below)", "status": "done"}
+    msgs.append({"role": "user", "content": FIX.format(problems="\n- ".join(problems), language=language or "the user's language")})
+    for view in agent_turn(msgs, shown, toolset, model, thinking, job.stop, []):
+        job.publish(view)
+
+
+# ---------- swarm mode ----------
+
+STYLES = ["Work methodically and double-check each step.", "Look for an angle the others might miss.", "Be skeptical: verify facts with your tools before stating them.", "Focus on the most practical, concrete answer.", "Think about what could go wrong or be misunderstood.", "Keep it simple and get to the core of the question."]
+TEMPS = [0.6, 0.9, 0.7, 1.0, 0.8, 1.1]
+SYNTH = "Your team of {n} agents worked on my last request independently. Their answers:\n\n{report}\n\nNow write the single best final answer for me. Agreement is not proof: if a fact isn't backed by a source the agents actually read, check it yourself with web_search and read_page. Combine their strongest points, resolve disagreements, and drop anything wrong. Write directly to me, in the second person, in the language of my request, as if you had answered alone: no notes about the agents or your process."
+
+
+def swarm_agent(k, n, model, thinking, base, box, answers, stop, work, net, timeout, toolset, region):
+    agent.set_workspace(work, net, int(timeout), region)
+    agent.CTX.vision = model if "vision" in caps(model) else FAST
+    msgs = base
+    msgs[0] = {"role": "system", "content": msgs[0]["content"] + f" You are agent {k + 1} of {n} in a team answering the same request independently; a reviewer will compare your answers. {STYLES[k % len(STYLES)]} Back every fact with a tool result and say where it comes from. Only create files if the user asked for them. End with your complete answer, addressed to the user."}
+    opts = {"num_ctx": 16384, "temperature": TEMPS[k % len(TEMPS)]}
+    think = {"think": thinking} if "thinking" in caps(model) else {}
+    log = []
+    try:
+        for _ in range(15):
+            if stop.is_set():
+                break
+            m = ollama.chat(model, messages=msgs, tools=list(toolset.values()), options=opts, **think).message
+            calls = m.tool_calls or []
+            msgs.append({"role": "assistant", "content": m.content or "", "tool_calls": [{"function": {"name": c.function.name, "arguments": dict(c.function.arguments)}} for c in calls]})
+            if not calls:
+                answers[k] = m.content or ""
+                break
+            for c in calls:
+                name, args = c.function.name, dict(c.function.arguments)
+                log.append(f"{ICONS.get(name, '🔧')} {name} `{json.dumps(args, ensure_ascii=False)[:100]}`")
+                box["content"] = "Working…\n\n" + "\n".join(f"- {line}" for line in log)
+                try:
+                    result = str(toolset[name](**args))
+                except Exception as e:
+                    result = f"Error: {e}"
+                msgs.append({"role": "tool", "tool_name": name, "content": result})
+    except Exception as e:
+        answers[k] = None
+        log.append(f"⚠️ {e}")
+    steps = "\n".join(f"- {line}" for line in log)
+    box["content"] = (steps + "\n\n---\n\n" if steps else "") + (answers[k] or "(no answer)")
+    box["metadata"]["status"] = "done"
+
+
+def run_swarm(job, cid, conv, model, thinking, n, pool, net, timeout, toolset):
+    shown, msgs = conv["display"], conv["llm"]
+    work = conv.get("project") or fdir(cid)
+    answers, threads = [None] * n, []
+    for k in range(n):
+        m = pool[k % len(pool)]
+        box = {"role": "assistant", "content": "Working…", "metadata": {"title": f"🐝 Agent {k + 1} · {m.removesuffix(':latest')}", "status": "pending"}}
+        shown.append(box)
+        t = threading.Thread(target=swarm_agent, args=(k, n, m, thinking, copy.deepcopy(msgs), box, answers, job.stop, work, net, timeout, toolset, conv.get("region", "wt-wt")), daemon=True)
+        t.start()
+        threads.append(t)
+    while any(t.is_alive() for t in threads):
+        job.publish(shown)
+        time.sleep(0.5)
+    job.publish(shown)
+    if job.stop.is_set():
+        return
+    report = "\n\n".join(f"### Agent {k + 1} ({pool[k % len(pool)]})\n{a or '(no answer)'}" for k, a in enumerate(answers))
+    judge = msgs + [{"role": "user", "content": SYNTH.format(n=n, report=report)}]
+    for view in agent_turn(judge, shown, toolset, model, thinking, job.stop, []):
+        job.publish(view)
+    final = next((m["content"] for m in reversed(judge) if m["role"] == "assistant" and m["content"]), "")
+    msgs.append({"role": "assistant", "content": final})
+
+
+# ---------- long-term memory ----------
+
+EXTRACT = """You keep long-term memory notes about the user of an AI assistant. The current notes:
+
+{notes}
+
+The latest exchange:
+USER: {user}
+ASSISTANT: {answer}
+
+Does the USER message reveal lasting facts worth knowing in future chats: who they are, their work, ongoing projects, stable preferences about how they want answers? Rules: save only what the user explicitly stated, never guesses or things the assistant said; skip anything temporary, trivial, or already in the notes; never save passwords, ID or card numbers, or health details. Most exchanges contain nothing to save.
+
+Reply with JSON only, like {{"save": [{{"topic": "profile", "fact": "Works as a journalist"}}]}}. Use topic "profile" for personal facts and preferences, or a short lowercase topic name for a specific project. Reply {{"save": []}} if there is nothing to save."""
+
+
+def extract_memory(model, user, answer):
+    try:
+        notes = "\n\n".join(f"## {t}\n{agent.read_memory(t)}" for t in agent.memory_topics()) or "(empty)"
+        prompt = EXTRACT.format(notes=notes[:6000], user=user[:3000], answer=answer[:2000])
+        think = {"think": False} if "thinking" in caps(model) else {}
+        r = ollama.chat(model, messages=[{"role": "user", "content": prompt}], format="json", options={"temperature": 0}, **think)
+        for item in json.loads(r.message.content).get("save", [])[:5]:
+            if isinstance(item, dict) and str(item.get("fact", "")).strip():
+                agent.remember(str(item["fact"]), str(item.get("topic") or "profile"))
+    except Exception:
+        pass
+
+
+def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0, pool=(), mem=True, user_text="", offline=False, private=False):
+    net = net and not offline
+    agent.set_workspace(conv.get("project") or fdir(cid), net, int(timeout), conv.get("region", "wt-wt"))
+    agent.CTX.vision = model if "vision" in caps(model) else FAST
+    shown, msgs = conv["display"], conv["llm"]
+    base = {k: v for k, v in tools.items() if (mem and not private or k not in agent.MEMORY_TOOLS) and not (offline and k in ("web_search", "read_page"))}
+    toolset = dict(base, goal_done=goal_done, give_up=give_up) if goal else base
+    rounds = 0 if swarm else int(rounds) if goal else 1
+    language = agent.LANGUAGES.get(conv.get("lang"))
+    evidence = None
+    try:
+        if not offline and user_text:
+            box = {"role": "assistant", "content": "Deciding whether this needs a web search…", "metadata": {"title": "🔎 Research", "status": "pending"}}
+            shown.append(box)
+            job.publish(shown)
+            evidence = research(user_text, msgs, model, language, conv.get("region", "wt-wt"), box, lambda: job.publish(shown))
+            box["metadata"]["status"] = "done"
+            if evidence:
+                asked, original = msgs[-1], msgs[-1]["content"]
+                asked["content"] = original + USE_SOURCES.format(evidence=evidence, language=language or "my language")
+            else:
+                shown.remove(box)
+            job.publish(shown)
+        if swarm:
+            run_swarm(job, cid, conv, model, thinking, int(swarm), pool, net, timeout, base)
+            if job.stop.is_set():
+                shown.append({"role": "assistant", "content": "You stopped this task. Send a message to continue.", "metadata": {"title": "⏹ Stopped", "status": "done"}})
+        for r in range(1, rounds + 1):
+            called = []
+            for view in agent_turn(msgs, shown, toolset, model, thinking, job.stop, called):
+                job.publish(view)
+            save(cid, conv)
+            if job.stop.is_set():
+                shown.append({"role": "assistant", "content": "You stopped this task. Send a message to continue.", "metadata": {"title": "⏹ Stopped", "status": "done"}})
+                break
+            if not goal or {"goal_done", "give_up"} & set(called):
+                break
+            if r == rounds:
+                shown.append({"role": "assistant", "content": f"The goal wasn't marked as done after {rounds} rounds. Send a message to continue.", "metadata": {"title": "⏹ Stopped", "status": "done"}})
+                break
+            shown.append({"role": "assistant", "content": "Not marked as done yet, continuing.", "metadata": {"title": f"🔁 Round {r + 1} of {rounds}", "status": "done"}})
+            msgs.append({"role": "user", "content": NUDGE})
+            job.publish(shown)
+        if evidence and not goal and not job.stop.is_set():
+            verify(evidence, msgs, shown, base, model, thinking, language, job)
+        final = last_answer(shown) if evidence else None
+        if final:
+            cited = set(re.findall(r"\[(\d+)\]", final["content"]))
+            refs = [f"[{n}] [{t.strip()[:80]}]({u})" for n, t, u in re.findall(r"^\[(\d+)\] (.*)\n(https?://\S+)", evidence, re.M) if n in cited]
+            if refs:
+                final["content"] += "\n\n**Sources**  \n" + "  \n".join(refs)
+        if evidence:
+            asked["content"] = original + "\n\n(Web sources consulted: " + ", ".join(re.findall(r"^https?://\S+", evidence, re.M)) + ")"
+    except Exception as e:
+        text = str(e)
+        low = text.lower()
+        if is_cloud(model) and ("unauthorized" in low or "401" in low):
+            text = "This cloud model needs your computer to be connected to an Ollama account. Open **☁ Cloud models** in the right column and press **Connect**."
+        elif is_cloud(model) and any(w in low for w in ("free usage", "free plan", "402", "payment", "billing", "credit", "subscription", "insufficient", "balance")):
+            free = re.search(r"[Tt]ry ([\w.:-]+)", text)  # Ollama suggests a model that is in the free plan
+            text = ("This cloud model isn't included in your Ollama plan." + (f" **{free[1]}** is in the free plan: add it from **☁ Cloud models** and pick it in the menu." if free else "")
+                    + " For bigger models, add credit (pay as you go) or a plan on [ollama.com](https://ollama.com/settings). Local models keep working for free.\n\nOllama's message: " + text)
+        elif is_cloud(model) and any(w in low for w in ("429", "quota", "usage limit", "rate limit", "too many requests")):
+            text = "Ollama's cloud refused this request: you've reached your plan's usage limit or too many requests are running. Wait a moment, check your usage on [ollama.com](https://ollama.com/settings), or switch to a local model."
+        shown.append({"role": "assistant", "content": text, "metadata": {"title": "⚠️ Error", "status": "done"}})
+    finally:
+        save(cid, conv)
+        job.running = False
+        job.publish(shown)
+    if mem and user_text and not job.stop.is_set():
+        answer = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant" and m.get("content")), "")
+        # memory notes are always written by a model on this computer, even after a cloud answer
+        local = FAST if is_cloud(model) else resolve(conv.get("model") or model, False) if conv.get("model") == PAIR else model
+        if not is_cloud(local) or share_memory_setting():  # cloud-only installs: learn only if you let cloud models see your notes
+            extract_memory(local, user_text, answer)
+
+
+def busy(cid):
+    return cid in JOBS and JOBS[cid].running
+
+
+def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem=False):
+    message = message or {}
+    text = (message.get("text") or "").strip()
+    files = message.get("files") or []
+    if not text and not files:
+        return gr.skip(), *SKIP
+    if busy(cid):
+        gr.Warning("This chat is still working. Wait for it to finish, press Stop, or start a new chat.")
+        return gr.skip(), *SKIP
+    choice, model = model, resolve(model, thinking)
+    cloud = is_cloud(model)
+    if cloud and offline:
+        gr.Warning("No internet is on, so a cloud model can't be used. Pick a local model, or untick No internet.")
+        return gr.skip(), *SKIP
+    if thinking and "thinking" not in caps(model):
+        gr.Info(f"{model} can't do deep thinking, so it will answer normally.")
+    cid = cid or new_conv()
+    conv = load(cid)
+    conv["model"] = choice
+    if cloud and conv.get("cloud_notice") != model:  # say it once in the chat, each time a new cloud model is picked
+        conv["cloud_notice"] = model
+        conv["display"].append({"role": "assistant", "content": f"☁ *From here on this chat is answered by **{model}** on Ollama's servers: each message sends the conversation there, including the text of files and pages Joshua reads." + ("" if cloudmem else " Your memory notes are not sent.") + " Everything stays stored only on this computer.*"})
+    conv["lang"] = agent.lang_for(text, conv.get("lang"))
+    conv["region"] = agent.REGIONS.get(conv["lang"], "wt-wt") if conv["lang"] else "wt-wt"
+    language = agent.LANGUAGES.get(conv["lang"])
+    work = pathlib.Path(conv.get("project") or fdir(cid))
+    shown, msgs = conv["display"], conv["llm"]
+    names, images = [], []
+    for f in files:
+        src = pathlib.Path(f if isinstance(f, str) else f["path"])
+        dst = work / src.name
+        shutil.copy(src, dst)
+        names.append(src.name)
+        shown.append({"role": "user", "content": {"path": str(dst)}})
+        if dst.suffix.lower() in IMAGES and "vision" in caps(model):
+            images.append(str(dst))
+    if text:
+        shown.append({"role": "user", "content": ("🐝 " if swarm else "🎯 " if goal else "") + text})
+    conv["title"] = conv["title"] or (text or names[0])[:48]
+    where = f" Your workspace is the user's project folder {work}; use list_files to explore it and edit files with care." if conv.get("project") else ""
+    online = " You have no internet access in this chat: you cannot search or read web pages, so answer from what you know and say when something may be out of date." if offline else "" if net else " Code you run has no internet access."
+    online += f" The user writes in {language}: always reply in {language}." if language else ""
+    system = {"role": "system", "content": SYSTEM.format(now=agent.get_datetime()) + where + online + (GOAL_RULES if goal and not swarm else "") + (agent.memory_prompt() if mem and (cloudmem or not cloud) else "")}
+    if msgs and msgs[0]["role"] == "system":
+        msgs[0] = system
+    else:
+        msgs.insert(0, system)
+    note = f"\n\n(Files saved in the workspace: {', '.join(names)})" if names else ""
+    goal = goal and not swarm
+    msgs.append({"role": "user", "content": ("GOAL: " if goal else "") + text + note, "images": images})
+    pool = [model] + [m for m in dict.fromkeys(resolve(v, thinking) for _, v in models()) if m != model and (cloud or not is_cloud(m))]  # a local chat never borrows a cloud model
+    save(cid, conv)
+    JOBS[cid] = job = Job(shown)
+    threading.Thread(target=worker, args=(job, cid, conv, model, thinking, goal, rounds, net, timeout, int(agents) if swarm else 0, pool, mem, text, offline, cloud and not cloudmem), daemon=True).start()
+    return shown, None, cid, gr.Radio(choices=conv_choices(), value=cid), file_list(cid)
+
+
+def stop_chat(cid):
+    if busy(cid):
+        JOBS[cid].stop.set()
+
+
+# ---------- sidebar actions ----------
+
+def files_label(cid):
+    project = cid and load(cid).get("project")
+    return gr.File(value=file_list(cid), label=f"Project: {pathlib.Path(project).name}" if project else "Files in this chat")
+
+
+def open_conv(cid):
+    conv = load(cid)
+    view = JOBS[cid].view if busy(cid) else conv["display"]
+    used = conv.get("model")
+    return view, cid, files_label(cid), conv.get("project", ""), used if used in [v for _, v in models()] else gr.skip()
+
+
+def new_chat():
+    return [], None, gr.Radio(choices=conv_choices(), value=None), files_label(None), ""
+
+
+def set_project(path, cid):
+    if busy(cid):
+        gr.Warning("Wait for this chat to finish before changing its folder.")
+        return gr.skip(), gr.skip(), gr.skip(), gr.skip()
+    path = (path or "").strip()
+    if path:
+        p = pathlib.Path(path).expanduser().resolve()
+        if not p.is_dir():
+            gr.Warning(f"Folder not found: {p}")
+            return gr.skip(), gr.skip(), gr.skip(), gr.skip()
+        path = str(p)
+    if not cid and not path:
+        return gr.skip(), gr.skip(), gr.skip(), gr.skip()
+    cid = cid or new_conv()
+    conv = load(cid)
+    conv["project"] = path
+    conv["title"] = conv["title"] or (f"📁 {pathlib.Path(path).name}" if path else "")
+    save(cid, conv)
+    return files_label(cid), cid, gr.Radio(choices=conv_choices(), value=cid), path
+
+
+def upload_files(paths, cid):
+    cid = cid or new_conv()
+    for p in map(pathlib.Path, paths or []):
+        if p.parent != wdir(cid):
+            shutil.copy(p, wdir(cid) / p.name)
+    return file_list(cid), cid, gr.Radio(choices=conv_choices(), value=cid)
+
+
+def delete_file(cid, ev: gr.DeletedFileData):
+    if cid:
+        name = pathlib.Path(ev.file.orig_name or ev.file.path).name
+        (wdir(cid) / name).unlink(missing_ok=True)
+    return gr.skip()
+
+
+def mem_view(topic=None):
+    topics = agent.memory_topics() or ["profile"]
+    topic = topic if topic in topics else ("profile" if "profile" in topics else topics[0])
+    path = agent._mem(topic)
+    return gr.Dropdown(choices=topics, value=topic), path.read_text() if path.exists() else ""
+
+
+def mem_save(topic, text):
+    with agent.MEM_LOCK:
+        path = agent._mem(topic or "profile")
+        path.write_text(text.strip() + "\n") if text.strip() else path.unlink(missing_ok=True)
+    gr.Info("Memory saved." if text.strip() else f"Deleted the '{topic}' notes.")
+    return mem_view(topic)
+
+
+STEPS = {"web_search": "searching the web", "read_page": "reading a web page", "run_python": "running code", "install_package": "installing a package",
+         "list_files": "browsing files", "read_file": "reading a file", "write_file": "writing a file", "look_at_image": "looking at an image",
+         "generate_image": "generating an image (a minute or two)", "edit_image": "editing the image (several minutes)", "remember": "updating memory",
+         "forget": "updating memory", "read_memory": "reading memory", "get_datetime": "checking the date", "goal_done": "wrapping up", "give_up": "wrapping up",
+         "Research": "researching: searching and reading sources", "Fact check": "fact-checking the answer", "Thinking": "thinking"}
+
+
+def status_html(cid):
+    job = JOBS.get(cid)
+    if not job or not job.running:
+        return ""
+    step, last = "starting", job.view[-1] if job.view else {}
+    meta = last.get("metadata") or {} if isinstance(last, dict) else {}
+    if meta.get("title"):
+        name = meta["title"].split(" ", 1)[-1]
+        step = "running a swarm of agents" if name.startswith("Agent ") else STEPS.get(name, name.lower())
+    elif isinstance(last, dict) and last.get("role") == "assistant":
+        step = "writing the answer"
+    secs = int(time.time() - job.started)
+    return f"<div class='working'><span class='wdot'></span>JOSHUA IS WORKING · {html.escape(step)} · {secs // 60}:{secs % 60:02d}</div>"
+
+
+def delete_chat(cid):
+    nothing = (gr.skip(),) * 5
+    if not cid or not (ROOT / cid).exists():
+        return nothing
+    if busy(cid):
+        gr.Warning("This chat is still working. Press Stop first, then delete it.")
+        return nothing
+    title = re.sub(r"[^\w -]+", "", load(cid)["title"] or "chat")[:40].strip() or "chat"
+    dest = f"Joshua chat - {title} - {cid}"
+    try:
+        if agent.MAC:
+            shutil.move(str(ROOT / cid), str(pathlib.Path.home() / ".Trash" / dest))
+        else:  # the Linux desktop Trash: the files, plus a note saying where they came from
+            trash = pathlib.Path.home() / ".local" / "share" / "Trash"
+            (trash / "files").mkdir(parents=True, exist_ok=True), (trash / "info").mkdir(parents=True, exist_ok=True)
+            (trash / "info" / f"{dest}.trashinfo").write_text(f"[Trash Info]\nPath={ROOT / cid}\nDeletionDate={time.strftime('%Y-%m-%dT%H:%M:%S')}\n")
+            shutil.move(str(ROOT / cid), str(trash / "files" / dest))
+    except Exception:
+        shutil.rmtree(ROOT / cid, ignore_errors=True)
+    JOBS.pop(cid, None)
+    gr.Info("Chat deleted (moved to the Trash).")
+    return new_chat()
+
+
+SEEN = {}
+
+
+def poll(cid, request: gr.Request):
+    """Called every second by each open page: sends only what changed (chat view, chat list, files)."""
+    seen = SEEN.setdefault(request.session_hash, {})
+    out = []
+    job = JOBS.get(cid)
+    sig = (cid, job.version) if job else None
+    out.append(job.view if job and seen.get("view") != sig else gr.skip())
+    seen["view"] = sig
+    choices = conv_choices()
+    out.append(gr.Radio(choices=choices, value=cid) if seen.get("list") != choices else gr.skip())
+    seen["list"] = choices
+    cur = file_list(cid)
+    fsig = (cid, tuple((p, os.path.getmtime(p)) for p in cur))
+    out.append(cur if seen.get("files") != fsig else gr.skip())
+    seen["files"] = fsig
+    status = status_html(cid)
+    out.append(status if seen.get("status") != status else gr.skip())
+    seen["status"] = status
+    return out
+
+
+CSS = """
+body:not([data-screen="green"]):not([data-screen="amber"]):not([data-screen="modern"]):not([data-screen="modern-night"]):not([data-screen="blue"]):not([data-screen="black"]):not([data-screen="white"]) {--bg: #dfdbc3; --bg-hi: #e9e5cf; --panel: #e7e3cc; --codebg: #d4cfb3; --line: rgba(90, 60, 40, .45); --cyan: #9c3b1c; --glow: transparent; --ink: #3b2322; --dim: #7a6250; --amber: #9c3b1c; --red: #b3261e; --codeink: #3b2322; --shadow: none}
+body[data-screen="black"] {--bg: #000308; --bg-hi: #040a14; --panel: #050a14; --codebg: #02050a; --line: #8fe9ff; --cyan: #8fe9ff; --glow: rgba(80, 200, 255, .55); --ink: #a6e6ff; --dim: #5d8ea6; --amber: #ffb347; --red: #ff5a4e; --codeink: #59f08a; --shadow: 0 0 8px rgba(80, 200, 255, .55); --check: #ffb347}
+body[data-screen="black"] {--bw: 2px; --panel-shadow: 0 0 8px var(--glow), inset 0 0 18px rgba(80, 200, 255, .12); --case: uppercase; --tglow: 0 0 3px rgba(120, 220, 255, .35); --flick: flick 3s infinite; --pbw: 2px; --pline: var(--amber); --pglow: 0 0 8px rgba(255, 179, 71, .35)}
+body[data-screen="black"]::after {content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, .22) 0, rgba(0, 0, 0, .22) 1px, transparent 1px, transparent 3px)}
+body {--bw: 1px; --panel-shadow: 0 0 8px var(--glow); --case: none; --tglow: none; --flick: none; --pbw: 1px; --pline: color-mix(in srgb, var(--amber) 70%, transparent); --pglow: 0 0 5px color-mix(in srgb, var(--amber) 25%, transparent)}
+body[data-screen="white"] {--bg: #ffffff; --bg-hi: #ffffff; --panel: #fbfbfb; --codebg: #f1f1f1; --line: rgba(0, 0, 0, .26); --cyan: #000000; --glow: transparent; --ink: #141414; --dim: #6b6b6b; --amber: #1f5fbf; --red: #c4271d; --codeink: #141414; --shadow: none}
+body[data-screen="green"] {--bg: #0e1a14; --bg-hi: #1a3024; --panel: #13241b; --codebg: #09130e; --line: rgba(140, 255, 180, .42); --cyan: #8dffb4; --glow: rgba(120, 255, 170, .2); --ink: #d4f7df; --dim: #86b096; --amber: #ffd27a; --red: #ff6b5e; --codeink: #8dffb4; --shadow: 0 0 6px rgba(120, 255, 170, .35)}
+body[data-screen="amber"] {--bg: #1c120c; --bg-hi: #2e1d13; --panel: #25170f; --codebg: #140c07; --line: rgba(255, 180, 100, .45); --cyan: #ffb866; --glow: rgba(255, 170, 80, .2); --ink: #ffe5c8; --dim: #bf9370; --amber: #9fe3ff; --red: #ff6b5e; --codeink: #ffd08a; --shadow: 0 0 6px rgba(255, 170, 80, .35)}
+body[data-screen="blue"] {--bg: #08101b; --bg-hi: #10203a; --panel: #0d1625; --codebg: #060b14; --line: rgba(143, 233, 255, .5); --cyan: #8fe9ff; --glow: rgba(80, 200, 255, .26); --ink: #d6ecf5; --dim: #7fa3b5; --amber: #ffbf66; --red: #ff6b5e; --codeink: #6fe8a0; --shadow: 0 0 6px rgba(80, 200, 255, .4)}
+:root body, :root body .dark {--green: #6fe8a0; --checkbox-background-color-selected: var(--check, var(--cyan)); --checkbox-border-color-selected: var(--check, var(--cyan)); --checkbox-border-color: var(--dim); --slider-color: var(--cyan); --button-primary-background-fill: var(--panel); --button-primary-text-color: var(--cyan); --button-primary-border-color: var(--line);
+  --body-background-fill: var(--bg); --background-fill-primary: var(--panel); --background-fill-secondary: var(--codebg); --block-background-fill: var(--panel); --block-label-background-fill: var(--panel);
+  --input-background-fill: var(--codebg); --body-text-color: var(--ink); --body-text-color-subdued: var(--dim); --border-color-primary: var(--line); --block-border-color: var(--line); --input-border-color: var(--line);
+  --block-label-text-color: var(--cyan); --block-title-text-color: var(--cyan); --button-secondary-background-fill: var(--panel); --button-secondary-text-color: var(--ink); --checkbox-background-color: var(--codebg);
+  --link-text-color: var(--amber); --color-accent-soft: var(--panel); --table-even-background-fill: var(--panel); --table-odd-background-fill: var(--codebg)}
+body, .gradio-container {background: radial-gradient(ellipse at 50% 40%, var(--bg-hi) 0%, var(--bg) 80%) fixed !important; color: var(--ink)}
+footer {display: none !important}
+.gradio-container {max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important}
+.gradio-container .main.fillable {padding-left: 12px !important; padding-right: 12px !important}
+
+.gradio-container, .gradio-container *:not(svg):not(path) {font-family: 'VT323', ui-monospace, Menlo, monospace !important}
+.gradio-container {font-size: 19px !important}
+.gradio-container .prose, .gradio-container .prose * {font-size: 1.32rem !important; line-height: 1.32 !important}
+.gradio-container .prose pre, .gradio-container .prose pre *, .gradio-container .prose code {font-size: 1.22rem !important; line-height: 1.25 !important}
+.side label > span, #convs label, .side .label-wrap span, .side button {font-size: 1.2rem !important}
+.side .info, .side [data-testid="block-info"] {font-size: 1.02rem !important; line-height: 1.15 !important}
+#promptrow textarea {font-size: 1.3rem !important}
+#chat .placeholder, #chat .placeholder * {font-size: 1.6rem !important; color: var(--ink); letter-spacing: .06em}
+/* glowing wall-screen panels */
+.side, #chat {background: color-mix(in srgb, var(--panel) 88%, transparent) !important; border: var(--bw) solid var(--line) !important; border-radius: 4px !important; box-shadow: var(--panel-shadow) !important}
+.gradio-container * {text-shadow: var(--tglow)}
+.side label > span, .side .label-wrap span, #convs label, #chat .placeholder * {text-transform: var(--case)}
+#chat .placeholder {padding: 28px 36px !important; box-sizing: border-box}
+#chat .bubble-wrap {padding: 14px 18px !important; box-sizing: border-box}
+#promptrow .form {border: none !important; box-shadow: none !important; background: transparent !important}
+/* clearer separators */
+.opt {border: none !important; border-bottom: 1px dashed color-mix(in srgb, var(--line) 55%, transparent) !important; border-radius: 0 !important; padding-bottom: 10px !important}
+#chat .message-row {margin: 12px 0 !important}
+#chat .message-row + .message-row {border-top: 1px dashed color-mix(in srgb, var(--line) 45%, transparent); padding-top: 12px}
+.message.bot, .message.user {padding: 12px 14px !important}
+.prose hr {border: none !important; border-top: 1px dashed var(--line) !important; margin: 14px 0 !important}
+/* code snippets: their own framed block */
+.message.bot pre, .message.user pre, .prose pre {background: var(--codebg) !important; border: 1px solid var(--line) !important; border-left: 3px solid var(--cyan) !important; border-radius: 3px !important; padding: 12px 14px !important; margin: 14px 0 !important; overflow-x: auto; box-shadow: inset 0 0 10px rgba(0, 0, 0, .35) !important}
+.message.bot pre code, .prose pre code {color: var(--codeink) !important}
+.message.bot :not(pre) > code, .prose :not(pre) > code {background: var(--codebg) !important; border: 1px solid color-mix(in srgb, var(--line) 60%, transparent) !important; border-radius: 3px; padding: 1px 5px; color: var(--cyan) !important}
+#screen {background: transparent !important; border: none !important; box-shadow: none !important; padding: 4px 2px 0 !important}
+#screen .wrap {gap: 4px; flex-wrap: wrap; border: none !important}
+.side .info-text {font-size: 1.05rem !important; line-height: 1.1 !important; color: var(--dim) !important}
+.side .label-wrap, .side .label-wrap * {color: var(--ink) !important}
+textarea::placeholder {color: var(--dim) !important; opacity: .85}
+.status {letter-spacing: .06em !important}
+#screen label {padding: 1px 7px !important; font-size: 1rem !important; border: 1px solid var(--line) !important; border-radius: 2px !important; background: transparent !important; color: var(--dim) !important; box-shadow: none !important; text-transform: uppercase; letter-spacing: .06em}
+#screen label.selected {color: var(--bg) !important; background: var(--cyan) !important}
+#screen input {display: none}
+.side {padding: 12px !important}
+#brand {font-size: 3rem !important; letter-spacing: .1em; color: var(--ink); padding: 2px 4px 0; text-shadow: var(--shadow); line-height: 1}
+#brand::after {color: var(--cyan)}
+#brand::after {content: "█"; margin-left: 4px; animation: blink 1.1s steps(1) infinite}
+@keyframes blink {50% {opacity: 0}}
+.lights {display: flex; gap: 5px; padding: 2px 6px 10px}
+.lights span {width: 14px; height: 5px; border-radius: 1px; box-shadow: 0 0 3px currentColor; background: currentColor; opacity: .85; animation: var(--flick)}
+.lights span:nth-child(1) {color: var(--green)} .lights span:nth-child(2) {color: var(--cyan); animation-delay: .7s} .lights span:nth-child(3) {color: var(--amber); animation-delay: 1.3s} .lights span:nth-child(4) {color: var(--red); animation-delay: 2.1s} .lights span:nth-child(5) {color: #5aa0ff; animation-delay: .4s}
+@keyframes flick {0%, 100% {opacity: 1} 45% {opacity: .35} 50% {opacity: 1}}
+.status {font-size: .7rem; color: var(--dim); letter-spacing: .1em; padding: 0 6px 8px}
+/* uppercase console labels */
+#newchat, #stop {text-transform: uppercase; letter-spacing: .06em}
+.side .info, .side [data-testid="block-info"] {color: var(--dim) !important; font-size: .78rem}
+#newchat {justify-content: flex-start; border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important}
+#newchat:hover {background: color-mix(in srgb, var(--cyan) 12%, transparent) !important}
+#convs {background: transparent !important; border: none !important; padding: 0 !important; box-shadow: none !important}
+#convs .wrap {flex-direction: column; gap: 1px; border: none !important; box-shadow: none !important}
+#convs label {width: 100%; padding: 6px 8px; border-radius: 2px; background: transparent; border: none; box-shadow: none; font-size: .82rem; cursor: pointer; color: var(--ink)}
+#convs label span {overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 0}
+#convs label:hover {background: color-mix(in srgb, var(--cyan) 10%, transparent)}
+#convs label.selected {background: color-mix(in srgb, var(--cyan) 18%, transparent); color: var(--ink)}
+#convs label.selected::before {content: "> "; color: var(--amber)}
+#convs input {display: none}
+#convs, #convs * {outline: none !important}
+#convs label.selected, #convs label:focus-within {border: none !important; box-shadow: none !important; outline: none !important}
+/* chat: computer in cyan, you in amber */
+.message.bot {font-size: .95rem; color: var(--ink) !important; background: color-mix(in srgb, var(--cyan) 4%, transparent) !important; border: 1px solid color-mix(in srgb, var(--line) 60%, transparent) !important; border-radius: 4px !important}
+.message.user {background: color-mix(in srgb, var(--amber) 8%, transparent) !important; border: 1px solid color-mix(in srgb, var(--amber) 60%, transparent) !important; border-radius: 4px !important}
+.message.user *, .message.bot * {border: none !important; background: transparent !important; box-shadow: none !important}
+.message.user, .message.user * {color: var(--amber) !important}
+.message.bot .prose {color: var(--ink) !important}
+.prose a {color: var(--amber) !important}
+.prose code, .prose pre {background: #02050a !important; color: var(--green) !important; border: 1px solid #12324a}
+/* files panel */
+#wfiles {font-size: .8rem}
+#wfiles .file-preview-holder {max-height: 40vh; overflow-y: auto}
+#wfiles tr.file {display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 2px; background: transparent !important}
+#wfiles tr.file:hover {background: color-mix(in srgb, var(--cyan) 10%, transparent) !important}
+#wfiles td {padding: 0 !important}
+#wfiles td.filename {flex: 1 1 auto; min-width: 0; width: auto !important; display: flex; justify-content: flex-start; text-align: left; overflow: hidden}
+#wfiles td.filename .stem {flex: 0 1 auto; min-width: 0; width: auto !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap}
+#wfiles td.filename .ext {flex: 0 0 auto}
+#wfiles td.download {flex: 0 0 auto; min-width: 0 !important; width: auto !important; font-size: .72rem; opacity: .7}
+#wfiles tr.file td:last-child {flex: 0 0 auto; min-width: 0 !important; width: auto !important}
+#wfiles .label-clear-button {opacity: 0; transition: opacity .15s; font-size: 1rem; padding: 0 2px; color: var(--red)}
+#wfiles tr.file:hover .label-clear-button {opacity: 1}
+#wfiles button[aria-label="Clear"], #wfiles button[title="Clear"] {display: none}
+/* prompt line */
+#stop {min-width: 64px !important; max-width: 72px; font-size: 1.1rem !important; align-self: stretch; background: transparent !important; border: 1px solid var(--red) !important; color: var(--red) !important}
+#stop:hover {background: rgba(255, 90, 78, .12) !important}
+#promptrow textarea {color: var(--amber) !important; caret-color: var(--amber)}
+#promptrow .block, #promptrow .multimodal-textbox {background: var(--panel) !important; border: var(--pbw) solid var(--pline) !important; border-radius: 4px !important; box-shadow: var(--pglow) !important}
+#tools {font-size: .82rem; line-height: 1.8; opacity: .9}
+#modelrow {justify-content: space-between; align-items: center; margin-top: -6px; padding-right: 86px}
+#working {flex: 1 1 auto !important; min-width: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 0 0 4px !important}
+#working .working {display: flex; align-items: center; gap: 8px; color: var(--cyan); font-size: 1.15rem; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
+#working .progress-text, #working .eta-bar, #working .timer, #working .meta-text, #working .meta-text-center, #working .progress-level {display: none !important}
+#working .wdot {flex: 0 0 auto; width: 9px; height: 15px; background: var(--cyan); animation: blink 1s steps(1) infinite}
+#delchat {justify-content: flex-start; border: 1px dashed color-mix(in srgb, var(--red) 60%, transparent) !important; background: transparent !important; color: var(--red) !important; font-size: 1rem !important; margin-top: 6px}
+#delchat:hover {background: color-mix(in srgb, var(--red) 10%, transparent) !important}
+#model {max-width: 230px; background: transparent !important; border: none !important; box-shadow: none !important}
+#model input {font-size: 1.1rem !important; text-align: right; padding-right: 20px !important; color: var(--dim); cursor: pointer; text-transform: uppercase; letter-spacing: .08em}
+#model .wrap {background: transparent !important; border: none !important; box-shadow: none !important}
+#tunebtn {justify-content: flex-start; border: 1px solid var(--cyan) !important; background: color-mix(in srgb, var(--cyan) 8%, transparent) !important; color: var(--cyan) !important; font-size: 1.2rem !important; text-transform: uppercase; letter-spacing: .06em; margin-top: 6px}
+#tunebtn:hover {background: color-mix(in srgb, var(--cyan) 10%, transparent) !important}
+#tune {background: color-mix(in srgb, var(--panel) 88%, transparent) !important; border: var(--bw) solid var(--line) !important; border-radius: 4px !important; box-shadow: var(--panel-shadow) !important; padding: 14px 18px !important; gap: 10px}
+#tunetitle {font-size: 2rem; letter-spacing: .08em; color: var(--cyan); text-shadow: var(--shadow)}
+#tuneback {border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important}
+.ftstep {border: none !important; border-top: 1px dashed var(--line) !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important}
+.ftstep > .label-wrap span {font-size: 1.45rem !important; color: var(--cyan) !important; letter-spacing: .04em}
+#tune .prose, #tune .prose * {font-size: 1.25rem !important; line-height: 1.3 !important}
+#tune .prose strong {color: var(--amber)}
+.ftres, .ftcount, .ftstatus {font-size: 1.2rem; letter-spacing: .04em; color: var(--ink); padding: 6px 10px; border-left: 3px solid var(--cyan); background: var(--codebg)}
+.ftres b {color: var(--cyan)}
+.ftstatus.ok {border-left-color: var(--green); color: var(--green)} .ftstatus.bad {border-left-color: var(--red); color: var(--red)} .ftstatus.run {color: var(--cyan)}
+.ftstatus .wdot {display: inline-block; width: 9px; height: 15px; margin-right: 8px; background: var(--cyan); vertical-align: -2px; animation: blink 1s steps(1) infinite}
+#ftlog textarea {font-size: 1.05rem !important; line-height: 1.15 !important; color: var(--codeink) !important; background: var(--codebg) !important}
+.ftans {min-height: 140px; background: var(--codebg) !important; border: 1px solid var(--line) !important; padding: 10px 12px !important}
+#ftstop, #ftdel {border: 1px solid var(--red) !important; background: transparent !important; color: var(--red) !important}
+#ftgrid {font-size: 1.1rem}
+#tune button:not(#ftstop):not(#ftdel):not(.label-wrap) {border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important; box-shadow: none !important}
+#tune button.primary {background: color-mix(in srgb, var(--cyan) 14%, transparent) !important}
+#tune button:hover {background: color-mix(in srgb, var(--cyan) 10%, transparent) !important}
+#tune fieldset label {background: transparent !important; border: 1px solid var(--line) !important; color: var(--ink) !important; box-shadow: none !important}
+#tune fieldset label.selected {background: var(--cyan) !important; color: var(--bg) !important}
+#tune fieldset label.selected * {color: var(--bg) !important}
+#tune .prose ol, #tune .prose ul {padding-left: 1.6em !important}
+.ftstatus.ok {color: var(--ink) !important}
+#tune .legend, #tune [class*=legend] {display: none !important}
+#modelrow {flex-wrap: nowrap !important}
+#modelrow > #working {flex: 0 1 auto !important; width: auto !important; min-width: 0 !important}
+#modelrow > #cloudbadge {flex: 1 1 auto !important; width: auto !important; min-width: 0 !important}
+#modelrow > #model {flex: 0 0 auto !important}
+#cloudbadge .cloudbadge {font-size: 1rem; line-height: 1.2; color: var(--amber); padding: 2px 8px 0; text-align: right}
+.cloudstat {font-size: 1.05rem; line-height: 1.3; padding: 6px 0; color: var(--ink)}
+#localhelp, #localhelp *, #apihelp, #apihelp *, #schedhelp, #schedhelp * {font-size: 1.05rem !important; line-height: 1.3 !important}
+.task {font-size: 1.15rem; line-height: 1.25; padding: 8px 0; border-bottom: 1px dashed var(--line); color: var(--ink)}
+.taskp {color: var(--dim); font-size: 1rem; margin-top: 3px}
+#schedbtn {justify-content: flex-start; border: 1px solid var(--cyan) !important; background: color-mix(in srgb, var(--cyan) 8%, transparent) !important; color: var(--cyan) !important; font-size: 1.2rem !important; text-transform: uppercase; letter-spacing: .06em}
+#schedpanel {background: color-mix(in srgb, var(--panel) 88%, transparent) !important; border: var(--bw) solid var(--line) !important; border-radius: 4px !important; box-shadow: var(--panel-shadow) !important; padding: 14px 18px !important; gap: 12px}
+#schedtitle {font-size: 2rem; letter-spacing: .08em; color: var(--cyan); text-shadow: var(--shadow)}
+#schedback {border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important}
+.schedsub {font-size: 1.2rem; letter-spacing: .08em; color: var(--cyan); padding-bottom: 4px; border-bottom: 1px dashed var(--line)}
+#schedpanel .prose, #schedpanel .prose * {font-size: 1.25rem !important; line-height: 1.3 !important}
+#schedpanel .prose strong {color: var(--amber)}
+#schedel {border: 1px solid var(--red) !important; background: transparent !important; color: var(--red) !important}
+#schedpanel label span, #schedpanel [data-testid="block-info"] {font-size: 1.15rem !important}
+#schedpanel input, #schedpanel textarea {font-size: 1.2rem !important; color: var(--ink) !important}
+#schedpanel button {font-size: 1.15rem !important}
+#schedpanel button.primary {background: var(--red) !important; color: var(--bg) !important; border: none !important; padding: 10px 28px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button.primary {background: var(--ink) !important; border-radius: 10px !important}
+#schedpanel button:not(#schedel):not(.primary) {border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important}
+#schedpanel fieldset label {background: transparent !important; border: 1px solid var(--line) !important; color: var(--ink) !important; box-shadow: none !important}
+#schedpanel fieldset label.selected {background: var(--cyan) !important; color: var(--bg) !important}
+#schedpanel fieldset label.selected * {color: var(--bg) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel label span, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel [data-testid="block-info"] {font-size: .85rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel input, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel textarea, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button {font-size: .92rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button:not(#schedel):not(.primary) {border: none !important; background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel fieldset label {border-radius: 999px !important; border-color: var(--line) !important; padding: 4px 12px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel fieldset label.selected {background: var(--ink) !important; border-color: var(--ink) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel fieldset label.selected * {color: var(--bg) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel {background: var(--panel) !important; border: none !important; border-radius: 16px !important; box-shadow: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedtitle {font-family: 'Newsreader', Georgia, serif !important; font-size: 1.7rem !important; color: var(--ink) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .prose, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .prose *, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .task, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .task * {font-size: .95rem !important; line-height: 1.5 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .prose strong {color: var(--ink) !important}
+body[data-screen^="modern"]:not(#a):not(#b) .schedsub {font-size: .78rem !important; letter-spacing: .1em !important; color: var(--dim) !important; border-bottom: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedbtn {border: none !important; background: transparent !important; text-transform: none !important; font-size: .9rem !important; border-radius: 10px !important; letter-spacing: normal !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedbtn:hover {background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedback {border-radius: 10px !important; border: none !important; background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button {border-radius: 10px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button.primary {background: var(--cyan) !important; color: var(--panel) !important; border-color: var(--cyan) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .block, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .form {border: none !important; box-shadow: none !important}
+.task span {color: var(--dim)}
+body[data-screen^="modern"]:not(#a):not(#b) #rightcol .task, body[data-screen^="modern"]:not(#a):not(#b) #rightcol .task * {font-size: .85rem !important; line-height: 1.45 !important}
+body[data-screen^="modern"]:not(#a):not(#b) .task {border-bottom: none}
+.cloudstat code {word-break: break-all}
+body[data-screen^="modern"]:not(#a):not(#b) #rightcol .prose .cloudstat, body[data-screen^="modern"]:not(#a):not(#b) #rightcol .cloudstat * {font-size: .85rem !important; line-height: 1.45 !important}
+.updnote {font-size: 1rem; line-height: 1.25; color: var(--amber); padding: 4px 4px 0}
+#updbtn {border: 1px solid var(--amber) !important; background: transparent !important; color: var(--amber) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #localhelp, body[data-screen^="modern"]:not(#a):not(#b) #localhelp *, body[data-screen^="modern"]:not(#a):not(#b) #apihelp, body[data-screen^="modern"]:not(#a):not(#b) #apihelp *, body[data-screen^="modern"]:not(#a):not(#b) #schedhelp, body[data-screen^="modern"]:not(#a):not(#b) #schedhelp *, body[data-screen^="modern"]:not(#a):not(#b) .updnote {font-size: .85rem !important; line-height: 1.45 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #updbtn {border-radius: 10px !important; text-transform: none !important; border: none !important; background: var(--soft) !important; color: var(--cyan) !important}
+.cloudstat a {color: var(--cyan)}
+#cloudhelp, #cloudhelp * {font-size: 1.05rem !important; line-height: 1.3 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #cloudbadge .cloudbadge {font-size: .85rem !important; color: var(--dim) !important; padding: 4px 8px 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #cloudhelp, body[data-screen^="modern"]:not(#a):not(#b) #cloudhelp *, body[data-screen^="modern"]:not(#a):not(#b) .cloudstat {font-size: .85rem !important; line-height: 1.45 !important}
+#model ul.options {font-size: .82rem; background: var(--panel) !important; border: 1px solid var(--cyan) !important}
+
+/* ===== Modern look: calm, rounded, readable. Everything below applies only when a Modern screen is chosen.
+   ':not(#a):not(#b)' matches always; it only makes these rules outrank the retro ones (Gradio adds a prefix that strengthens them). ===== */
+body[data-screen="modern"] {--bg: #f6f4ef; --bg-hi: #f6f4ef; --panel: #fffdf9; --codebg: #f1eee7; --line: rgba(60, 50, 40, .13); --cyan: #2f6f62; --glow: transparent; --ink: #2a2622; --dim: #7b736a; --amber: #2f6f62; --red: #b5473a; --codeink: #2a2622; --shadow: none; --check: #2f6f62; --userbg: #ebe7de; --green: #2f6f62; --soft: rgba(47, 111, 98, .09)}
+body[data-screen="modern-night"] {--bg: #1e1c19; --bg-hi: #1e1c19; --panel: #26231f; --codebg: #191714; --line: rgba(255, 240, 220, .11); --cyan: #7cc4b2; --glow: transparent; --ink: #ece6dc; --dim: #a39a8e; --amber: #7cc4b2; --red: #e07a6a; --codeink: #ece6dc; --shadow: none; --check: #7cc4b2; --userbg: #33302b; --green: #7cc4b2; --soft: rgba(124, 196, 178, .1)}
+body[data-screen^="modern"]:not(#a):not(#b) {--bw: 1px; --panel-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 24px rgba(0, 0, 0, .04); --case: none; --tglow: none; --flick: none; --pbw: 1px; --pline: var(--line); --pglow: 0 2px 12px rgba(0, 0, 0, .07)}
+body[data-screen^="modern"], body[data-screen^="modern"]:not(#a):not(#b) .gradio-container {background: var(--bg) !important}
+body[data-screen^="modern"]:not(#a):not(#b) .gradio-container, body[data-screen^="modern"]:not(#a):not(#b) .gradio-container *:not(svg):not(path) {font-family: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif !important; text-shadow: none !important; letter-spacing: normal !important}
+body[data-screen^="modern"]:not(#a):not(#b) .gradio-container {font-size: 15px !important}
+body[data-screen^="modern"]:not(#a):not(#b) .gradio-container .prose, body[data-screen^="modern"]:not(#a):not(#b) .gradio-container .prose * {font-size: 1rem !important; line-height: 1.62 !important}
+body[data-screen^="modern"]:not(#a):not(#b) .gradio-container pre, body[data-screen^="modern"]:not(#a):not(#b) .gradio-container pre *, body[data-screen^="modern"]:not(#a):not(#b) .gradio-container code, body[data-screen^="modern"]:not(#a):not(#b) #ftlog textarea {font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace !important; font-size: .86rem !important; line-height: 1.5 !important}
+body[data-screen^="modern"]:not(#a):not(#b) .prose pre, body[data-screen^="modern"]:not(#a):not(#b) .message.bot pre {border: 1px solid var(--line) !important; border-left: 1px solid var(--line) !important; border-radius: 10px !important; box-shadow: none !important; background: var(--codebg) !important}
+body[data-screen^="modern"]:not(#a):not(#b) .message.bot :not(pre) > code, body[data-screen^="modern"]:not(#a):not(#b) .prose :not(pre) > code {color: var(--ink) !important; border-radius: 5px !important; border: 1px solid var(--line) !important}
+/* panels and brand */
+body[data-screen^="modern"]:not(#a):not(#b) .side, body[data-screen^="modern"]:not(#a):not(#b) #chat, body[data-screen^="modern"]:not(#a):not(#b) #tune {background: var(--panel) !important; border: 1px solid var(--line) !important; border-radius: 16px !important; box-shadow: var(--panel-shadow) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chat {background: transparent !important; border: none !important; box-shadow: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #brand {font-family: 'Newsreader', Georgia, serif !important; font-size: 2rem !important; font-weight: 500 !important; color: var(--ink) !important; padding: 4px 6px 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #brand::after {content: "." !important; color: var(--cyan) !important; animation: none !important; margin-left: 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b) .lights {display: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #brand {text-transform: lowercase !important}
+body[data-screen^="modern"]:not(#a):not(#b) #brand::first-letter {text-transform: uppercase !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chat .placeholder {display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; height: 100% !important}
+body[data-screen^="modern"]:not(#a):not(#b) .side .prose .status, body[data-screen^="modern"]:not(#a):not(#b) .status {font-size: .78rem !important; color: var(--dim) !important; padding: 2px 6px 12px !important}
+body[data-screen^="modern"]:not(#a):not(#b) .side label > span, body[data-screen^="modern"]:not(#a):not(#b) .side .label-wrap span, body[data-screen^="modern"]:not(#a):not(#b) .side button, body[data-screen^="modern"]:not(#a):not(#b) #convs label {font-size: .93rem !important; text-transform: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) .side .info, body[data-screen^="modern"]:not(#a):not(#b) .side .info-text, body[data-screen^="modern"]:not(#a):not(#b) .side [data-testid="block-info"] {font-size: .8rem !important; line-height: 1.35 !important}
+body[data-screen^="modern"]:not(#a):not(#b) .opt {border-bottom: 1px solid var(--line) !important}
+/* screen picker as soft pills */
+body[data-screen^="modern"]:not(#a):not(#b) #screen label {border-radius: 999px !important; text-transform: none !important; font-size: .8rem !important; padding: 2px 10px !important; border-color: var(--line) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label.selected {background: var(--ink) !important; color: var(--bg) !important; border-color: var(--ink) !important}
+/* sidebar buttons and chat list */
+body[data-screen^="modern"]:not(#a):not(#b) #newchat {border-radius: 10px !important; text-transform: none !important; border: 1px solid var(--line) !important; background: var(--panel) !important; color: var(--ink) !important; font-weight: 500 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #newchat:hover {background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #convs label {border-radius: 8px !important; padding: 7px 10px !important; color: var(--ink) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #convs label:hover {background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #convs label.selected {background: var(--soft) !important; font-weight: 500 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #convs label.selected::before {content: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #delchat, body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border-radius: 10px !important; text-transform: none !important; border-style: solid !important; font-size: .9rem !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #delchat {border-color: transparent !important; color: var(--dim) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #delchat:hover {color: var(--red) !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border-color: var(--line) !important; color: var(--cyan) !important}
+/* conversation: your messages in soft bubbles on the right, Joshua's as plain text */
+body[data-screen^="modern"]:not(#a):not(#b) #chat .message-row + .message-row {border-top: none !important; padding-top: 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b) .message.bot {background: transparent !important; border: none !important; padding: 4px 6px !important}
+body[data-screen^="modern"]:not(#a):not(#b) .message.user {background: var(--userbg) !important; border: none !important; border-radius: 18px !important; padding: 10px 16px !important}
+body[data-screen^="modern"]:not(#a):not(#b) .message.user, body[data-screen^="modern"]:not(#a):not(#b) .message.user * {color: var(--ink) !important}
+body[data-screen^="modern"]:not(#a):not(#b) .prose a {color: var(--cyan) !important; text-decoration: underline !important; text-underline-offset: 2px !important}
+body[data-screen^="modern"]:not(#a):not(#b) .prose hr {border-top: 1px solid var(--line) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chat .placeholder .prose {display: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chat .placeholder::before {content: "What can I help you with?" !important; display: block !important; font-family: 'Newsreader', Georgia, serif !important; font-size: 2rem !important; color: var(--ink) !important; text-align: center !important; margin-top: 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chat .placeholder::after {content: "Ask a question, drop in files, or switch on goal mode and give Joshua a task." !important; display: block !important; text-align: center !important; color: var(--dim) !important; font-size: 1rem !important; margin-top: 8px !important}
+/* prompt box */
+body[data-screen^="modern"]:not(#a):not(#b) #promptrow .block, body[data-screen^="modern"]:not(#a):not(#b) #promptrow .multimodal-textbox {border-radius: 18px !important; background: var(--panel) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #promptrow textarea {color: var(--ink) !important; caret-color: var(--cyan) !important; font-size: 1rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #stop {border-radius: 14px !important; font-size: .9rem !important; text-transform: none !important; border-color: var(--line) !important; color: var(--dim) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #stop:hover {color: var(--red) !important; border-color: var(--red) !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #model input {text-transform: none !important; letter-spacing: normal !important; font-size: .85rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #working .working {font-size: .88rem !important; color: var(--dim) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #working .wdot {width: 8px !important; height: 8px !important; border-radius: 50% !important; background: var(--cyan) !important; animation: pulse 1.4s ease-in-out infinite !important}
+@keyframes pulse {0%, 100% {opacity: .25; transform: scale(.8)} 50% {opacity: 1; transform: scale(1)}}
+/* teach panel */
+body[data-screen^="modern"]:not(#a):not(#b) #tunetitle {font-family: 'Newsreader', Georgia, serif !important; font-size: 1.7rem !important; color: var(--ink) !important; text-transform: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) .ftstep > .label-wrap span {font-size: 1.08rem !important; color: var(--ink) !important; font-weight: 600 !important}
+body[data-screen^="modern"]:not(#a):not(#b) .ftstep {border-top: 1px solid var(--line) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #tune .prose strong {color: var(--ink) !important}
+body[data-screen^="modern"]:not(#a):not(#b) .ftres, body[data-screen^="modern"]:not(#a):not(#b) .ftcount, body[data-screen^="modern"]:not(#a):not(#b) .ftstatus {font-size: .92rem !important; border-radius: 10px !important; border-left: none !important; padding: 10px 14px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #tune button {border-radius: 10px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #tune button.primary {background: var(--cyan) !important; color: var(--panel) !important; border-color: var(--cyan) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #tuneback {border-radius: 10px !important}
+body[data-screen^="modern"]:not(#a):not(#b) .ftans {border-radius: 10px !important}
+/* fewer lines: spaces are told apart by tone and spacing, not borders */
+body[data-screen^="modern"]:not(#a):not(#b) {--block-border-color: transparent !important; --block-border-width: 0px !important; --input-border-color: transparent !important; --border-color-primary: transparent !important; --block-label-border-color: transparent !important; --block-shadow: none !important; --side: #efebe3}
+body[data-screen="modern-night"]:not(#a):not(#b) {--side: #23201c}
+body[data-screen^="modern"]:not(#a):not(#b) .side, body[data-screen^="modern"]:not(#a):not(#b) #tune {border: none !important; box-shadow: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #leftcol {background: var(--side) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #rightcol {background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) .side .block, body[data-screen^="modern"]:not(#a):not(#b) .side .form, body[data-screen^="modern"]:not(#a):not(#b) .side fieldset, body[data-screen^="modern"]:not(#a):not(#b) .side .accordion, body[data-screen^="modern"]:not(#a):not(#b) #tune .block, body[data-screen^="modern"]:not(#a):not(#b) #tune .form {border: none !important; box-shadow: none !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) .opt {border: none !important; padding-bottom: 4px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #wfiles, body[data-screen^="modern"]:not(#a):not(#b) #wfiles .wrap {background: var(--codebg) !important; border: none !important; border-radius: 12px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #wfiles .label-wrap, body[data-screen^="modern"]:not(#a):not(#b) #wfiles label[data-testid="block-label"] {border: none !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #newchat {border: none !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #newchat:hover {background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #tunebtn:hover {background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label {border-color: transparent !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label:not(.selected):hover {background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chat .message.bot, body[data-screen^="modern"]:not(#a):not(#b) #chat .bot, body[data-screen^="modern"]:not(#a):not(#b) #chat .message-row.bot-row .message {border: none !important; box-shadow: none !important; outline: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #promptrow .block, body[data-screen^="modern"]:not(#a):not(#b) #promptrow .multimodal-textbox {border: 1px solid var(--line) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #stop {border: none !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #tune button:not(.primary) {border-color: var(--line) !important}
+body[data-screen^="modern"]:not(#a):not(#b) .ftstep {border: none !important; padding-top: 6px !important}
+body[data-screen^="modern"]:not(#a):not(#b) .ftres, body[data-screen^="modern"]:not(#a):not(#b) .ftcount, body[data-screen^="modern"]:not(#a):not(#b) .ftstatus, body[data-screen^="modern"]:not(#a):not(#b) .ftans {border: none !important; background: var(--codebg) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #ftlog textarea {border: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #tuneback {border: none !important; background: var(--soft) !important}
+@media (prefers-reduced-motion: reduce) {body[data-screen^="modern"]:not(#a):not(#b) #working .wdot {animation: none}}
+"""
+
+_C = dict(
+    body_background_fill="#08101b", body_text_color="#d6ecf5", body_text_color_subdued="#7fa3b5",
+    background_fill_primary="#0d1625", background_fill_secondary="#111d30",
+    block_background_fill="#0d1625", block_border_color="#24506b", block_label_background_fill="#0d1625", block_label_text_color="#8fe9ff",
+    block_title_text_color="#8fe9ff", border_color_primary="#24506b", border_color_accent="#8fe9ff",
+    input_background_fill="#0a1220", input_border_color="#24506b",
+    color_accent="#ffb347", color_accent_soft="#0d1a2c", link_text_color="#ffb347",
+    button_primary_background_fill="#0b2233", button_primary_background_fill_hover="#123247", button_primary_text_color="#8fe9ff", button_primary_border_color="#8fe9ff",
+    button_secondary_background_fill="#081222", button_secondary_background_fill_hover="#0d1a2c", button_secondary_text_color="#a6e6ff", button_secondary_border_color="#1d4a66",
+    checkbox_background_color="#02060d", checkbox_border_color="#5d8ea6", checkbox_background_color_selected="#ffb347", checkbox_border_color_selected="#ffb347",
+    slider_color="#ffb347", table_even_background_fill="#050a14", table_odd_background_fill="#081222",
+)
+THEME = gr.themes.Base(primary_hue="cyan", neutral_hue="slate", font=gr.themes.GoogleFont("Share Tech Mono"), font_mono=gr.themes.GoogleFont("IBM Plex Mono"), radius_size="sm").set(**_C, **{k + "_dark": v for k, v in _C.items() if k + "_dark" in inspect.signature(gr.themes.Base.set).parameters})
+
+# ---------- Joshua API: lets other programs on this computer (or your network) talk to Joshua ----------
+# It speaks the OpenAI chat format that most apps and libraries understand, but every request runs the full
+# Joshua agent here: tools, web research, memory, on the model you pick. Settings and key live in api.json.
+
+API_FILE = pathlib.Path(__file__).parent / "api.json"
+API_PORT = 7861
+
+
+def api_settings(**change):
+    data = json.loads(API_FILE.read_text()) if API_FILE.exists() else {}
+    data.setdefault("key", "jsh-" + secrets.token_urlsafe(24))  # a password for programs; only this computer knows it
+    data.setdefault("lan", False)  # False: only programs on this computer can connect
+    data.update(change)
+    API_FILE.write_text(json.dumps(data))
+    API_FILE.chmod(0o600)
+    return data
+
+
+def _api_text(content):
+    """OpenAI messages may hold text, or a list of parts (text and images)."""
+    if isinstance(content, str):
+        return content, []
+    text, images = [], []
+    for part in content or []:
+        if part.get("type") == "text":
+            text.append(part.get("text", ""))
+        elif part.get("type") == "image_url":
+            url = (part.get("image_url") or {}).get("url", "")
+            if url.startswith("data:"):
+                images.append(url.split(",", 1)[1])  # Ollama takes the picture as base64
+    return "\n".join(text), images
+
+
+def api_answer(body):
+    """Runs one Joshua answer for an API request and returns (model, answer)."""
+    choice = body.get("model") or "joshua"
+    model = resolve(default_model(), False) if choice in ("joshua", "default", "") else choice
+    if model not in {m.model for m in ollama.list().models}:
+        raise ValueError(f"Unknown model '{choice}'. Use 'joshua' (your default local model) or one from GET /v1/models.")
+    cloud = is_cloud(model)
+    save_chat = body.get("joshua_save", True)
+    cid = new_conv() if save_chat else None
+    work = fdir(cid) if cid else ROOT / "_api"
+    work.mkdir(parents=True, exist_ok=True)
+    agent.set_workspace(work, True, 120, "wt-wt")
+    agent.CTX.vision = model if "vision" in caps(model) else FAST
+    memory = agent.memory_prompt() if (not cloud or share_memory_setting()) else ""
+    msgs = [{"role": "system", "content": SYSTEM.format(now=agent.get_datetime()) + memory}]
+    shown = []
+    for m in body.get("messages", []):
+        text, images = _api_text(m.get("content"))
+        if m.get("role") == "system":
+            msgs[0]["content"] += "\n\n" + text  # the calling program's own instructions come after Joshua's
+        elif m.get("role") in ("user", "assistant"):
+            if images and "vision" not in caps(model):  # this model can't see: save the pictures so look_at_image can
+                import base64
+                names = []
+                for b64 in images:
+                    f = work / f"api-picture-{secrets.token_hex(3)}.jpg"
+                    f.write_bytes(base64.b64decode(b64))
+                    names.append(f.name)
+                text += f"\n\n(Pictures saved in the workspace: {', '.join(names)})"
+                images = []
+            msgs.append({"role": m["role"], "content": text, **({"images": images} if images else {})})
+            shown.append({"role": m["role"], "content": text})
+    toolset = {k: v for k, v in tools.items() if not (cloud and not share_memory_setting() and k in agent.MEMORY_TOOLS)}
+    stop = threading.Event()
+    for _ in agent_turn(msgs, shown, toolset, model, False, stop, []):
+        pass
+    answer = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant" and m.get("content")), "")
+    if cid:  # the exchange is kept like any other chat, so you can see what programs asked
+        conv = load(cid)
+        conv.update(title="🔌 " + (next((m["content"] for m in shown if m["role"] == "user"), "API request"))[:46], model=model, llm=msgs, display=shown)
+        save(cid, conv)
+    return model, answer
+
+
+def start_api():
+    from fastapi import FastAPI, Request
+    from fastapi.responses import JSONResponse, StreamingResponse
+    import uvicorn
+    app = FastAPI(title="Joshua API")
+
+    def denied(request):
+        key = api_settings()["key"]
+        return request.headers.get("authorization", "") != f"Bearer {key}"
+
+    @app.get("/v1/models")
+    def list_models(request: Request):
+        if denied(request):
+            return JSONResponse({"error": {"message": "Missing or wrong API key."}}, 401)
+        ids = ["joshua"] + [m.model for m in ollama.list().models if "tools" in caps(m.model)]
+        return {"object": "list", "data": [{"id": i, "object": "model", "owned_by": "cloud" if is_cloud(i) else "this computer"} for i in ids]}
+
+    @app.post("/v1/chat/completions")
+    async def chat(request: Request):
+        if denied(request):
+            return JSONResponse({"error": {"message": "Missing or wrong API key."}}, 401)
+        body = await request.json()
+        try:
+            import anyio
+            model, answer = await anyio.to_thread.run_sync(api_answer, body)
+        except Exception as e:
+            return JSONResponse({"error": {"message": str(e)}}, 400)
+        rid, now = "chatcmpl-" + secrets.token_hex(8), int(time.time())
+        if body.get("stream"):  # the whole answer in one piece, in the streaming format clients expect
+            def events():
+                yield "data: " + json.dumps({"id": rid, "object": "chat.completion.chunk", "created": now, "model": model, "choices": [{"index": 0, "delta": {"role": "assistant", "content": answer}, "finish_reason": None}]}) + "\n\n"
+                yield "data: " + json.dumps({"id": rid, "object": "chat.completion.chunk", "created": now, "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}) + "\n\n"
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(events(), media_type="text/event-stream")
+        return {"id": rid, "object": "chat.completion", "created": now, "model": model,
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": answer}, "finish_reason": "stop"}]}
+
+    host = "0.0.0.0" if api_settings()["lan"] else "127.0.0.1"
+    config = uvicorn.Config(app, host=host, port=API_PORT, log_level="warning")
+    threading.Thread(target=uvicorn.Server(config).run, daemon=True).start()
+
+
+def lan_address():
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.255.255.255", 1))  # no packet is sent: this only asks which network card would be used
+        return s.getsockname()[0]
+    except Exception:
+        return "this-computer's-address"
+    finally:
+        s.close()
+
+
+def api_panel():
+    a = api_settings()
+    host = lan_address() if a["lan"] else "127.0.0.1"
+    url = f"http://{host}:{API_PORT}/v1"
+    example = f'''curl {url}/chat/completions \\
+  -H "Authorization: Bearer {a["key"]}" \\
+  -H "Content-Type: application/json" \\
+  -d '{{"model": "joshua", "messages": [{{"role": "user", "content": "What is the weather in Turin today?"}}]}}' '''
+    return (f"<div class='cloudstat'><b>Address</b> <code>{url}</code><br><b>Key</b> <code>{a['key']}</code><br>"
+            + ("Other devices on your network can connect (with the key)." if a["lan"] else "Only programs on this computer can connect.")
+            + "</div>"), example
+
+
+def api_lan(on):
+    api_settings(lan=bool(on))
+    gr.Info("Saved. Restart Joshua for this to take effect (stop.sh, then open Joshua again).")
+    return api_panel()
+
+
+def api_new_key():
+    api_settings(key="jsh-" + secrets.token_urlsafe(24))
+    gr.Info("New key made: programs using the old one will be refused.")
+    return api_panel()
+
+
+API_HELP = """Lets other programs use Joshua: your scripts, a robot, apps that support "OpenAI-compatible" servers. Each request runs the full Joshua (tools, web research, memory) on this computer, and is saved as a 🔌 chat so you can see what programs asked.
+Use model `joshua` for your default local model, or any name from `/v1/models`. Cloud models are used only if a program names one."""
+
+
+start_api()
+
+
+# ---------- scheduled tasks: Joshua does something at a set time, on its own ----------
+# Tasks live in schedules.json. A background thread checks every 30 seconds; each run becomes a ⏰ chat.
+# They run only while Joshua is open and the computer is awake; a run missed meanwhile happens once, at the next check.
+
+import datetime as dt
+
+SCHED_FILE = pathlib.Path(__file__).parent / "schedules.json"
+SCHED_LOCK = threading.Lock()
+DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def tasks_load():
+    return json.loads(SCHED_FILE.read_text()) if SCHED_FILE.exists() else []
+
+
+def tasks_save(tasks):
+    SCHED_FILE.write_text(json.dumps(tasks, ensure_ascii=False, indent=1))
+
+
+def next_due(t, after):
+    """The first time the task is due after the moment 'after'."""
+    hh, mm = (int(x) for x in (t.get("time") or "08:00").split(":"))
+    if t["when"] == "once":
+        at = dt.datetime.fromisoformat(f"{t['date']}T{t['time']}")
+        return at if at > after else None
+    if t["when"] == "hours":
+        return after + dt.timedelta(hours=int(t.get("every", 1)))
+    day = after.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    for i in range(8):
+        cand = day + dt.timedelta(days=i)
+        if cand > after and (t["when"] == "daily" or DAYS[cand.weekday()] in t.get("days", [])):
+            return cand
+    return None
+
+
+def due_time(t):
+    ref = dt.datetime.fromisoformat(t.get("last_run") or t["created"])
+    return next_due(t, ref)
+
+
+def notify(title, text):
+    """A system notification: the macOS one, or notify-send on Linux."""
+    try:
+        if agent.MAC:
+            subprocess.run(["osascript", "-e", f"display notification {json.dumps(text)} with title {json.dumps(title)}"], timeout=10)
+        elif shutil.which("notify-send"):
+            subprocess.run(["notify-send", title, text], timeout=10)
+    except Exception:
+        pass
+
+
+def run_task(t):
+    """Starts the task as a new chat, exactly as if you had typed it, and notifies when it's done."""
+    model = t.get("model") or default_model()
+    if model not in [v for _, v in models()]:
+        model = default_model()
+    cid = new_conv()  # named first: send() keeps an existing title
+    conv = load(cid)
+    conv["title"] = f"⏰ {t['name']} · {dt.datetime.now():%d %b %H:%M}"
+    save(cid, conv)
+    send({"text": t["prompt"]}, cid, model, False, t.get("goal", False), 10, True, 120, False, 0, True, t.get("offline", False), share_memory_setting())
+
+    def wait_and_notify():
+        while busy(cid):
+            time.sleep(5)
+        if t.get("notify", True):
+            answer = last_answer(load(cid)["display"]) or {}
+            text = re.sub(r"[*#`\[\]]", "", str(answer.get("content", "Done.")))[:180]
+            notify(f"Joshua · {t['name']}", text or "Done.")
+    threading.Thread(target=wait_and_notify, daemon=True).start()
+
+
+def scheduler():
+    while True:
+        try:
+            now = dt.datetime.now()
+            with SCHED_LOCK:
+                tasks = tasks_load()
+                due = [t for t in tasks if t.get("on", True) and (d := due_time(t)) and d <= now]
+                for t in due:
+                    t["last_run"] = now.isoformat(timespec="seconds")
+                    if t["when"] == "once":
+                        t["on"] = False
+                if due:
+                    tasks_save(tasks)
+            for t in due:
+                run_task(t)
+        except Exception as e:
+            print("scheduler:", e)
+        time.sleep(30)
+
+
+def describe(t):
+    if t["when"] == "once":
+        return f"once, {t['date']} at {t['time']}"
+    if t["when"] == "daily":
+        return f"every day at {t['time']}"
+    if t["when"] == "weekly":
+        return f"{', '.join(t.get('days', []))} at {t['time']}"
+    return f"every {t.get('every', 1)} hours"
+
+
+def tasks_view():
+    rows = []
+    for t in tasks_load():
+        nxt = due_time(t) if t.get("on", True) else None
+        last = f" · last run {dt.datetime.fromisoformat(t['last_run']):%d %b %H:%M}" if t.get("last_run") else ""
+        rows.append(f"<div class='task'><b>{html.escape(t['name'])}</b><br>{describe(t)}"
+                    + (f"<br><span>next: {nxt:%a %d %b %H:%M}{last}</span>" if nxt else f"<br><span>finished{last}</span>" if t["when"] == "once" else f"<br><span>paused{last}</span>")
+                    + f"<div class='taskp'>{html.escape(t['prompt'][:160])}</div></div>")
+    names = [t["name"] for t in tasks_load()]
+    warn = "<div class='cloudstat'>⚠ Keep Joshua open and the computer awake at those times.</div>" if rows else ""
+    return ("".join(rows) + warn or "<div class='cloudstat'>No scheduled tasks yet.</div>"), gr.Dropdown(choices=names, value=None)
+
+
+def task_add(name, prompt, when, date, at, days, every, offline, notify_on, model):
+    name, prompt = (name or "").strip(), (prompt or "").strip()
+    if not name or not prompt:
+        gr.Warning("Give the task a name and write what Joshua should do.")
+        return gr.skip(), gr.skip()
+    if not re.fullmatch(r"\d{1,2}:\d{2}", at or ""):
+        gr.Warning("Write the time as HH:MM, for example 07:30.")
+        return gr.skip(), gr.skip()
+    at = f"{int(at.split(':')[0]):02d}:{at.split(':')[1]}"
+    kind = {"Once": "once", "Every day": "daily", "On some days": "weekly", "Every few hours": "hours"}[when]
+    if kind == "once":
+        try:
+            if dt.datetime.fromisoformat(f"{date}T{at}") <= dt.datetime.now():
+                gr.Warning("That moment has already passed.")
+                return gr.skip(), gr.skip()
+        except ValueError:
+            gr.Warning("Write the date as YYYY-MM-DD, for example 2026-11-20.")
+            return gr.skip(), gr.skip()
+    if kind == "weekly" and not days:
+        gr.Warning("Pick at least one day.")
+        return gr.skip(), gr.skip()
+    task = {"name": name, "prompt": prompt, "when": kind, "date": date, "time": at, "days": days, "every": int(every),
+            "offline": bool(offline), "notify": bool(notify_on), "model": model or None,
+            "created": dt.datetime.now().isoformat(timespec="seconds"), "on": True}
+    with SCHED_LOCK:
+        tasks = [t for t in tasks_load() if t["name"] != name]  # same name: replaced
+        tasks_save(tasks + [task])
+    gr.Info(f"Saved: {name}, {describe(task)}. It runs only while Joshua is open and the computer is on.")
+    return tasks_view()
+
+
+def task_fill(name):
+    """Puts a task's settings in the form, so it can be changed and saved again."""
+    t = next((t for t in tasks_load() if t["name"] == name), None)
+    if not t:
+        return (gr.skip(),) * 10
+    when = {"once": "Once", "daily": "Every day", "weekly": "On some days", "hours": "Every few hours"}[t["when"]]
+    return (t["name"], t["prompt"], when, t.get("date") or time.strftime("%Y-%m-%d"), t.get("time", "07:30"), t.get("days", []), t.get("every", 6),
+            t.get("offline", False), t.get("notify", True), t.get("model") or default_model())
+
+
+def task_action(name, action):
+    if not name:
+        gr.Warning("Pick a task first.")
+        return gr.skip(), gr.skip()
+    with SCHED_LOCK:
+        tasks = tasks_load()
+        t = next((t for t in tasks if t["name"] == name), None)
+        if t and action == "delete":
+            tasks.remove(t)
+        elif t and action == "pause":
+            t["on"] = not t.get("on", True)
+            if t["on"]:  # resuming: count from now, so it doesn't fire for the paused period
+                t["last_run"] = dt.datetime.now().isoformat(timespec="seconds")
+        tasks_save(tasks)
+    if t and action == "run":
+        run_task(t)
+        gr.Info(f"Started {name}: it's in the chat list.")
+    return tasks_view()
+
+
+threading.Thread(target=scheduler, daemon=True).start()
+
+
+with gr.Blocks(title="Joshua", fill_width=True) as demo:
+    cid = gr.State(None)
+    with gr.Row(equal_height=False):
+        with gr.Column(scale=1, min_width=220, elem_classes="side", elem_id="leftcol"):
+            gr.HTML("<div id='brand'>JOSHUA</div><div class='lights'><span></span><span></span><span></span><span></span><span></span></div><div class='status'>LOCAL SYSTEM · ONLINE<br>VERSION " + VERSION + "</div>")
+            screen = gr.Radio([("Novel", "novel"), ("Black", "black"), ("White", "white"), ("Green", "green"), ("Amber", "amber"), ("Blue", "blue"), ("Modern", "modern"), ("Modern night", "modern-night")], value="novel", show_label=False, container=False, elem_id="screen")
+            updnote = gr.HTML("")
+            updbtn = gr.Button("⬆  Update Joshua", size="sm", visible=False, elem_id="updbtn")
+            new = gr.Button("＋  New chat", size="sm", elem_id="newchat")
+            convs = gr.Radio(choices=conv_choices(), show_label=False, container=False, elem_id="convs")
+            dele = gr.Button("🗑  Delete this chat", size="sm", elem_id="delchat")
+            tune = gr.Button("🧪  Teach Joshua (fine-tune)", size="sm", elem_id="tunebtn")
+            sched = gr.Button("⏰  Scheduled tasks", size="sm", elem_id="schedbtn")
+        tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
+        with gr.Column(visible=False, scale=5, elem_id="schedpanel") as sched_panel:
+            with gr.Row():
+                gr.HTML("<div id='schedtitle'>SCHEDULED TASKS</div>")
+                sched_back = gr.Button("← Back to chat", size="sm", scale=0, min_width=160, elem_id="schedback")
+            gr.Markdown("Joshua does a task on its own at the time you choose: a morning news summary, a weekly check of a website, a reminder written for you. Each run appears as a ⏰ chat in the list on the left.\n\n**Only while Joshua is running.** Tasks can't run when the computer is off or asleep, or when Joshua is closed. A task missed in the meantime runs once, as soon as Joshua is open again.", elem_id="schedhelp")
+            with gr.Row(equal_height=False):
+                with gr.Column(scale=3, elem_id="schedform"):
+                    gr.HTML("<div class='schedsub'>NEW TASK, OR CHANGE ONE</div>")
+                    t_name = gr.Textbox(label="Name", placeholder="Morning news", max_lines=1)
+                    t_prompt = gr.Textbox(label="What Joshua should do", lines=5, placeholder="Find the three most important news stories in Piedmont today and summarise each in two lines, with sources.")
+                    t_when = gr.Radio(["Once", "Every day", "On some days", "Every few hours"], value="Every day", label="When")
+                    with gr.Row():
+                        t_date = gr.Textbox(label="Date (YYYY-MM-DD)", value=time.strftime("%Y-%m-%d"), max_lines=1, visible=False)
+                        t_time = gr.Textbox(label="Time (HH:MM)", value="07:30", max_lines=1)
+                        t_every = gr.Slider(1, 24, value=6, step=1, label="Every how many hours", visible=False)
+                    t_days = gr.CheckboxGroup(DAYS, value=["Mon", "Tue", "Wed", "Thu", "Fri"], label="Days", visible=False)
+                    with gr.Row():
+                        t_model = gr.Dropdown(choices=models(), value=default_model(), label="Model")
+                        with gr.Column():
+                            t_offline = gr.Checkbox(False, label="🚫 No internet for this task")
+                            t_notify = gr.Checkbox(True, label="🔔 Notify me when it's done")
+                    t_add = gr.Button("Save task", variant="primary")
+                with gr.Column(scale=2, elem_id="schedlist"):
+                    gr.HTML("<div class='schedsub'>YOUR TASKS</div>")
+                    task_list = gr.HTML("")
+                    t_pick = gr.Dropdown([], label="Pick a task to run, change, pause or delete")
+                    with gr.Row():
+                        t_run = gr.Button("▶ Run now", size="sm")
+                        t_pause = gr.Button("Pause / resume", size="sm")
+                        t_del = gr.Button("Delete", size="sm", elem_id="schedel")
+        with gr.Column(scale=4, elem_id="chatcol", elem_classes="chat-panel") as chatcol:
+            chatbot = gr.Chatbot(height="76vh", show_label=False, elem_id="chat", placeholder="### JOSHUA ONLINE\nAWAITING INPUT. ASK A QUESTION, OR SWITCH ON GOAL MODE AND ASSIGN A TASK.")
+            with gr.Row(equal_height=True, elem_id="promptrow"):
+                box = gr.MultimodalTextbox(file_count="multiple", placeholder="Message Joshua, or drop files here…", show_label=False, scale=12)
+                stop = gr.Button("■ Stop", scale=1, min_width=64, elem_id="stop")
+            with gr.Row(elem_id="modelrow"):
+                working = gr.HTML("", elem_id="working")
+                cloudbadge = gr.HTML("", elem_id="cloudbadge")
+                model = gr.Dropdown(choices=models(), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200)
+        with gr.Column(scale=1, min_width=250, elem_classes="side", elem_id="rightcol") as rightcol:
+            thinking = gr.Checkbox(False, label="💭 Deep thinking", elem_classes="opt", info="Slower, better on hard questions")
+            goal = gr.Checkbox(False, label="🎯 Goal mode", elem_classes="opt", info="Give a goal; it keeps working until done")
+            rounds = gr.Slider(2, 30, value=10, step=1, label="Max rounds", visible=False)
+            swarm = gr.Checkbox(False, label="🐝 Swarm", elem_classes="opt", info="Several agents answer in parallel, then one combines the best answer")
+            agents = gr.Slider(2, 6, value=5, step=1, label="Agents", visible=False)
+            offline = gr.Checkbox(False, label="🚫 No internet", elem_classes="opt", info="Joshua doesn't search or read the web, and code can't go online")
+            files = gr.File(file_count="multiple", label="Files in this chat", elem_id="wfiles", height=None)
+            with gr.Accordion("🧠 Memory", open=False) as mem_box:
+                mem = gr.Checkbox(True, label="Use memory", info="Joshua learns lasting facts about you and uses them in every chat")
+                mem_topic = gr.Dropdown(choices=["profile"], value="profile", label="Notes", elem_id="memtopic")
+                mem_text = gr.Textbox(lines=8, max_lines=20, show_label=False, placeholder="Nothing remembered yet. Joshua adds notes as you chat, or you can type them here, one per line.")
+                mem_btn = gr.Button("Save notes", size="sm")
+                cloudmem = gr.Checkbox(share_memory_setting(), label="Share notes with cloud models", info="Off: cloud models never see your memory notes (Joshua still learns, on this computer)")
+            with gr.Accordion("☁ Cloud models", open=False) as cloud_box:
+                gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
+                cloud_status = gr.HTML("")
+                connect = gr.Button("Connect this computer to Ollama", size="sm")
+                cloud_pick = gr.Dropdown([], label="Add a cloud model", info="All of these can use Joshua's tools; 👁 ones can also see images")
+                cloud_add = gr.Button("Add to the model menu", size="sm")
+            with gr.Accordion("⬇ Local models", open=False) as local_box:
+                gr.Markdown("Models that run on this computer: private and free, as fast as your hardware allows. The list comes from ollama.com and shows only versions that fit this computer's memory.", elem_id="localhelp")
+                local_status = gr.HTML("")
+                local_pick = gr.Dropdown([], label="Download a model")
+                local_get = gr.Button("Download", size="sm")
+                local_upd = gr.Button("Update my models", size="sm")
+            with gr.Accordion("🔌 API", open=False) as api_box:
+                gr.Markdown(API_HELP, elem_id="apihelp")
+                api_info = gr.HTML("")
+                api_example = gr.Code(language="shell", label="Try it in Terminal", interactive=False)
+                api_lan_box = gr.Checkbox(api_settings()["lan"], label="Allow other devices on my network", info="Off: only programs on this computer. Needs a restart of Joshua.")
+                api_key_btn = gr.Button("Make a new key", size="sm")
+            with gr.Accordion("Project & code settings", open=False):
+                project = gr.Textbox(label="Project folder (optional)", placeholder="e.g. ~/Projects/btc-model", info="The chat works directly in this folder. Press Enter to apply.", max_lines=1)
+                net = gr.Checkbox(True, label="🌐 Internet for code", info="Lets code go online and install packages")
+                timeout = gr.Slider(10, 600, value=120, step=10, label="Code time limit (seconds)")
+            with gr.Accordion("Tools", open=False):
+                gr.Markdown("<div id='tools'>🔎 Web search<br>📄 Read web pages<br>🐍 Run Python (sandboxed)<br>📦 Install packages<br>🗂️ Browse folders<br>📂 Read & 💾 write files (text, Word, PDF)<br>🕒 Date and time<br>🖼️ Look at images<br>" + ("🎨 Generate images<br>🖌️ Edit your photos<br>" if "edit_image" in tools else "") + "🧠 Remember & forget</div>")
+
+    box.submit(send, [box, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem], [chatbot, box, cid, convs, files], concurrency_limit=None)
+    model.change(badge, model, cloudbadge)
+    cloudmem.change(share_memory_setting, cloudmem)
+    cloud_box.expand(cloud_catalog, outputs=[cloud_pick, cloud_status])
+    local_box.expand(local_catalog, outputs=[local_pick, local_status])
+    sched.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), gr.Dropdown(choices=models())), outputs=[sched_panel, chatcol, rightcol, tune_panel, t_model]).then(tasks_view, outputs=[task_list, t_pick])
+    sched_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Radio(choices=conv_choices())), outputs=[sched_panel, chatcol, rightcol, convs])
+    t_pick.input(task_fill, t_pick, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model])
+    t_when.change(lambda w: (gr.Textbox(visible=w == "Once"), gr.Textbox(visible=w != "Every few hours"), gr.CheckboxGroup(visible=w == "On some days"), gr.Slider(visible=w == "Every few hours")), t_when, [t_date, t_time, t_days, t_every])
+    t_add.click(task_add, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model], [task_list, t_pick])
+    t_run.click(lambda n: task_action(n, "run"), t_pick, [task_list, t_pick])
+    t_pause.click(lambda n: task_action(n, "pause"), t_pick, [task_list, t_pick])
+    t_del.click(lambda n: task_action(n, "delete"), t_pick, [task_list, t_pick], js="(n) => (n && confirm('Delete this scheduled task?')) ? n : null")
+    api_box.expand(api_panel, outputs=[api_info, api_example])
+    api_lan_box.input(api_lan, api_lan_box, [api_info, api_example])
+    api_key_btn.click(api_new_key, outputs=[api_info, api_example])
+    local_get.click(local_download, local_pick, [model, local_status])
+    local_upd.click(local_update, outputs=local_status)
+    demo.load(check_update, outputs=[updnote, updbtn])
+    updbtn.click(do_update, outputs=updnote)
+    connect.click(cloud_connect, outputs=cloud_status)
+    cloud_add.click(cloud_add_model, cloud_pick, [model, cloud_status])
+    mem_box.expand(mem_view, mem_topic, [mem_topic, mem_text])
+    mem_topic.input(mem_view, mem_topic, [mem_topic, mem_text])
+    mem_btn.click(mem_save, [mem_topic, mem_text], [mem_topic, mem_text])
+    swarm.change(lambda s: (gr.Slider(visible=s), gr.Checkbox(value=False) if s else gr.skip()), swarm, [agents, goal])
+    stop.click(stop_chat, cid, concurrency_limit=None)
+    goal.change(lambda g: (gr.Slider(visible=g), gr.MultimodalTextbox(placeholder="Describe a goal for Joshua to accomplish…" if g else "Message Joshua, or drop files here…"), gr.Checkbox(value=False) if g else gr.skip()), goal, [rounds, box, swarm])
+    new.click(new_chat, outputs=[chatbot, cid, convs, files, project])
+    convs.input(open_conv, convs, [chatbot, cid, files, project, model]).then(badge, model, cloudbadge)
+    project.submit(set_project, [project, cid], [files, cid, convs, project])
+    files.upload(upload_files, [files, cid], [files, cid, convs])
+    files.delete(delete_file, cid, files)
+    gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
+    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm('Delete this chat and its files? They will be moved to the Trash.')) ? c : null")
+    demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(), value=default_model())), outputs=[convs, model])
+    tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>CHECKING YOUR COMPUTER…</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
+    tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models())), outputs=[tune_panel, chatcol, rightcol, model])
+    screen.change(None, screen, None, js="(v) => { document.body.dataset.screen = v; try { localStorage.setItem('joshua-screen2', v) } catch (e) {} }")
+    demo.load(None, None, screen, js="() => { let v = 'novel'; try { v = localStorage.getItem('joshua-screen2') || 'novel' } catch (e) {} document.body.dataset.screen = v; return v }")
+
+ICON = (pathlib.Path(__file__).parent / "icon.png").resolve()
+APP_HEAD = (f"<link rel='apple-touch-icon' href='/gradio_api/file={ICON}'>"  # the icon Safari uses for "Add to Dock"
+            "<meta name='apple-mobile-web-app-title' content='Joshua'><meta name='application-name' content='Joshua'>")
+SERVICE = os.environ.get("JOSHUA_SERVICE")  # set when Joshua runs in the background from login (launchd / systemd)
+demo.launch(inbrowser=not (SERVICE or os.environ.get("JOSHUA_NO_OPEN")), favicon_path=str(ICON), allowed_paths=[str(ROOT), str(ICON), str(pathlib.Path.home())], css=CSS, theme=THEME, head=APP_HEAD + "<link href='https://fonts.googleapis.com/css2?family=VT323&family=Figtree:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:opsz,wght@6..72,500&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap' rel='stylesheet'>")

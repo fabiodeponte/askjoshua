@@ -1,0 +1,11 @@
+gradio==6.30.0
+ollama>=0.5
+pandas
+ddgs
+trafilatura
+lxml
+requests
+python-docx
+fpdf2
+pypdf
+langdetect

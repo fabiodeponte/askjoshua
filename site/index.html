@@ -1,0 +1,326 @@
+<title>Ask Joshua</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Ask Joshua: a private AI assistant that runs entirely on your own computer, Mac or Linux. Your questions, your files, your model.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column of manifesto text, broken by full-width "screens" (terminal panels) that show the real thing. */
+:root {
+  --paper: #dfdbc3; --paper-hi: #e9e5cf; --panel: #d6d1b6; --ink: #3b2322; --dim: #75604f; --rust: #9c3b1c; --line: rgba(90, 60, 40, .38);
+  --screen: #e7e3cc; --screen-ink: #3b2322; --code: #9c3b1c; --ok: #3d7a4a; --glow: none;
+  --display: "VT323", "Courier New", monospace; --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; --mono: "IBM Plex Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #000308; --paper-hi: #06101c; --panel: #050a14; --ink: #a6e6ff; --dim: #5d8ea6; --rust: #ffb347; --line: rgba(143, 233, 255, .35);
+  --screen: #02060d; --screen-ink: #a6e6ff; --code: #59f08a; --ok: #59f08a; --glow: 0 0 6px rgba(80, 200, 255, .45); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #000308; --paper-hi: #06101c; --panel: #050a14; --ink: #a6e6ff; --dim: #5d8ea6; --rust: #ffb347; --line: rgba(143, 233, 255, .35);
+  --screen: #02060d; --screen-ink: #a6e6ff; --code: #59f08a; --ok: #59f08a; --glow: 0 0 6px rgba(80, 200, 255, .45); color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: radial-gradient(ellipse at 50% 0%, var(--paper-hi) 0%, var(--paper) 70%) fixed; background-color: var(--paper); color: var(--ink);
+  font: 18px/1.6 var(--body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 88px; padding-block: 28px 64px }
+.col { max-width: 680px }
+a { color: var(--rust) }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--rust); outline-offset: 3px }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; text-wrap: balance; margin: 0; letter-spacing: .04em; text-shadow: var(--glow) }
+h2 { font-size: clamp(2.4rem, 5vw, 3.4rem); line-height: 1; color: var(--rust); text-transform: uppercase }
+h3 { font-size: 1.75rem; line-height: 1.1; text-transform: uppercase }
+p { margin: 0 }
+.stack { display: flex; flex-direction: column; gap: 18px }
+.label { font: 600 .78rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim) }
+code, .mono { font-family: var(--mono); font-size: .88em }
+:not(pre) > code { color: var(--rust); background: var(--panel); border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px }
+
+/* top bar */
+nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap }
+.brand { font: 2.4rem/1 var(--display); letter-spacing: .1em; color: var(--ink); text-decoration: none; text-shadow: var(--glow) }
+.brand::after { content: "█"; color: var(--rust); margin-left: 4px; animation: blink 1.1s steps(1) infinite }
+nav ul { list-style: none; display: flex; gap: 22px; margin: 0; padding: 0; flex-wrap: wrap; font: 1.35rem var(--display); letter-spacing: .06em; text-transform: uppercase }
+nav a { color: var(--dim); text-decoration: none } nav a:hover { color: var(--rust) }
+@keyframes blink { 50% { opacity: 0 } }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 48px; align-items: center }
+.hero h1 { font-size: clamp(3.4rem, 8.5vw, 6.4rem); line-height: .9; text-transform: uppercase; color: var(--ink) }
+.hero h1 em { font-style: normal; color: var(--rust) }
+.lede { font-size: 1.2rem; max-width: 34ch }
+.install { display: flex; align-items: stretch; border: 1px solid var(--rust); border-radius: 4px; background: var(--screen); overflow: hidden; max-width: 100% }
+.install code { flex: 1; min-width: 0; padding: 12px 14px; background: none; border: 0; color: var(--code); overflow-x: auto; white-space: nowrap; font-size: .82rem }
+.install button { border: 0; border-left: 1px solid var(--rust); background: transparent; color: var(--rust); font: 1.3rem var(--display); letter-spacing: .08em; padding: 0 16px; cursor: pointer; text-transform: uppercase }
+.install button:hover { background: color-mix(in srgb, var(--rust) 12%, transparent) }
+.fine { font: .8rem/1.5 var(--mono); color: var(--dim) }
+
+/* terminal "screens" */
+.screen { background: var(--screen); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--glow), inset 0 0 30px rgba(0, 0, 0, .08); overflow: hidden; min-width: 0 }
+.screen .bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font: .72rem var(--mono); color: var(--dim); letter-spacing: .1em; text-transform: uppercase }
+.screen .bar i { width: 14px; height: 4px; background: currentColor; display: inline-block; opacity: .7 }
+.screen .bar i:nth-child(1) { color: var(--ok) } .screen .bar i:nth-child(2) { color: var(--rust) }
+.screen pre { margin: 0; padding: 16px 18px; font: .82rem/1.55 var(--mono); color: var(--screen-ink); overflow-x: auto; white-space: pre }
+.screen pre b { color: var(--rust); font-weight: 600 } .screen pre .ok { color: var(--ok) } .screen pre .d { color: var(--dim) }
+.cursor { display: inline-block; width: .6em; height: 1.05em; background: var(--rust); vertical-align: -2px; animation: blink 1s steps(1) infinite }
+
+/* manifesto */
+.manifesto { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px }
+.manifesto .side h2 { font-size: clamp(2.4rem, 4vw, 2.9rem) }
+.manifesto .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start }
+.theses { display: flex; flex-direction: column; gap: 34px; max-width: 680px }
+.thesis h3 { color: var(--ink); margin-bottom: 8px }
+.thesis h3 span { color: var(--rust) }
+.limits { border-top: 1px dashed var(--line); padding-top: 22px; color: var(--dim) }
+.limits strong { color: var(--ink) }
+
+/* abilities */
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line) }
+.grid > div { background: var(--paper); padding: 20px 20px 22px; display: flex; flex-direction: column; gap: 6px }
+.grid h3 { font-size: 1.45rem; color: var(--rust) }
+.grid p { font-size: .95rem; color: var(--ink) }
+
+/* tiers */
+.tiers { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 460px }
+.tiers th, .tiers td { text-align: left; padding: 12px 14px; border-bottom: 1px dashed var(--line); vertical-align: top; font-size: .95rem }
+.tiers th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.tiers td:first-child { font: 1.7rem/1 var(--display); color: var(--rust); white-space: nowrap }
+.scroll { overflow-x: auto; min-width: 0 }
+
+/* steps (a real sequence) */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; counter-reset: s }
+.steps li { counter-increment: s; border-top: 3px solid var(--rust); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: .93rem }
+.steps li::before { content: counter(s); font: 2.6rem/1 var(--display); color: var(--rust) }
+.steps strong { font: 1.45rem/1 var(--display); letter-spacing: .04em; text-transform: uppercase }
+.callout { border-left: 3px solid var(--rust); padding: 4px 0 4px 18px; font-size: 1.1rem }
+
+/* loop diagram */
+.loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; position: relative }
+.loop div { border: 1px solid var(--line); background: var(--screen); padding: 14px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px; position: relative }
+.loop div:not(:last-child)::after { content: "→"; position: absolute; right: -14px; top: 50%; transform: translate(50%, -50%); color: var(--rust); font: 1.6rem var(--display) }
+.loop b { font: 1.4rem/1 var(--display); color: var(--rust); letter-spacing: .04em; font-weight: 400 }
+.loop span { font-size: .88rem }
+.back { font: .82rem var(--mono); color: var(--dim); border-top: 1px dashed var(--line); padding-top: 10px }
+
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 40px }
+footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font: .85rem var(--mono); color: var(--dim) }
+
+@media (max-width: 860px) {
+  .hero, .manifesto, .two { grid-template-columns: minmax(0, 1fr) }
+  .manifesto .side { position: static }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .loop { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .loop div:nth-child(2)::after { display: none }
+  .wrap { gap: 64px }
+}
+@media (max-width: 520px) {
+  .grid, .steps, .loop { grid-template-columns: minmax(0, 1fr) }
+  .loop div::after { display: none }
+  nav ul { gap: 14px }
+}
+@media (prefers-reduced-motion: reduce) { .brand::after, .cursor { animation: none } }
+
+/* data map */
+.data { width: 100%; border-collapse: collapse; min-width: 720px; font-size: .93rem }
+.data th, .data td { text-align: left; padding: 12px 14px; border-bottom: 1px dashed var(--line); vertical-align: top }
+.data thead th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.data tbody th { font: 1.4rem/1.05 var(--display); color: var(--rust); font-weight: 400; letter-spacing: .03em; width: 17% }
+.data code { font-size: .8rem; word-break: break-all }
+.data .no { color: var(--ok) } .data .yes { color: var(--rust) }
+.trust { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px }
+.trust > div { border-top: 3px solid var(--rust); padding-top: 12px; display: flex; flex-direction: column; gap: 8px }
+.trust > div:first-child { border-top-color: var(--ok) }
+.trust h3 { font-size: 1.6rem }
+.howto { margin: 0; padding: 0; list-style: none; counter-reset: h; display: flex; flex-direction: column; gap: 10px }
+.howto li { counter-increment: h; display: grid; grid-template-columns: 2em minmax(0, 1fr) }
+.howto li::before { content: counter(h); color: var(--rust); font: 1.6rem/1.1 var(--display) }
+@media (max-width: 860px) { .trust { grid-template-columns: minmax(0, 1fr) } }
+</style>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#top" id="top">JOSHUA</a>
+    <ul>
+      <li><a href="#why">Why local</a></li>
+      <li><a href="#data">Your data</a></li>
+      <li><a href="#does">What it does</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#teach">Teach it</a></li>
+      <li><a href="#inside">Inside</a></li>
+      <li><a href="api.html">API</a></li>
+      <li><a href="manifesto.html">Manifesto</a></li>
+    </ul>
+  </nav>
+
+  <header class="hero">
+    <div class="stack">
+      <span class="label">Ask Joshua · a private AI assistant</span>
+      <h1>Your AI.<br><em>On your</em><br>computer.</h1>
+      <p class="lede">Joshua is an assistant that runs entirely on your own computer, a Mac or a Linux PC. It searches the web, reads your files, writes code, makes pictures and learns how you like answers, without sending your life to anyone's servers.</p>
+      <div class="install" role="group" aria-label="Install command">
+        <code id="cmd">curl -fsSL https://ask.joshua.earth/install.sh | bash</code>
+        <button type="button" id="copy">Copy</button>
+      </div>
+      <p class="fine">Paste it in a terminal. A Mac with Apple Silicon (M1 or later) or a Linux PC, 8 GB of memory, 10–40 GB of free disk. On Linux an NVIDIA graphics card makes it much faster. Free and open.</p>
+    </div>
+    <div class="screen" aria-label="What the installer shows">
+      <div class="bar"><i></i><i></i><span>install.sh</span></div>
+<pre><b>▸ Checking your Mac</b>
+  <span class="ok">✓</span> Apple M4 · 16 GB memory · 212 GB free · macOS 15.1
+
+<b>▸ A few questions</b>
+  <span class="d">With 16 GB of memory, Joshua uses the 8-billion-
+  parameter model: the best fit for your Mac.</span>
+  Install the deep-thinking version? [Y/n] y
+  Install image generation?          [Y/n] y
+  Install the fine-tuning tools?     [y/N] y
+  <span class="ok">✓</span> Plan: qwen3-vl 8b + deep thinking + images
+         + fine-tuning · about 21 GB
+  Go ahead? [Y/n] <span class="cursor"></span></pre>
+    </div>
+  </header>
+
+  <section class="manifesto" id="why">
+    <div class="side stack">
+      <span class="label">Manifesto</span>
+      <h2>Why it lives on your computer</h2>
+    </div>
+    <div class="theses">
+      <div class="thesis">
+        <h3><span>&gt;</span> Your questions are yours</h3>
+        <p>What you ask an assistant is a diary of your worries, your work and your plans. With Joshua, the model runs on your own chip. Your chats, files and memory sit in one folder on your disk, in plain files you can open, copy or delete.</p>
+      </div>
+      <div class="thesis">
+        <h3><span>&gt;</span> No profile, same answers</h3>
+        <p>When Joshua searches the web it goes out anonymously, with no account and no cookies, so nobody builds a profile from it. The same question gets the same results on any computer, in the language you asked in.</p>
+      </div>
+      <div class="thesis">
+        <h3><span>&gt;</span> It works when the network doesn't</h3>
+        <p>Untick the internet and Joshua keeps working: on a train, in the mountains, during an outage. Nothing switches off because a company changed its plans or its prices.</p>
+      </div>
+      <div class="thesis">
+        <h3><span>&gt;</span> You can see how it works, and change it</h3>
+        <p>Every rule Joshua follows is in a few readable Python files. The memory it keeps about you is a notes file you can edit. And you can teach it your own style, on your own computer, with your own examples.</p>
+      </div>
+      <p class="limits"><strong>What you give up.</strong> A model that fits on a laptop is smaller than the giant ones in data centres: it makes more mistakes and writes less brilliantly. Joshua makes up for part of it by checking the web before it answers and fact-checking itself against its sources, and it tells you where each fact came from. It is also slower, and it needs a reasonably recent computer. If yours is too small, you can choose a cloud model for the chats that need one: see <a href="#data">where your data lives</a>.</p>
+    </div>
+  </section>
+
+
+  <section class="stack" id="data">
+    <span class="label">Your data</span>
+    <h2>Where your data lives</h2>
+    <p class="col">Everything Joshua knows about you is kept in ordinary files in one folder on your computer, <code>~/AskJoshua</code>. You can open them, back them up or delete them. Joshua answers with a model on your own computer by default. You can also pick a <strong>cloud model</strong> for a chat, to get a bigger model or to help a small computer. The table shows what each choice sends out.</p>
+    <div class="scroll">
+      <table class="data">
+        <thead><tr><th>What</th><th>Where it is stored</th><th>Local model</th><th>Cloud model ☁</th></tr></thead>
+        <tbody>
+          <tr><th>Chats</th><td>Each chat in its own folder: <code>~/AskJoshua/joshua/conversations/</code>; scheduled tasks in <code>schedules.json</code></td><td class="no">Never leaves your computer</td><td class="yes">The chat you are in is sent with each message, so the model can answer. Your other chats are not.</td></tr>
+          <tr><th>Files</th><td>The chat's <code>files</code> folder, or the project folder you point it to</td><td class="no">Never leave your computer</td><td class="yes">Only the text Joshua reads from them, and pictures you attach</td></tr>
+          <tr><th>Memory</th><td>Notes about you, as editable text: <code>~/AskJoshua/joshua/memory/</code></td><td class="no">Never leave your computer</td><td class="no">Not sent, unless you switch on “Share notes with cloud models”. The notes are always written by the model on your computer; with cloud models only, Joshua writes new notes only if sharing is on.</td></tr>
+          <tr><th>Your trained models</th><td>Examples in <code>~/AskJoshua/joshua/finetune/</code>, models in Ollama's folder <code>~/.ollama</code></td><td class="no">Trained and kept on your computer</td><td class="no">Trained and kept on your computer</td></tr>
+          <tr><th>Pictures</th><td>The chat's <code>files</code> folder</td><td class="no">Drawn on your computer</td><td class="no">Drawn on your computer</td></tr>
+          <tr><th>Web searches</th><td>Nowhere: not stored</td><td class="yes">Search words go to search engines (Yahoo, DuckDuckGo, Brave, Startpage) with no account and no cookies. Tick “No internet” to stop it.</td><td class="yes">The same. The pages Joshua reads also go to the cloud model, as part of the chat.</td></tr>
+          <tr><th>Programs using Joshua</th><td>Each request is saved as a 🔌 chat in <code>conversations/</code>; the API key is in <code>~/AskJoshua/joshua/api.json</code></td><td class="no">Only programs on this computer can connect, unless you allow your home network. They need the key.</td><td class="yes">Only if a program asks for a cloud model by name</td></tr>
+          <tr><th>Updates and model lists</th><td>Nowhere: not stored</td><td class="yes">When Joshua opens it asks ask.joshua.earth for the latest version number. The model lists are read from ollama.com when you open those panels. Nothing about you is sent.</td><td class="yes">The same</td></tr>
+          <tr><th>Your Ollama account</th><td>Only with cloud models: a key in <code>~/.ollama</code> links this computer to your account</td><td class="no">Not needed</td><td class="yes">Ollama knows your account and how much you use, to apply your plan's limits and billing</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="trust">
+      <div><h3>Local: nothing to trust</h3><p>With a local model, your conversations are never sent anywhere. The only things that go out are web searches and the pages Joshua reads, and you can switch those off. This is the default.</p></div>
+      <div><h3>Cloud: we trust Ollama</h3><p>With a cloud model you rely on Ollama's word. Ollama says cloud prompts and replies are <em>never logged or trained on</em>, and that its hosting partners must keep nothing. The models run mainly in the United States, sometimes in Europe. Your computer can't check any of this, so Joshua marks every cloud chat with ☁ and tells you in the chat itself. <a href="https://ollama.com/cloud" rel="noopener">Ollama's cloud terms</a></p></div>
+    </div>
+    <div class="col stack">
+      <h3>Using a cloud model</h3>
+      <ol class="howto">
+        <li><span><strong>Connect.</strong> Say yes to cloud models when you install, or later open <em>☁ Cloud models</em> in Joshua and press <em>Connect</em>. A page on ollama.com opens: create a free account or sign in, and approve your computer.</span></li>
+        <li><span><strong>Start free, pay if you need more.</strong> Ollama's free plan includes a small monthly allowance on some models: Gemma 4 31B, which also sees images, is one, and Joshua sets it up for you. Bigger models need pay-as-you-go credit (no monthly fee) or a plan such as Pro ($20 a month with $60 of use included).</span></li>
+        <li><span><strong>Add a model.</strong> In <em>☁ Cloud models</em>, pick one from the list (👁 means it can also see images) and press <em>Add to the model menu</em>. Nothing is downloaded.</span></li>
+        <li><span><strong>Choose it per chat.</strong> Pick the ☁ model under the prompt. Joshua starts every new chat on your local model, so the cloud is always a choice you make.</span></li>
+      </ol>
+      <p class="fine">Plans and prices as of November 2026; Ollama may change which models are free. Local models stay free and unlimited.</p>
+    </div>
+  </section>
+
+  <section class="stack" id="does">
+    <span class="label">Abilities</span>
+    <h2>What Joshua does</h2>
+    <div class="grid">
+      <div><h3>Researches first</h3><p>For facts that change, it searches, reads the pages, answers with numbered sources, then fact-checks its own answer against them.</p></div>
+      <div><h3>Reads your files</h3><p>Drop in text, Word, PDF or images. Each chat has its own folder; point a chat at a project folder and it works there.</p></div>
+      <div><h3>Writes and runs code</h3><p>Python in a sandbox that can only write in the chat's folder. Packages install on demand.</p></div>
+      <div><h3>Sees and draws</h3><p>Looks at your photos and screenshots. With images installed it creates pictures and edits your own photos, locally.</p></div>
+      <div><h3>Remembers you</h3><p>Keeps short notes on who you are and how you like answers, in files you can read and edit. Switch it off any time.</p></div>
+      <div><h3>Any model you like</h3><p>Download other local models that fit your computer from inside Joshua, keep them up to date, or pick a bigger cloud model for a chat.</p></div>
+      <div><h3>Works with your apps</h3><p>A built-in API in the common OpenAI format lets your scripts, a robot or other apps use Joshua, tools and memory included, from this computer or your home network. <a href="api.html">How to use it</a></p></div>
+      <div><h3>Keeps going</h3><p>Goal mode works until a task is done and checked. Swarm mode asks several agents and merges the best answer. Scheduled tasks run on their own at set times, while Joshua is open and the computer is on.</p></div>
+    </div>
+  </section>
+
+  <section class="two" id="install">
+    <div class="stack">
+      <span class="label">Install</span>
+      <h2>One line, a few questions</h2>
+      <p>The installer looks at your computer first: chip, graphics card, memory, free disk, and estimates how fast each model would run on it. It asks whether you want deep thinking, images and fine-tuning, or cloud models only, shows the plan and the space it needs, and waits for your yes.</p>
+      <p>Then it installs <a href="https://ollama.com" rel="noopener">Ollama</a>, the engine that runs the models, a private copy of Python, Joshua and the models you chose, and offers to start Joshua when you log in, so it opens at once and scheduled tasks can run. On a Mac, Joshua is an app of its own in the Applications folder, with its own window and Dock icon; on Linux it opens in its own window from the applications menu. Everything else stays in one folder, <code>~/AskJoshua</code>, with an <code>uninstall.sh</code> that removes it.</p>
+      <p class="fine">Prefer to read before you run? <a href="https://ask.joshua.earth/install.sh">Open install.sh</a>: it is plain, commented shell.</p>
+    </div>
+    <div class="stack">
+      <span class="label">Which model you get (Mac memory)</span>
+      <div class="scroll">
+        <table class="tiers">
+          <thead><tr><th>Memory</th><th>Model</th><th>Options</th></tr></thead>
+          <tbody>
+            <tr><td>8 GB</td><td>qwen3-vl 4B · about 3 GB</td><td>Deep thinking. Images are not offered: they need 16 GB. On a slow chip the 4B is suggested even with 16 GB.</td></tr>
+            <tr><td>16–24 GB</td><td>qwen3-vl 8B · about 6 GB</td><td>Deep thinking, images (FLUX.2 klein), fine-tuning.</td></tr>
+            <tr><td>32 GB+</td><td>qwen3-vl 30B · about 20 GB</td><td>Everything, with a larger and smarter model if you want it.</td></tr>
+            <tr><td>Any computer</td><td>Cloud models only · about 1 GB</td><td>For computers too small or too old for local models (Intel Macs, under 8 GB of memory, little free disk), or if you prefer. Answers come from Ollama's servers; chats, files and memory stay on your computer. Needs an internet connection and a free Ollama account.</td></tr>
+            <tr><td>Linux</td><td>chosen by the graphics card: 4B under 7 GB, 8B from 7 GB, 30B from 22 GB</td><td>Images from 12 GB, fine-tuning from 8 GB, on NVIDIA cards. Without a card, the 4B runs on the processor, slowly.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="stack" id="teach">
+    <span class="label">Fine-tuning</span>
+    <h2>Teach Joshua your style</h2>
+    <div class="col stack">
+      <p>Fine-tuning nudges a few of the model's billions of numbers with your examples, so it picks up a habit: a tone of voice, a format, your jargon. Joshua walks you through it in the <strong>Teach Joshua</strong> panel, explaining each step as you go. It runs on your Mac in 15 to 60 minutes, and your examples never leave it.</p>
+      <p class="callout">It teaches style, not facts. Train it on 200 answers about your company and it will sound like it knows your company, but it will invent the details. For facts, Joshua has memory, your files and the web.</p>
+    </div>
+    <ol class="steps">
+      <li><strong>Name it</strong>Each fine-tune is a project. The result is a new model called <code>joshua-&lt;name&gt;</code>.</li>
+      <li><strong>Examples</strong>100–500 pairs of what you say and the answer you want. Upload a file, pick past chats, or write them.</li>
+      <li><strong>Train</strong>A LoRA adapter learns from them with mlx-lm. A live chart shows when it learns and when it starts memorising.</li>
+      <li><strong>Compare</strong>Ask the same new question before and after, side by side.</li>
+      <li><strong>Install</strong>Merged, converted to GGUF, added to Ollama, and listed in Joshua's model menu.</li>
+    </ol>
+  </section>
+
+  <section class="stack" id="inside">
+    <span class="label">Inside</span>
+    <h2>How Joshua thinks</h2>
+    <p class="col">The model has no memory of its own. Every time you write, Joshua sends it the whole conversation, and the model either answers or asks for a tool. Joshua runs the tool, adds the result, and asks again, up to 25 rounds.</p>
+    <div class="loop">
+      <div><b>1 · The chat</b><span>Instructions, your messages, every tool result.</span></div>
+      <div><b>2 · The model</b><span>qwen3-vl in Ollama reads all of it and replies.</span></div>
+      <div><b>3 · Tools?</b><span>No: the answer is shown. Yes: go on.</span></div>
+      <div><b>4 · Run tools</b><span>Search, read, code, files, images. Results go back to 1.</span></div>
+    </div>
+    <p class="back">Built with Ollama · qwen3-vl · FLUX.2 klein via mflux · mlx-lm · llama.cpp's converter · Gradio · anonymous search through ddgs. All open source.</p>
+  </section>
+
+  <footer>
+    <span>Ask Joshua · from the people behind <a href="https://yattaphone.org">Yattaphone</a>, the phone you build yourself.</span>
+    <span>Version 2026.11.08.8 · Own your hardware. Own your data. Own your intelligence.</span>
+  </footer>
+</div>
+
+<script>
+document.getElementById("copy").addEventListener("click", async (e) => {
+  const b = e.currentTarget, text = document.getElementById("cmd").textContent;
+  try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; }
+  catch (err) { const r = document.createRange(); r.selectNodeContents(document.getElementById("cmd")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selected"; }
+  setTimeout(() => (b.textContent = "Copy"), 1800);
+});
+</script>

@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+# created while Joshua runs: your own data, never committed
+joshua/config.json
+joshua/api.json
+joshua/schedules.json
+joshua/conversations/
+joshua/memory/
+joshua/workspace/
+joshua/finetune/
