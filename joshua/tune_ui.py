@@ -2,8 +2,9 @@
 import html, json, pathlib
 import gradio as gr, pandas as pd
 import finetune as ft
+from i18n import t
 
-INTRO = """
+INTRO = t("""
 ### What fine-tuning is
 Joshua's brain is a model: billions of numbers learned from a huge amount of text. **Fine-tuning** nudges a few of those numbers
 using *your* examples, so the model picks up a habit: a tone of voice, a format, a way of answering, your jargon.
@@ -19,12 +20,12 @@ Your examples never leave it.
 it can't see images, and it is less capable than the main one, but it will answer the way you taught it.
 
 **The five steps:** ① name it · ② give examples · ③ train · ④ compare before and after · ⑤ install it into Joshua.
-"""
+""")
 
-STEP1 = """Each fine-tune is a **project** with its own examples and training. Give it a short name in lowercase,
-like `formal-italian` or `newsroom-style`. The finished model will be called `joshua-<name>`."""
+STEP1 = t("""Each fine-tune is a **project** with its own examples and training. Give it a short name in lowercase,
+like `formal-italian` or `newsroom-style`. The finished model will be called `joshua-<name>`.""")
 
-STEP2 = """The model learns from **examples**: something you might say, and the exact answer you want back.
+STEP2 = t("""The model learns from **examples**: something you might say, and the exact answer you want back.
 Quality beats quantity: **100–500 good examples** work far better than 5,000 sloppy ones. Every example should show the habit
 you want, and the answers should be ones you'd be happy to get.
 
@@ -33,9 +34,9 @@ Three ways to add them, which you can mix:
 - **From your chats**: pick conversations you liked; each of your messages becomes an example with Joshua's reply. Edit the replies until they're exactly right.
 - **By hand**: write them one at a time below.
 
-You can edit any cell in the table, and empty a row's cells to delete it. Press **Save examples** when you're done."""
+You can edit any cell in the table, and empty a row's cells to delete it. Press **Save examples** when you're done.""")
 
-STEP3 = """Training shows the model your examples over and over, and each time adjusts the adapter a little so that
+STEP3 = t("""Training shows the model your examples over and over, and each time adjusts the adapter a little so that
 its answers get closer to yours. Three settings matter:
 
 - **Steps**: how many small adjustments. One *pass* means every example has been seen once; 2–5 passes is normal.
@@ -51,36 +52,36 @@ stop, and train again with fewer steps.
 and forget how to use Joshua's tools (search, files…). Vary your examples, start with **Light touch**, and step up only if the
 habit doesn't stick. A validation loss close to zero is a warning sign, not a success.
 
-Joshua's chat models are unloaded while training, so the computer's memory goes to the training. Chatting will be slow until it ends."""
+Joshua's chat models are unloaded while training, so the computer's memory goes to the training. Chatting will be slow until it ends.""")
 
-STEP4 = """Before installing, ask the same question to the model **before** and **after** training, side by side.
-Use questions that are *not* in your examples: that's how you see whether it learned the habit or only memorised answers."""
+STEP4 = t("""Before installing, ask the same question to the model **before** and **after** training, side by side.
+Use questions that are *not* in your examples: that's how you see whether it learned the habit or only memorised answers.""")
 
-STEP5 = """Installing makes your trained model a normal Ollama model that Joshua can use, in three automatic steps:
+STEP5 = t("""Installing makes your trained model a normal Ollama model that Joshua can use, in three automatic steps:
 1. **Merge**: the adapter is folded into a copy of the model.
 2. **Convert**: that copy is turned into **GGUF**, the file format Ollama runs.
 3. **Add to Ollama**: it gets Joshua's chat template, so it can still use tools, and a name: `joshua-<name>`.
 
 It needs about **18 GB of free disk** while it works; temporary files are deleted at the end and the model takes about 4.3 GB.
-Then pick it from the model menu under the prompt."""
+Then pick it from the model menu under the prompt.""")
 
-PRESETS = {"Light touch": (2, "2e-5", 8), "Normal": (3, "5e-5", 16), "Strong": (5, "1e-4", 16)}
+PRESETS = {"Light touch": (2, "2e-5", 8), "Normal": (3, "5e-5", 16), "Strong": (5, "1e-4", 16)}  # shown translated; the keys stay English
 
 
 def res_html():
     r, missing = ft.resources(), ft.ready()
     ok = r["ram"] >= 8 and r["free"] >= ft.BASE_GB + 2
-    r["chip"] = r["chip"].replace("·", "<br>Graphics ·") if not ft.MAC else r["chip"]
-    rows = [f"Chip · {html.escape(r['chip'])}", f"Memory · {r['ram']} GB {'✓' if r['ram'] >= 8 else '✗ needs 8 GB or more'}",
-            f"Free disk · {r['free']} GB {'✓ enough to train' if r['free'] >= ft.BASE_GB + 2 else f'✗ training needs about {ft.BASE_GB + 2:.0f} GB'}"
-            + ("" if r["free"] >= 18 else " · installing the result needs about 18 GB")]
+    r["chip"] = r["chip"].replace("·", "<br>" + t("Graphics") + " ·") if not ft.MAC else r["chip"]
+    rows = [t("Chip") + f" · {html.escape(r['chip'])}", t("Memory (RAM)") + f" · {r['ram']} GB " + ("✓" if r["ram"] >= 8 else "✗ " + t("needs 8 GB or more")),
+            t("Free disk") + f" · {r['free']} GB " + ("✓ " + t("enough to train") if r["free"] >= ft.BASE_GB + 2 else "✗ " + t("training needs about {n} GB", n=f"{ft.BASE_GB + 2:.0f}"))
+            + ("" if r["free"] >= 18 else " · " + t("installing the result needs about 18 GB"))]
     rows += [f"✗ {html.escape(m)}" for m in missing]
-    verdict = "READY TO TRAIN" if ok and not missing else "NOT READY YET"
+    verdict = t("READY TO TRAIN") if ok and not missing else t("NOT READY YET")
     return f"<div class='ftres'><b>{verdict}</b><br>" + "<br>".join(rows) + "</div>"
 
 
 def table(rows):
-    return pd.DataFrame(rows or [["", ""]], columns=["You say", "Joshua answers"])
+    return pd.DataFrame(rows or [["", ""]], columns=[t("You say"), t("Joshua answers")])
 
 
 def rows_of(df):
@@ -91,71 +92,71 @@ def rows_of(df):
 
 def count_html(rows):
     n = len(rows)
-    tip = ("Add at least 20 to train." if n < 20 else "Enough to try; 100 or more gives steadier results." if n < 100 else "A good amount.")
-    return f"<div class='ftcount'>{n} EXAMPLES · {tip}</div>"
+    tip = (t("Add at least 20 to train.") if n < 20 else t("Enough to try; 100 or more gives steadier results.") if n < 100 else t("A good amount."))
+    return f"<div class='ftcount'>{t('{n} EXAMPLES', n=n)} · {tip}</div>"
 
 
 def build(conv_root, conv_choices):
     with gr.Column(visible=False, scale=5, elem_id="tune") as panel:
         with gr.Row():
-            gr.HTML("<div id='tunetitle'>TEACH JOSHUA · FINE-TUNING</div>")
-            back = gr.Button("← Back to chat", size="sm", scale=0, min_width=160, elem_id="tuneback")
-        with gr.Accordion("⓪  What this is, and whether your computer can do it", open=True, elem_classes="ftstep"):
+            gr.HTML("<div id='tunetitle'>" + t("TEACH JOSHUA · FINE-TUNING") + "</div>")
+            back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="tuneback")
+        with gr.Accordion("⓪  " + t("What this is, and whether your computer can do it"), open=True, elem_classes="ftstep"):
             gr.Markdown(INTRO)
             res = gr.HTML()
-        with gr.Accordion("①  Name it", open=True, elem_classes="ftstep"):
+        with gr.Accordion("①  " + t("Name it"), open=True, elem_classes="ftstep"):
             gr.Markdown(STEP1)
             with gr.Row():
-                name = gr.Dropdown(choices=ft.projects(), value=None, allow_custom_value=True, label="Project name", scale=3)
-                openp = gr.Button("Create / open", scale=1)
-        with gr.Accordion("②  Give examples", open=False, elem_classes="ftstep") as acc2:
+                name = gr.Dropdown(choices=ft.projects(), value=None, allow_custom_value=True, label=t("Project name"), scale=3)
+                openp = gr.Button(t("Create / open"), scale=1)
+        with gr.Accordion("②  " + t("Give examples"), open=False, elem_classes="ftstep") as acc2:
             gr.Markdown(STEP2)
             with gr.Row():
-                upload = gr.File(file_types=[".jsonl", ".json", ".csv"], label="Upload a file", height=110, scale=1)
+                upload = gr.File(file_types=[".jsonl", ".json", ".csv"], label=t("Upload a file"), height=110, scale=1)
                 with gr.Column(scale=2):
-                    chats = gr.Dropdown(choices=conv_choices(), multiselect=True, label="From your chats")
-                    addchats = gr.Button("Add from these chats", size="sm")
+                    chats = gr.Dropdown(choices=conv_choices(), multiselect=True, label=t("From your chats"))
+                    addchats = gr.Button(t("Add from these chats"), size="sm")
             with gr.Row():
-                q = gr.Textbox(label="You say", lines=2, scale=2)
-                a = gr.Textbox(label="Joshua answers", lines=2, scale=3)
-                add = gr.Button("Add", scale=0, min_width=80)
-            grid = gr.Dataframe(table([]), headers=["You say", "Joshua answers"], column_count=(2, "fixed"), interactive=True, wrap=True, max_height=420, elem_id="ftgrid")
+                q = gr.Textbox(label=t("You say"), lines=2, scale=2)
+                a = gr.Textbox(label=t("Joshua answers"), lines=2, scale=3)
+                add = gr.Button(t("Add"), scale=0, min_width=80)
+            grid = gr.Dataframe(table([]), headers=[t("You say"), t("Joshua answers")], column_count=(2, "fixed"), interactive=True, wrap=True, max_height=420, elem_id="ftgrid")
             with gr.Row():
                 count = gr.HTML(count_html([]))
-                saveb = gr.Button("Save examples", variant="primary", scale=0, min_width=180)
-        with gr.Accordion("③  Train", open=False, elem_classes="ftstep") as acc3:
+                saveb = gr.Button(t("Save examples"), variant="primary", scale=0, min_width=180)
+        with gr.Accordion("③  " + t("Train"), open=False, elem_classes="ftstep") as acc3:
             gr.Markdown(STEP3)
-            preset = gr.Radio(list(PRESETS), value="Normal", label="Preset")
+            preset = gr.Radio([(t(p), p) for p in PRESETS], value="Normal", label=t("Preset"))
             with gr.Row():
-                iters = gr.Slider(50, 1500, value=300, step=10, label="Steps")
-                lr = gr.Dropdown(["1e-5", "2e-5", "5e-5", "1e-4", "2e-4"], value="5e-5", label="Learning rate")
-                layers = gr.Dropdown([4, 8, 16, 24], value=16, label="Layers")
+                iters = gr.Slider(50, 1500, value=300, step=10, label=t("Steps"))
+                lr = gr.Dropdown(["1e-5", "2e-5", "5e-5", "1e-4", "2e-4"], value="5e-5", label=t("Learning rate"))
+                layers = gr.Dropdown([4, 8, 16, 24], value=16, label=t("Layers"))
             with gr.Row():
-                trainb = gr.Button("▶ Start training", variant="primary")
-                stopb = gr.Button("■ Stop", elem_id="ftstop")
-            plot = gr.LinePlot(pd.DataFrame({"step": [], "loss": [], "set": []}), x="step", y="loss", color="set", height=300, label="Loss, lower is better · blue = training · orange = validation", color_map={"training": "#4a7fb5", "validation": "#e8892a"})
-        with gr.Accordion("④  Compare before and after", open=False, elem_classes="ftstep") as acc4:
+                trainb = gr.Button("▶ " + t("Start training"), variant="primary")
+                stopb = gr.Button("■ " + t("Stop"), elem_id="ftstop")
+            plot = gr.LinePlot(pd.DataFrame({"step": [], "loss": [], "set": []}), x="step", y="loss", color="set", height=300, label=t("Loss, lower is better · blue = training · orange = validation"), color_map={t("training"): "#4a7fb5", t("validation"): "#e8892a"})
+        with gr.Accordion("④  " + t("Compare before and after"), open=False, elem_classes="ftstep") as acc4:
             gr.Markdown(STEP4)
             with gr.Row():
-                tq = gr.Textbox(label="A question that is not in your examples", scale=4)
-                tryb = gr.Button("Ask both", scale=1)
+                tq = gr.Textbox(label=t("A question that is not in your examples"), scale=4)
+                tryb = gr.Button(t("Ask both"), scale=1)
             with gr.Row():
-                before = gr.Markdown("", label="Before", elem_classes="ftans", container=True)
-                after = gr.Markdown("", label="After", elem_classes="ftans", container=True)
-        with gr.Accordion("⑤  Install it into Joshua", open=False, elem_classes="ftstep") as acc5:
+                before = gr.Markdown("", label=t("Before"), elem_classes="ftans", container=True)
+                after = gr.Markdown("", label=t("After"), elem_classes="ftans", container=True)
+        with gr.Accordion("⑤  " + t("Install it into Joshua"), open=False, elem_classes="ftstep") as acc5:
             gr.Markdown(STEP5)
             with gr.Row():
-                instb = gr.Button("⬇ Install into Joshua", variant="primary")
-                delb = gr.Button("🗑 Delete this project", elem_id="ftdel")
-        status = gr.HTML("<div class='ftstatus'>IDLE</div>")
-        log = gr.Textbox(label="Console", lines=10, max_lines=10, autoscroll=True, interactive=False, elem_id="ftlog")
+                instb = gr.Button("⬇ " + t("Install into Joshua"), variant="primary")
+                delb = gr.Button("🗑 " + t("Delete this project"), elem_id="ftdel")
+        status = gr.HTML("<div class='ftstatus'>" + t("IDLE") + "</div>")
+        log = gr.Textbox(label=t("Console"), lines=10, max_lines=10, autoscroll=True, interactive=False, elem_id="ftlog")
         seen = gr.State(None)
 
     # ----- handlers -----
     def open_project(n):
         n = (n or "").strip().lower()
         if not ft.NAME_RE.match(n):
-            gr.Warning("Use 2–31 lowercase letters, digits or dashes, like 'newsroom-style'.")
+            gr.Warning(t("Use 2–31 lowercase letters, digits or dashes, like 'newsroom-style'."))
             return (gr.skip(),) * 7
         rows = ft.load_examples(n) or ft.save_examples(n, [])
         meta = ft.pdir(n) / "training.json"
@@ -164,7 +165,7 @@ def build(conv_root, conv_choices):
 
     def need(n):
         if not n or not (ft.pdir(n) / "examples.json").exists():
-            gr.Warning("First create or open a project in step ①.")
+            gr.Warning(t("First create or open a project in step ①."))
             return False
         return True
 
@@ -174,21 +175,21 @@ def build(conv_root, conv_choices):
         try:
             new = ft.parse_file(f)
         except Exception as e:
-            gr.Warning(f"Couldn't read that file: {e}")
+            gr.Warning(t("Couldn't read that file: {error}", error=e))
             return gr.skip(), gr.skip()
-        gr.Info(f"Added {len(new)} examples. Check them, then Save.")
+        gr.Info(t("Added {n} examples. Check them, then Save.", n=len(new)))
         rows = rows_of(df) + new
         return table(rows), count_html(rows)
 
     def from_chat_list(cids, df):
         new = ft.from_chats(conv_root, cids or [])
-        gr.Info(f"Added {len(new)} examples from {len(cids or [])} chats. Edit the answers until they're exactly what you want, then Save.")
+        gr.Info(t("Added {n} examples from {chats} chats. Edit the answers until they're exactly what you want, then Save.", n=len(new), chats=len(cids or [])))
         rows = rows_of(df) + new
         return table(rows), count_html(rows)
 
     def add_one(qq, aa, df):
         if not qq.strip() or not aa.strip():
-            gr.Warning("Write both what you say and the answer you want.")
+            gr.Warning(t("Write both what you say and the answer you want."))
             return gr.skip(), gr.skip(), gr.skip(), gr.skip()
         rows = rows_of(df) + [[qq, aa]]
         return table(rows), count_html(rows), "", ""
@@ -197,7 +198,7 @@ def build(conv_root, conv_choices):
         if not need(n):
             return gr.skip(), gr.skip(), gr.skip()
         rows = ft.save_examples(n, rows_of(df))
-        gr.Info(f"Saved {len(rows)} examples.")
+        gr.Info(t("Saved {n} examples.", n=len(rows)))
         return count_html(rows), iters_for(n, p), gr.Accordion(open=len(rows) >= 20)
 
     def iters_for(n, p):
@@ -216,12 +217,12 @@ def build(conv_root, conv_choices):
             return
         rows = ft.load_examples(n)
         if len(rows) < 20:
-            gr.Warning(f"You have {len(rows)} saved examples: add at least 20 and press Save.")
+            gr.Warning(t("You have {n} saved examples: add at least 20 and press Save.", n=len(rows)))
             return
         tr, va = ft.write_dataset(n, rows)
         try:
             ft.train(n, int(it), l, int(lay), ft.resources()["ram"])
-            gr.Info(f"Training on {tr} examples, checking on {va}. Follow it in the chart and console.")
+            gr.Info(t("Training on {n} examples, checking on {m}. Follow it in the chart and console.", n=tr, m=va))
         except RuntimeError as e:
             gr.Warning(str(e))
 
@@ -229,10 +230,10 @@ def build(conv_root, conv_choices):
         if not need(n):
             return
         if not ft.trained(n):
-            gr.Warning("Train the model first (step ③).")
+            gr.Warning(t("Train the model first (step ③)."))
             return
         if not question.strip():
-            gr.Warning("Write a question.")
+            gr.Warning(t("Write a question."))
             return
         try:
             ft.try_out(n, question)
@@ -243,7 +244,7 @@ def build(conv_root, conv_choices):
         if not need(n):
             return
         if not ft.trained(n):
-            gr.Warning("Train the model first (step ③).")
+            gr.Warning(t("Train the model first (step ③)."))
             return
         try:
             ft.install(n)
@@ -254,14 +255,14 @@ def build(conv_root, conv_choices):
         if not n or not ft.pdir(n).exists():
             return gr.skip(), gr.skip(), gr.skip()
         if ft.busy() and ft.RUN.name == n:
-            gr.Warning("Stop the running step first.")
+            gr.Warning(t("Stop the running step first."))
             return gr.skip(), gr.skip(), gr.skip()
         ft.delete_project(n)
-        gr.Info(f"Deleted the project '{n}'. An installed joshua-{n} model stays in the menu.")
+        gr.Info(t("Deleted the project '{name}'. An installed joshua-{name} model stays in the menu.", name=n))
         return gr.Dropdown(choices=ft.projects(), value=None), table([]), count_html([])
 
     def plot_df(meta):
-        pts = [(s, v, "training") for s, v in meta.get("train", [])] + [(s, v, "validation") for s, v in meta.get("val", [])]
+        pts = [(s, v, t("training")) for s, v in meta.get("train", [])] + [(s, v, t("validation")) for s, v in meta.get("val", [])]
         return pd.DataFrame(pts or [], columns=["step", "loss", "set"])
 
     def tick(seen_v):
@@ -292,6 +293,6 @@ def build(conv_root, conv_choices):
     stopb.click(lambda: ft.stop())
     tryb.click(start_try, [name, tq])
     instb.click(start_install, name)
-    delb.click(delete, name, [name, grid, count], js="(n) => (n && confirm('Delete this project, its examples and its training? An installed model stays.')) ? n : null")
+    delb.click(delete, name, [name, grid, count], js="(n) => (n && confirm(" + json.dumps(t("Delete this project, its examples and its training? An installed model stays."), ensure_ascii=False) + ")) ? n : null")
     gr.Timer(1).tick(tick, seen, [status, log, plot, before, after, seen], show_progress="hidden")
     return panel, back, res

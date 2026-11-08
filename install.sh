@@ -262,7 +262,7 @@ ok "Python $("$PY" -c 'import platform; print(platform.python_version())') in $H
 step "Joshua"
 mkdir -p "$APP"
 if [ -n "$SRC_DIR" ] && [ -f "$SRC_DIR/joshua/web.py" ]; then
-  cp -R "$SRC_DIR"/joshua/*.py "$SRC_DIR"/joshua/requirements.txt "$SRC_DIR"/joshua/VERSION "$SRC_DIR"/joshua/icon.png "$SRC_DIR"/joshua/mac "$APP/"
+  cp -R "$SRC_DIR"/joshua/*.py "$SRC_DIR"/joshua/requirements.txt "$SRC_DIR"/joshua/VERSION "$SRC_DIR"/joshua/icon.png "$SRC_DIR"/joshua/mac "$SRC_DIR"/joshua/locales "$APP/"
 else
   curl -fsSL "$JOSHUA_URL" | tar -xz -C "$APP" --strip-components=1
 fi
