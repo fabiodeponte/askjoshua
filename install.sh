@@ -351,7 +351,8 @@ if [ "$OS" = Darwin ]; then
   SERVICE="$HOME/Library/LaunchAgents/earth.joshua.plist"
   KICK="launchctl bootstrap gui/\$(id -u) '$SERVICE' 2>/dev/null || launchctl kickstart gui/\$(id -u)/earth.joshua"
   HALT="launchctl bootout gui/\$(id -u)/earth.joshua 2>/dev/null"
-  OPEN_APP="open '$HOME/Applications/Joshua.app'"; [ "$(uname -m)" = arm64 ] || OPEN_APP="open $URL"  # Intel: in the browser
+  MACAPPS=/Applications; [ -w "$MACAPPS" ] || { MACAPPS="$HOME/Applications"; mkdir -p "$MACAPPS"; }  # the main Applications folder when we may write there
+  OPEN_APP="open '$MACAPPS/Joshua.app'"; [ "$(uname -m)" = arm64 ] || OPEN_APP="open $URL"  # Intel: in the browser
 else
   START_OLLAMA="(nohup \"$OLLAMA\" serve >/dev/null 2>&1 &)"
   SERVICE="$HOME/.config/systemd/user/joshua.service"
@@ -380,7 +381,7 @@ cat > "$HOME_DIR/stop.sh" <<EOF
 [ -f "$SERVICE" ] && $HALT
 pkill -f "$APP/web.py" && echo "Joshua stopped." || echo "Joshua wasn't running."
 EOF
-if [ "$OS" = Darwin ]; then LAUNCHER="$HOME/Applications/Joshua.app"; else LAUNCHER="$HOME/.local/share/applications/joshua.desktop"; fi
+if [ "$OS" = Darwin ]; then LAUNCHER="$MACAPPS/Joshua.app"; rm -rf "$HOME/Applications/Joshua.app"; else LAUNCHER="$HOME/.local/share/applications/joshua.desktop"; fi
 cat > "$HOME_DIR/uninstall.sh" <<EOF
 #!/bin/bash
 # Removes Joshua. Your chats are in $APP/conversations: copy them first if you want to keep them.
@@ -443,9 +444,9 @@ EOF
 fi
 
 if [ "$OS" = Darwin ] && [ "$(uname -m)" != arm64 ]; then  # Intel Mac: Joshua.app is built for Apple Silicon, so a small launcher opens Joshua in the browser
-  rm -rf "$LAUNCHER"; mkdir -p "$HOME/Applications"
+  rm -rf "$LAUNCHER"
   osacompile -o "$LAUNCHER" -e "do shell script \"nohup '$HOME_DIR/start.sh' >/dev/null 2>&1 &\"" >/dev/null 2>&1
-  ok "Joshua is in your Applications folder (~/Applications/Joshua.app)"
+  ok "Joshua is in your Applications folder ($LAUNCHER)"
 elif [ "$OS" = Darwin ]; then  # Joshua.app: a window with Joshua inside, nothing else (source: joshua/mac/Joshua.swift)
   rm -rf "$LAUNCHER"; mkdir -p "$LAUNCHER/Contents/MacOS" "$LAUNCHER/Contents/Resources"
   cp "$APP/mac/Joshua" "$LAUNCHER/Contents/MacOS/Joshua"; cp "$APP/mac/Joshua.icns" "$LAUNCHER/Contents/Resources/"
