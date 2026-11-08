@@ -104,8 +104,8 @@ step "A few questions"
 # Cloud models only: Joshua itself runs here, but every answer comes from a big model on Ollama's servers.
 CLOUD_TEXT="Joshua runs here, and your chats, files and memory stay on this computer, but every message is answered by a large model on
   Ollama's servers. Nothing big to download, and it works on any computer. You need an internet connection and an Ollama account:
-  some accounts get a small free monthly allowance (Joshua sets up Gemma 4 31B, which is in it), but not every account does:
-  if Ollama refuses, you add a few dollars of pay-as-you-go credit on ollama.com."
+  new accounts pay per use, so add a few dollars of credit on ollama.com (Joshua sets up Gemma 4 31B, which costs well under
+  a cent per message). Some older accounts still have a small free monthly allowance."
 CLOUDONLY=n
 if [ -n "$LOCAL_NO" ]; then
   say "  This computer can't run Joshua's models itself: $LOCAL_NO."
@@ -184,8 +184,8 @@ CLOUD=n
 say ""
 say "  ${bold}Cloud models${off} (optional): much bigger models that run on Ollama's servers instead of this computer."
 say "  ${dim}Your chats, files and memory stay stored here, but each message in a cloud chat is sent to Ollama to be answered."
-say "  Ollama says it doesn't log or train on them. You need an Ollama account. Some accounts get a small free monthly allowance"
-say "  on a few models (Joshua sets up Gemma 4 31B, which is in it), but not all; otherwise you add credit or a plan. You choose per chat.${off}"
+say "  Ollama says it doesn't log or train on them. You need an Ollama account; new accounts pay per use with credit you add on"
+say "  ollama.com (Gemma 4 31B, which Joshua sets up, costs well under a cent per message). You choose per chat.${off}"
 DEF=n; [ "$SPEED" -lt 4 ] && DEF=y && say "  ${dim}Recommended here: this computer is slow with local models.${off}"
 ask "Connect Joshua to Ollama's cloud models?" $DEF && CLOUD=y
 fi

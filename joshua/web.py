@@ -51,7 +51,10 @@ def is_cloud(name):
 PAIR = "auto:qwen3-vl"  # one menu entry: the deep-thinking switch picks qwen3-vl or its faster instruct version
 
 
-def models():
+ADD = "+add"  # last entry of the model menu: opens the panels where you add cloud or local models
+
+
+def models(add=False):
     try:
         listed = ollama.list().models
     except Exception:
@@ -62,7 +65,7 @@ def models():
     choices = [(label(n), n) for n in names if not (FAST in names and n in (FAST, MODEL, MODEL + ":latest"))]
     if FAST in names and (MODEL in names or MODEL + ":latest" in names):
         choices.insert(0, (agent.CONFIG.get("label", "qwen3-vl"), PAIR))
-    return choices or [(FAST, FAST)]
+    return (choices or [(FAST, FAST)]) + ([("＋ Add a model…", ADD)] if add else [])
 
 
 def default_model():
@@ -74,14 +77,14 @@ CLOUD_BADGE = "<div class='cloudbadge'>☁ Cloud model: messages go to Ollama's 
 
 
 def badge(choice):
-    return CLOUD_BADGE if choice and is_cloud(resolve(choice, False)) else ""
+    return CLOUD_BADGE if choice and choice != ADD and is_cloud(resolve(choice, False)) else ""
 
 
 CLOUD_HELP = """Bigger models running on Ollama's servers, for when this computer is too small or slow.
 **What goes to the cloud:** for every message, the conversation so far, including the text of files and web pages Joshua reads, and your photos if you send them.
 **What stays here:** your chats, files, memory notes and trained models are stored only on this computer. Memory notes are sent only if you allow it in 🧠 Memory.
 Ollama says it never logs or trains on cloud prompts. That is a promise you are trusting, not something this computer can check.
-**Cost:** some Ollama accounts get a small free monthly allowance on a few models (marked "free plan"), but not every account does: if Ollama refuses, add pay-as-you-go credit or a plan on ollama.com, or use a local model."""
+**Cost:** new Ollama accounts pay per use: add a few dollars of credit on ollama.com (Gemma 4 31B costs well under a cent per message). Some older accounts still have a small free monthly allowance on a few models (marked "free plan" for those accounts). Local models are always free."""
 
 
 def ollama_bin():
@@ -96,8 +99,8 @@ def cloud_catalog():
         info = {n: requests.post("https://ollama.com/api/show", json={"model": n}, timeout=15).json().get("capabilities", []) for n in names}
     except Exception:
         return gr.Dropdown(choices=[]), "<div class='cloudstat'>Couldn't reach ollama.com to list the cloud models.</div>"
-    free = {"gemma4:31b"}  # in Ollama's free plan (November 2026); Ollama names others in its error messages
-    choices = [(("👁 " if "vision" in c else "") + n + (" · free plan" if n in free else ""), n) for n, c in info.items() if "tools" in c]
+    free = {"gemma4:31b"}  # free for older accounts on Ollama's legacy free plan, and among the cheapest per message (November 2026)
+    choices = [(("👁 " if "vision" in c else "") + n + (" · cheapest" if n in free else ""), n) for n, c in info.items() if "tools" in c]
     choices.sort(key=lambda c: c[1] not in free)
     return gr.Dropdown(choices=choices, value=None), ""
 
@@ -200,7 +203,7 @@ def local_download(tag):
         return
     CAPS.pop(tag, None)
     ok = "tools" in caps(tag)
-    yield gr.Dropdown(choices=models(), value=tag if ok else gr.skip()), f"<div class='cloudstat'>{html.escape(tag)} is ready" + (" and selected in the model menu." if ok else ", but it can't use Joshua's tools, so it isn't in the menu.") + "</div>"
+    yield gr.Dropdown(choices=models(True), value=tag if ok else gr.skip()), f"<div class='cloudstat'>{html.escape(tag)} is ready" + (" and selected in the model menu." if ok else ", but it can't use Joshua's tools, so it isn't in the menu.") + "</div>"
 
 
 def local_update():
@@ -270,7 +273,7 @@ def cloud_add_model(name):
     if r.returncode:
         return gr.skip(), f"<div class='cloudstat'>Couldn't add {html.escape(tag)}: {html.escape((r.stderr or r.stdout)[-200:])}</div>"
     CAPS.pop(tag, None)
-    return gr.Dropdown(choices=models(), value=tag), f"<div class='cloudstat'>Added ☁ {html.escape(name)}: it's selected in the model menu. Nothing was downloaded: it runs on Ollama's servers.</div>"
+    return gr.Dropdown(choices=models(True), value=tag), f"<div class='cloudstat'>Added ☁ {html.escape(name)}: it's selected in the model menu. Nothing was downloaded: it runs on Ollama's servers.</div>"
 
 
 def share_memory_setting(value=None):
@@ -702,8 +705,8 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
                 text = (f"Ollama refused this model for your account. **{free[1]}** is in the free plan: add it from **☁ Cloud models** and pick it in the menu."
                         " Or add credit (pay as you go) or a plan on [ollama.com](https://ollama.com/settings). Local models keep working for free.\n\nOllama's message: " + text)
             else:  # no free usage on this account (not every account gets it), or it's used up
-                text = ("Ollama refused this request: your Ollama account has no cloud usage available. Not every account gets the free monthly allowance, and it may be used up."
-                        " Check your account on [ollama.com/settings](https://ollama.com/settings): you can add a few dollars of credit (pay as you go)."
+                text = ("Ollama refused this request: your Ollama account has no cloud credit. New Ollama accounts pay per use (older ones may have a small free allowance, which may be used up)."
+                        " Add a few dollars of credit on [ollama.com/settings](https://ollama.com/settings): Gemma 4 31B costs well under a cent per message."
                         " Or switch to a local model in the menu below: those are free and run on this computer.\n\nOllama's message: " + text)
         elif is_cloud(model) and any(w in low for w in ("429", "quota", "usage limit", "rate limit", "too many requests")):
             text = "Ollama's cloud refused this request: you've reached your plan's usage limit or too many requests are running. Wait a moment, check your usage on [ollama.com](https://ollama.com/settings), or switch to a local model."
@@ -733,6 +736,8 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     if busy(cid):
         gr.Warning("This chat is still working. Wait for it to finish, press Stop, or start a new chat.")
         return gr.skip(), *SKIP
+    if model == ADD:  # the menu is still on "＋ Add a model…"
+        model = default_model()
     choice, model = model, resolve(model, thinking)
     cloud = is_cloud(model)
     if cloud and offline:
@@ -1629,7 +1634,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             with gr.Row(elem_id="modelrow"):
                 working = gr.HTML("", elem_id="working")
                 cloudbadge = gr.HTML("", elem_id="cloudbadge")
-                model = gr.Dropdown(choices=models(), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200)
+                model = gr.Dropdown(choices=models(True), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200)
         with gr.Column(scale=1, min_width=250, elem_classes="side", elem_id="rightcol") as rightcol:
             thinking = gr.Checkbox(False, label="💭 Deep thinking", elem_classes="opt", info="Slower, better on hard questions")
             goal = gr.Checkbox(False, label="🎯 Goal mode", elem_classes="opt", info="Give a goal; it keeps working until done")
@@ -1644,7 +1649,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 mem_text = gr.Textbox(lines=8, max_lines=20, show_label=False, placeholder="Nothing remembered yet. Joshua adds notes as you chat, or you can type them here, one per line.")
                 mem_btn = gr.Button("Save notes", size="sm")
                 cloudmem = gr.Checkbox(share_memory_setting(), label="Share notes with cloud models", info="Off: cloud models never see your memory notes (Joshua still learns, on this computer)")
-            with gr.Accordion("☁ Cloud models", open=False) as cloud_box:
+            with gr.Accordion("☁ Cloud models", open=False, elem_id="cloudbox") as cloud_box:
                 gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
                 cloud_status = gr.HTML("")
                 connect = gr.Button("Connect this computer to Ollama", size="sm")
@@ -1671,6 +1676,21 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
 
     box.submit(send, [box, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem], [chatbot, box, cid, convs, files], concurrency_limit=None)
     model.change(badge, model, cloudbadge)
+
+    # "＋ Add a model…" in the menu: open the two panels on the right, fill their lists, then put the menu back on the model you had
+    last_model, adding = gr.State(default_model()), gr.State(False)
+
+    def pick_model(choice, last):
+        if choice != ADD:
+            return gr.skip(), gr.skip(), choice, False
+        gr.Info("Pick a model in ☁ Cloud models or ⬇ Local models, on the right.")
+        return gr.Accordion(open=True), gr.Accordion(open=True), last, True
+
+    scroll_js = "(c, l) => { if (c === '+add') setTimeout(() => document.getElementById('cloudbox')?.scrollIntoView({behavior: 'smooth', block: 'start'}), 300); return [c, l]; }"
+    (model.change(pick_model, [model, last_model], [cloud_box, local_box, last_model, adding], js=scroll_js)
+     .then(lambda a: cloud_catalog() if a else (gr.skip(), gr.skip()), adding, [cloud_pick, cloud_status])
+     .then(lambda a: local_catalog() if a else (gr.skip(), gr.skip()), adding, [local_pick, local_status])
+     .then(lambda a, last: (gr.Dropdown(value=last), False) if a else (gr.skip(), False), [adding, last_model], [model, adding]))
     cloudmem.change(share_memory_setting, cloudmem)
     cloud_box.expand(cloud_catalog, outputs=[cloud_pick, cloud_status])
     local_box.expand(local_catalog, outputs=[local_pick, local_status])
@@ -1704,9 +1724,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     files.delete(delete_file, cid, files)
     gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
     dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm('Delete this chat and its files? They will be moved to the Trash.')) ? c : null")
-    demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(), value=default_model())), outputs=[convs, model])
+    demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
     tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>CHECKING YOUR COMPUTER…</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
-    tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models())), outputs=[tune_panel, chatcol, rightcol, model])
+    tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models(True))), outputs=[tune_panel, chatcol, rightcol, model])
     screen.change(None, screen, None, js="(v) => { document.body.dataset.screen = v; try { localStorage.setItem('joshua-screen2', v) } catch (e) {} }")
     demo.load(None, None, screen, js="() => { let v = 'novel'; try { v = localStorage.getItem('joshua-screen2') || 'novel' } catch (e) {} document.body.dataset.screen = v; return v }")
 
