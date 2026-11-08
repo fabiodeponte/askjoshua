@@ -420,7 +420,8 @@ if ask "Start Joshua automatically when you log in? (opens at once; scheduled ta
 </dict></plist>
 EOF
     pkill -f "$APP/web.py" || true
-    launchctl bootout gui/$(id -u)/earth.joshua 2>/dev/null; launchctl bootstrap gui/$(id -u) "$SERVICE"
+    launchctl bootout gui/$(id -u)/earth.joshua 2>/dev/null || true   # stop an older copy, if there is one
+    launchctl bootstrap gui/$(id -u) "$SERVICE" || warn "couldn't start it now; it will start when you next log in"
   else
     mkdir -p "$(dirname "$SERVICE")"
     cat > "$SERVICE" <<EOF
@@ -438,14 +439,14 @@ RestartSec=10
 WantedBy=default.target
 EOF
     pkill -f "$APP/web.py" || true
-    systemctl --user daemon-reload && systemctl --user enable --now joshua
+    { systemctl --user daemon-reload && systemctl --user enable --now joshua; } || { warn "couldn't set up the login service; open Joshua from the applications menu instead"; AUTOSTART=; }
   fi
-  ok "Joshua starts when you log in"
+  if [ -n "$AUTOSTART" ]; then ok "Joshua starts when you log in"; fi
 fi
 
 if [ "$OS" = Darwin ] && [ "$(uname -m)" != arm64 ]; then  # Intel Mac: Joshua.app is built for Apple Silicon, so a small launcher opens Joshua in the browser
   rm -rf "$LAUNCHER"
-  osacompile -o "$LAUNCHER" -e "do shell script \"nohup '$HOME_DIR/start.sh' >/dev/null 2>&1 &\"" >/dev/null 2>&1
+  osacompile -o "$LAUNCHER" -e "do shell script \"nohup '$HOME_DIR/start.sh' >/dev/null 2>&1 &\"" >/dev/null 2>&1 || warn "couldn't create the launcher; start Joshua with $HOME_DIR/start.sh"
   ok "Joshua is in your Applications folder ($LAUNCHER)"
 elif [ "$OS" = Darwin ]; then  # Joshua.app: a window with Joshua inside, nothing else (source: joshua/mac/Joshua.swift)
   rm -rf "$LAUNCHER"; mkdir -p "$LAUNCHER/Contents/MacOS" "$LAUNCHER/Contents/Resources"
@@ -466,7 +467,7 @@ elif [ "$OS" = Darwin ]; then  # Joshua.app: a window with Joshua inside, nothin
   <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict></plist>
 EOF
-  codesign --force -s - "$LAUNCHER" >/dev/null 2>&1
+  codesign --force -s - "$LAUNCHER" >/dev/null 2>&1 || true
   ok "Joshua is in your Applications folder: open it from there, or drag it to the Dock"
 else
   mkdir -p "$(dirname "$LAUNCHER")"
@@ -487,7 +488,7 @@ step "Done"
 if [ "$OS" = Darwin ]; then
   say "  Open ${bold}Joshua${off} from your Applications folder or Launchpad; drag it to the Dock to keep it there."
   say "  ${dim}Everything lives in $HOME_DIR · stop it with stop.sh · remove it with uninstall.sh${off}"
-  open "$LAUNCHER"
+  open "$LAUNCHER" || true
 else
   say "  Open ${bold}Joshua${off} from your applications. It opens at $URL"
   say "  ${dim}Everything lives in $HOME_DIR · stop it with stop.sh · remove it with uninstall.sh${off}"
