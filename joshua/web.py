@@ -706,7 +706,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
                         " Or add credit (pay as you go) or a plan on [ollama.com](https://ollama.com/settings). Local models keep working for free.\n\nOllama's message: " + text)
             else:  # no free usage on this account (not every account gets it), or it's used up
                 text = ("Ollama refused this request: your Ollama account has no cloud credit. New Ollama accounts pay per use (older ones may have a small free allowance, which may be used up)."
-                        " Add a few dollars of credit on [ollama.com/settings](https://ollama.com/settings): Gemma 4 31B costs well under a cent per message."
+                        " [💳 Add a few dollars of credit on ollama.com](https://ollama.com/dashboard): Gemma 4 31B costs well under a cent per message."
                         " Or switch to a local model in the menu below: those are free and run on this computer.\n\nOllama's message: " + text)
         elif is_cloud(model) and any(w in low for w in ("429", "quota", "usage limit", "rate limit", "too many requests")):
             text = "Ollama's cloud refused this request: you've reached your plan's usage limit or too many requests are running. Wait a moment, check your usage on [ollama.com](https://ollama.com/settings), or switch to a local model."
@@ -1093,6 +1093,8 @@ textarea::placeholder {color: var(--dim) !important; opacity: .85}
 #schedpanel label span, #schedpanel [data-testid="block-info"] {font-size: 1.15rem !important}
 #schedpanel input, #schedpanel textarea {font-size: 1.2rem !important; color: var(--ink) !important}
 #schedpanel button {font-size: 1.15rem !important}
+.cloudlinks {display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 6px}
+.cloudlinks a {color: var(--red) !important; text-decoration: underline; font-size: .95rem}
 #schedpanel button.primary {background: var(--red) !important; color: var(--bg) !important; border: none !important; padding: 10px 28px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button.primary {background: var(--ink) !important; border-radius: 10px !important}
 #schedpanel button:not(#schedel):not(.primary) {border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important}
@@ -1653,6 +1655,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
                 cloud_status = gr.HTML("")
                 connect = gr.Button("Connect this computer to Ollama", size="sm")
+                gr.HTML("<div class='cloudlinks'><a href='https://ollama.com/dashboard' target='_blank' rel='noopener'>💳 Add credit on ollama.com</a>"
+                        "<a href='https://ollama.com/settings' target='_blank' rel='noopener'>See what you've used</a></div>")
                 cloud_pick = gr.Dropdown([], label="Add a cloud model", info="All of these can use Joshua's tools; 👁 ones can also see images")
                 cloud_add = gr.Button("Add to the model menu", size="sm")
             with gr.Accordion("⬇ Local models", open=False) as local_box:
