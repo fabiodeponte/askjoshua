@@ -133,6 +133,12 @@ footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; j
 .howto li { counter-increment: h; display: grid; grid-template-columns: 2em minmax(0, 1fr) }
 .howto li::before { content: counter(h); color: var(--rust); font: 1.6rem/1.1 var(--display) }
 @media (max-width: 860px) { .trust { grid-template-columns: minmax(0, 1fr) } }
+.shots { display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; max-width: 860px }
+.shots figure { margin: 0; display: flex; flex-direction: column; gap: 10px }
+.shots img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--paper-hi) }
+.shots figcaption { font-size: .95rem; color: var(--dim) }
+.shots figcaption b { color: var(--ink) }
+@media (max-width: 860px) { .shots { grid-template-columns: minmax(0, 1fr) } }
 </style>
 
 <div class="wrap">
@@ -263,6 +269,7 @@ footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; j
       <h2>One line, a few questions</h2>
       <p>The installer looks at your computer first: chip, graphics card, memory, free disk, and estimates how fast each model would run on it. It asks whether you want deep thinking, images and fine-tuning, or cloud models only, shows the plan and the space it needs, and waits for your yes.</p>
       <p>Then it installs <a href="https://ollama.com" rel="noopener">Ollama</a>, the engine that runs the models, a private copy of Python, Joshua and the models you chose, and offers to start Joshua when you log in, so it opens at once and scheduled tasks can run. On a Mac, Joshua is an app of its own in the Applications folder, with its own window and Dock icon; on Linux it opens in its own window from the applications menu. Everything else stays in one folder, <code>~/AskJoshua</code>, with an <code>uninstall.sh</code> that removes it.</p>
+      <p class="limits"><strong>Before you start.</strong> Installing takes about 20 minutes, most of it downloading, depending on your connection and the options you choose. On some Macs, macOS also offers to install Apple's “Command Line Developer Tools” along the way: let it finish. Its first time estimate (sometimes many hours) is wrong; it usually takes 10–20 minutes. Cloud models need a free Ollama account: when the installer opens the sign-in page, <b>Continue with Google</b> with your Gmail address is enough. Local models need no account.</p>
       <p class="fine">Prefer to read before you run? <a href="https://ask.joshua.earth/install.sh">Open install.sh</a>: it is plain, commented shell. All of Joshua's code is <a href="https://github.com/fabiodeponte/askjoshua">on GitHub</a>, under the AGPL licence.</p>
     </div>
     <div class="stack">
@@ -279,6 +286,18 @@ footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; j
           </tbody>
         </table>
       </div>
+    </div>
+  </section>
+
+  <section class="stack" id="steps">
+    <span class="label">What installing looks like</span>
+    <div class="shots">
+      <figure><a href="img/install-step1.png"><img src="img/install-step1.png" alt="The installer checks the computer (Apple M4, 16 GB) and asks about deep thinking, images, fine-tuning and cloud models, then shows the plan" loading="lazy"></a>
+        <figcaption><b>1. A few questions.</b> The installer checks your computer, suggests the model that fits, asks what you want, and shows the plan before it installs anything.</figcaption></figure>
+      <figure><a href="img/install-step2.png"><img src="img/install-step2.png" alt="Choosing cloud models only: about 1 GB; Ollama, Python and Joshua are installed and a cloud model is added after signing in to Ollama" loading="lazy"></a>
+        <figcaption><b>2. Or cloud models only.</b> About 1 GB. A browser page opens to sign in to Ollama: <b>Continue with Google</b> is enough.</figcaption></figure>
+      <figure><a href="img/install-step3.png"><img src="img/install-step3.png" alt="The end of the installation: Joshua starts at login and is in the Applications folder, shown with its icon" loading="lazy"></a>
+        <figcaption><b>3. Joshua is in your Applications.</b> Open it from there or from Launchpad, and drag it to the Dock to keep it at hand.</figcaption></figure>
     </div>
   </section>
 
