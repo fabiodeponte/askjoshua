@@ -48,7 +48,7 @@ step "Checking your computer"
 OS=$(uname -s)
 mkdir -p "$HOME_DIR"
 FREE=$(( $(df -k "$HOME_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
-VRAM=0; GPU=""
+VRAM=0; GPU=""; LOCAL_NO=""
 if [ "$OS" = Darwin ]; then
   [ "$(uname -m)" = arm64 ] || LOCAL_NO="it has an Intel processor, too slow for local models"
   MACOS=$(sw_vers -productVersion); MAJOR=${MACOS%%.*}
@@ -276,6 +276,7 @@ pull_first() {  # pull the first tag that exists; print its name
   done
   return 1
 }
+FAST=""; CLOUDM=""
 if [ "$CLOUDONLY" = n ]; then
 step "Downloading the model (this is the long part)"
 FAST=$(pull_first $FAST_CANDIDATES) || die "Couldn't download the model. Check your connection and run again."
