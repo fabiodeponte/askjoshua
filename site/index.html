@@ -240,7 +240,7 @@ footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; j
       <h3>Using a cloud model</h3>
       <ol class="howto">
         <li><span><strong>Connect.</strong> Say yes to cloud models when you install, or later open <em>☁ Cloud models</em> in Joshua and press <em>Connect</em>. A page on ollama.com opens: create a free account or sign in, and approve your computer.</span></li>
-        <li><span><strong>Start free, pay if you need more.</strong> Ollama's free plan includes a small monthly allowance on some models: Gemma 4 31B, which also sees images, is one, and Joshua sets it up for you. Bigger models need pay-as-you-go credit (no monthly fee) or a plan such as Pro ($20 a month with $60 of use included).</span></li>
+        <li><span><strong>Start free, pay if you need more.</strong> Some Ollama accounts get a small free monthly allowance on a few models, including Gemma 4 31B, which also sees images and which Joshua sets up for you. Not every account gets it: a new account may show only pay-as-you-go credit at $0, and then Ollama refuses cloud requests until you add some. Bigger models need pay-as-you-go credit (no monthly fee) or a plan such as Pro ($20 a month with $60 of use included).</span></li>
         <li><span><strong>Add a model.</strong> In <em>☁ Cloud models</em>, pick one from the list (👁 means it can also see images) and press <em>Add to the model menu</em>. Nothing is downloaded.</span></li>
         <li><span><strong>Choose it per chat.</strong> Pick the ☁ model under the prompt. Joshua starts every new chat on your local model, so the cloud is always a choice you make.</span></li>
       </ol>
@@ -269,7 +269,7 @@ footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; j
       <h2>One line, a few questions</h2>
       <p>The installer looks at your computer first: chip, graphics card, memory, free disk, and estimates how fast each model would run on it. It asks whether you want deep thinking, images and fine-tuning, or cloud models only, shows the plan and the space it needs, and waits for your yes.</p>
       <p>Then it installs <a href="https://ollama.com" rel="noopener">Ollama</a>, the engine that runs the models, a private copy of Python, Joshua and the models you chose, and offers to start Joshua when you log in, so it opens at once and scheduled tasks can run. On a Mac, Joshua is an app of its own in the Applications folder, with its own window and Dock icon; on Linux it opens in its own window from the applications menu. Everything else stays in one folder, <code>~/AskJoshua</code>, with an <code>uninstall.sh</code> that removes it.</p>
-      <p class="limits"><strong>Before you start.</strong> Installing takes about 20 minutes, most of it downloading, depending on your connection and the options you choose. On some Macs, macOS also offers to install Apple's “Command Line Developer Tools” along the way: let it finish. Its first time estimate (sometimes many hours) is wrong; it usually takes 10–20 minutes. Cloud models need a free Ollama account: when the installer opens the sign-in page, <b>Continue with Google</b> with your Gmail address is enough. Local models need no account.</p>
+      <p class="limits"><strong>Before you start.</strong> Installing takes about 20 minutes, most of it downloading, depending on your connection and the options you choose. On some Macs, macOS also offers to install Apple's “Command Line Developer Tools” along the way: let it finish. Its first time estimate (sometimes many hours) is wrong; it usually takes 10–20 minutes. Cloud models need an Ollama account: when the installer opens the sign-in page, <b>Continue with Google</b> with your Gmail address is enough. Not every account gets Ollama's free allowance; if it refuses, add a few dollars of credit on ollama.com, or use a local model. Local models need no account.</p>
       <p class="fine">Prefer to read before you run? <a href="https://ask.joshua.earth/install.sh">Open install.sh</a>: it is plain, commented shell. All of Joshua's code is <a href="https://github.com/fabiodeponte/askjoshua">on GitHub</a>, under the AGPL licence.</p>
     </div>
     <div class="stack">
@@ -281,7 +281,7 @@ footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; j
             <tr><td>8 GB</td><td>qwen3-vl 4B · about 3 GB</td><td>Deep thinking. Images are not offered: they need 16 GB. On a slow chip the 4B is suggested even with 16 GB.</td></tr>
             <tr><td>16–24 GB</td><td>qwen3-vl 8B · about 6 GB</td><td>Deep thinking, images (FLUX.2 klein), fine-tuning.</td></tr>
             <tr><td>32 GB+</td><td>qwen3-vl 30B · about 20 GB</td><td>Everything, with a larger and smarter model if you want it.</td></tr>
-            <tr><td>Any computer</td><td>Cloud models only · about 1 GB</td><td>For computers too small or too old for local models (Intel Macs, under 8 GB of memory, little free disk), or if you prefer. Answers come from Ollama's servers; chats, files and memory stay on your computer. Needs an internet connection and a free Ollama account.</td></tr>
+            <tr><td>Any computer</td><td>Cloud models only · about 1 GB</td><td>For computers too small or too old for local models (Intel Macs, under 8 GB of memory, little free disk), or if you prefer. Answers come from Ollama's servers; chats, files and memory stay on your computer. Needs an internet connection and an Ollama account; the free allowance isn't guaranteed, so you may need a few dollars of credit.</td></tr>
             <tr><td>Linux</td><td>chosen by the graphics card: 4B under 7 GB, 8B from 7 GB, 30B from 22 GB</td><td>Images from 12 GB, fine-tuning from 8 GB, on NVIDIA cards. Without a card, the 4B runs on the processor, slowly.</td></tr>
           </tbody>
         </table>
@@ -332,7 +332,7 @@ footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; j
 
   <footer>
     <span>Ask Joshua · from the people behind <a href="https://yattaphone.org">Yattaphone</a>, the phone you build yourself.</span>
-    <span>Version 2026.11.08.9 · Own your hardware. Own your data. Own your intelligence.</span>
+    <span>Version 2026.11.08.10 · Own your hardware. Own your data. Own your intelligence.</span>
   </footer>
 </div>
 

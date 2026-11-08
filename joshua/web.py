@@ -81,7 +81,7 @@ CLOUD_HELP = """Bigger models running on Ollama's servers, for when this compute
 **What goes to the cloud:** for every message, the conversation so far, including the text of files and web pages Joshua reads, and your photos if you send them.
 **What stays here:** your chats, files, memory notes and trained models are stored only on this computer. Memory notes are sent only if you allow it in 🧠 Memory.
 Ollama says it never logs or trains on cloud prompts. That is a promise you are trusting, not something this computer can check.
-**Cost:** Ollama's free plan includes a small monthly allowance on some models (marked "free plan"); bigger models need credit or a paid plan on ollama.com."""
+**Cost:** some Ollama accounts get a small free monthly allowance on a few models (marked "free plan"), but not every account does: if Ollama refuses, add pay-as-you-go credit or a plan on ollama.com, or use a local model."""
 
 
 def ollama_bin():
@@ -698,8 +698,13 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
             text = "This cloud model needs your computer to be connected to an Ollama account. Open **☁ Cloud models** in the right column and press **Connect**."
         elif is_cloud(model) and any(w in low for w in ("free usage", "free plan", "402", "payment", "billing", "credit", "subscription", "insufficient", "balance")):
             free = re.search(r"[Tt]ry ([\w.:-]+)", text)  # Ollama suggests a model that is in the free plan
-            text = ("This cloud model isn't included in your Ollama plan." + (f" **{free[1]}** is in the free plan: add it from **☁ Cloud models** and pick it in the menu." if free else "")
-                    + " For bigger models, add credit (pay as you go) or a plan on [ollama.com](https://ollama.com/settings). Local models keep working for free.\n\nOllama's message: " + text)
+            if free:  # Ollama names a model the account can use for free
+                text = (f"Ollama refused this model for your account. **{free[1]}** is in the free plan: add it from **☁ Cloud models** and pick it in the menu."
+                        " Or add credit (pay as you go) or a plan on [ollama.com](https://ollama.com/settings). Local models keep working for free.\n\nOllama's message: " + text)
+            else:  # no free usage on this account (not every account gets it), or it's used up
+                text = ("Ollama refused this request: your Ollama account has no cloud usage available. Not every account gets the free monthly allowance, and it may be used up."
+                        " Check your account on [ollama.com/settings](https://ollama.com/settings): you can add a few dollars of credit (pay as you go)."
+                        " Or switch to a local model in the menu below: those are free and run on this computer.\n\nOllama's message: " + text)
         elif is_cloud(model) and any(w in low for w in ("429", "quota", "usage limit", "rate limit", "too many requests")):
             text = "Ollama's cloud refused this request: you've reached your plan's usage limit or too many requests are running. Wait a moment, check your usage on [ollama.com](https://ollama.com/settings), or switch to a local model."
         shown.append({"role": "assistant", "content": text, "metadata": {"title": "⚠️ Error", "status": "done"}})
