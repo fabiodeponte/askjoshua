@@ -83,11 +83,14 @@ def badge(choice):
     return CLOUD_BADGE if choice and choice != ADD and is_cloud(resolve(choice, False)) else ""
 
 
-CLOUD_HELP = t("""Bigger models running on Ollama's servers, for when this computer is too small or slow.
+CLOUD_HELP = ("**" + t("Stays here:") + "** " + t("your chats, files and memory notes.") + "  \n"
+              + "**" + t("Goes to Ollama:") + "** " + t("the conversation, with the files and photos in it.") + "  \n"
+              + "**" + t("Cost:") + "** " + t("pay per use, paid to Ollama, not to Joshua. Local models are free.") + "\n\n"
+              + "<details><summary>" + t("Read more") + "</summary>\n\n" + t("""Bigger models running on Ollama's servers, for when this computer is too small or slow.
 **What goes to the cloud:** for every message, the conversation so far, including the text of files and web pages Joshua reads, and your photos if you send them.
 **What stays here:** your chats, files, memory notes and trained models are stored only on this computer. Memory notes are sent only if you allow it in 🧠 Memory.
 Ollama says it never logs or trains on cloud prompts. That is a promise you are trusting, not something this computer can check.
-**Cost:** new Ollama accounts pay per use: add a few dollars of credit on ollama.com (Gemma 4 31B costs well under a cent per message). Some older accounts still have a small free monthly allowance on a few models (marked "free plan" for those accounts). Local models are always free.""")
+**Cost:** new Ollama accounts pay per use: add a few dollars of credit on ollama.com (Gemma 4 31B costs well under a cent per message). Some older accounts still have a small free monthly allowance on a few models (marked "free plan" for those accounts). Local models are always free.""") + "\n\n</details>")
 
 
 def ollama_bin():
@@ -101,7 +104,7 @@ def cloud_catalog():
         names = [m["name"] for m in requests.get("https://ollama.com/api/tags", timeout=15).json()["models"]]
         info = {n: requests.post("https://ollama.com/api/show", json={"model": n}, timeout=15).json().get("capabilities", []) for n in names}
     except Exception:
-        return gr.Dropdown(choices=[]), "<div class='cloudstat'>" + t("Couldn't reach ollama.com to list the cloud models.") + "</div>"
+        return gr.Dropdown(choices=[]), "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com. Check your internet connection, then close and reopen this panel to try again.") + "</div>"
     free = {"gemma4:31b"}  # free for older accounts on Ollama's legacy free plan, and among the cheapest per message (November 2026)
     choices = [(("👁 " if "vision" in c else "") + n + (" · " + t("cheapest") if n in free else ""), n) for n, c in info.items() if "tools" in c]
     choices.sort(key=lambda c: c[1] not in free)
@@ -172,7 +175,7 @@ def local_catalog():
         with ThreadPoolExecutor(8) as pool:
             tags = [t for ts in pool.map(lambda n: _try(_model_tags, n), names) for t in ts]
     except Exception:
-        return gr.Dropdown(choices=[]), "<div class='cloudstat'>" + t("Couldn't reach ollama.com to list the models.") + "</div>"
+        return gr.Dropdown(choices=[]), "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com. Check your internet connection, then close and reopen this panel to try again.") + "</div>"
     sized = {(t.split(":")[0], gb) for t, gb, _ in tags if not t.endswith(":latest")}
     tags = [x for x in tags if not (x[0].endswith(":latest") and (x[0].split(":")[0], x[1]) in sized)]  # 'latest' is usually a copy of another size
     budget, free = memory_budget(), shutil.disk_usage(pathlib.Path.home()).free / 2**30
@@ -202,7 +205,7 @@ def local_download(tag):
                 done = int(100 * (p.completed or 0) / p.total)
             yield gr.skip(), "<div class='cloudstat'>" + t("Downloading {model}: {percent}%", model=html.escape(tag), percent=done) + f" · {html.escape(p.status or '')}</div>"
     except Exception as e:
-        yield gr.skip(), "<div class='cloudstat'>" + t("Download failed: {error}", error=html.escape(str(e))) + "</div>"
+        yield gr.skip(), "<div class='cloudstat'>" + t("The download didn't finish ({error}). Check your connection and try again.", error=html.escape(str(e))) + "</div>"
         return
     CAPS.pop(tag, None)
     ok = "tools" in caps(tag)
@@ -731,7 +734,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
                         + "\n\n" + t("Ollama's message:") + " " + text)
         elif is_cloud(model) and any(w in low for w in ("429", "quota", "usage limit", "rate limit", "too many requests")):
             text = t("Ollama's cloud refused this request: you've reached your plan's usage limit or too many requests are running. Wait a moment, check your usage on [ollama.com](https://ollama.com/settings), or switch to a local model.")
-        shown.append({"role": "assistant", "content": text, "metadata": {"title": "⚠️ " + t("Error"), "status": "done"}})
+        shown.append({"role": "assistant", "content": text, "metadata": {"title": "⚠️ " + t("Something went wrong"), "status": "done"}})
     finally:
         save(cid, conv)
         job.running = False
@@ -755,14 +758,14 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     if not text and not files:
         return gr.skip(), *SKIP
     if busy(cid):
-        gr.Warning(t("This chat is still working. Wait for it to finish, press Stop, or start a new chat."))
+        gr.Warning(t("Joshua is still answering here. You can wait, press Stop, or start a new chat."))
         return gr.skip(), *SKIP
     if model == ADD:  # the menu is still on "＋ Add a model…"
         model = default_model()
     choice, model = model, resolve(model, thinking)
     cloud = is_cloud(model)
     if cloud and offline:
-        gr.Warning(t("No internet is on, so a cloud model can't be used. Pick a local model, or untick No internet."))
+        gr.Warning(t("Cloud models need the internet. Please choose a local model, or turn off No internet."))
         return gr.skip(), *SKIP
     if thinking and "thinking" not in caps(model):
         gr.Info(t("{model} can't do deep thinking, so it will answer normally.", model=model))
@@ -832,7 +835,7 @@ def new_chat():
 
 def set_project(path, cid):
     if busy(cid):
-        gr.Warning(t("Wait for this chat to finish before changing its folder."))
+        gr.Warning(t("Joshua is still working. You can change the folder once it has finished."))
         return gr.skip(), gr.skip(), gr.skip(), gr.skip()
     path = (path or "").strip()
     if path:
@@ -874,6 +877,8 @@ def mem_view(topic=None):
 
 
 def mem_save(topic, text):
+    if text is None:  # you cancelled clearing the notes
+        return gr.skip(), gr.skip()
     with agent.MEM_LOCK:
         path = agent._mem(topic or "profile")
         path.write_text(text.strip() + "\n") if text.strip() else path.unlink(missing_ok=True)
@@ -908,7 +913,7 @@ def delete_chat(cid):
     if not cid or not (ROOT / cid).exists():
         return nothing
     if busy(cid):
-        gr.Warning(t("This chat is still working. Press Stop first, then delete it."))
+        gr.Warning(t("Joshua is still answering in this chat. Press Stop first, then you can delete it."))
         return nothing
     title = re.sub(r"[^\w -]+", "", load(cid)["title"] or "chat")[:40].strip() or "chat"
     dest = f"Joshua chat - {title} - {cid}"
@@ -1116,6 +1121,16 @@ textarea::placeholder {color: var(--dim) !important; opacity: .85}
 #schedpanel button {font-size: 1.15rem !important}
 #language {margin: 2px 0 10px !important; max-width: 220px}
 #stop, #stop * {white-space: nowrap !important}
+#chatcol:not(:has(#working .working)) #stop {display: none !important}
+#wfiles button.upload-container {min-height: 0 !important; height: auto !important; padding: 10px 8px !important}
+#wfiles button.upload-container .wrap {flex-direction: row !important; gap: 8px !important; min-height: 0 !important; height: auto !important}
+#wfiles button.upload-container .icon-wrap {width: 18px !important; height: 18px !important; margin: 0 !important}
+#wfiles button.upload-container .or:empty {display: none}
+#schedel {background: transparent !important; border: none !important; box-shadow: none !important; text-decoration: underline; width: auto !important; align-self: flex-start; padding: 2px 0 !important; opacity: .85}
+#modelrow #model::before {content: "@@MODEL@@"; color: var(--dim); font-size: .85rem; margin-right: 6px; align-self: center; white-space: nowrap}
+#modelrow #model {display: flex !important; flex-wrap: nowrap !important; align-items: center; min-width: 240px !important}
+#modelrow #model > .wrap, #modelrow #model > div:not([data-testid]) {flex: 1}
+#model input {text-transform: none !important}
 #language input {font-size: .9rem !important}
 .cloudlinks {display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 6px}
 .cloudlinks a {color: var(--red) !important; text-decoration: underline; font-size: .95rem}
@@ -1542,30 +1557,35 @@ def tasks_view():
                     + f"<div class='taskp'>{html.escape(task['prompt'][:160])}</div></div>")
     names = [task["name"] for task in tasks_load()]
     warn = "<div class='cloudstat'>" + t("⚠ Keep Joshua open and the computer awake at those times.") + "</div>" if rows else ""
-    return ("".join(rows) + warn or "<div class='cloudstat'>" + t("No scheduled tasks yet.") + "</div>"), gr.Dropdown(choices=names, value=None)
+    return ("".join(rows) + warn or "<div class='cloudstat'>" + t("Your tasks will appear here once you save one.") + "</div>"), gr.Dropdown(choices=names, value=None), gr.Column(visible=bool(names))
+
+
+def pause_label(name):
+    task = next((x for x in tasks_load() if x["name"] == name), None)
+    return gr.Button(t("Resume") if task and not task.get("on", True) else t("Pause"))
 
 
 def task_add(name, prompt, when, date, at, days, every, offline, notify_on, model):
     name, prompt = (name or "").strip(), (prompt or "").strip()
     if not name or not prompt:
         gr.Warning(t("Give the task a name and write what Joshua should do."))
-        return gr.skip(), gr.skip()
+        return gr.skip(), gr.skip(), gr.skip()
     if not re.fullmatch(r"\d{1,2}:\d{2}", at or ""):
         gr.Warning(t("Write the time as HH:MM, for example 07:30."))
-        return gr.skip(), gr.skip()
+        return gr.skip(), gr.skip(), gr.skip()
     at = f"{int(at.split(':')[0]):02d}:{at.split(':')[1]}"
     kind = when  # the radio's values are once / daily / weekly / hours
     if kind == "once":
         try:
             if dt.datetime.fromisoformat(f"{date}T{at}") <= dt.datetime.now():
                 gr.Warning(t("That moment has already passed."))
-                return gr.skip(), gr.skip()
+                return gr.skip(), gr.skip(), gr.skip()
         except ValueError:
             gr.Warning(t("Write the date as YYYY-MM-DD, for example 2026-11-20."))
-            return gr.skip(), gr.skip()
+            return gr.skip(), gr.skip(), gr.skip()
     if kind == "weekly" and not days:
         gr.Warning(t("Pick at least one day."))
-        return gr.skip(), gr.skip()
+        return gr.skip(), gr.skip(), gr.skip()
     task = {"name": name, "prompt": prompt, "when": kind, "date": date, "time": at, "days": days, "every": int(every),
             "offline": bool(offline), "notify": bool(notify_on), "model": model or None,
             "created": dt.datetime.now().isoformat(timespec="seconds"), "on": True}
@@ -1589,7 +1609,7 @@ def task_fill(name):
 def task_action(name, action):
     if not name:
         gr.Warning(tr("Pick a task first."))
-        return gr.skip(), gr.skip()
+        return gr.skip(), gr.skip(), gr.skip()
     with SCHED_LOCK:
         tasks = tasks_load()
         t = next((t for t in tasks if t["name"] == name), None)
@@ -1614,7 +1634,7 @@ def css_text(text):
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
-CSS = CSS.replace("@@WHAT_HELP@@", css_text(t("What can I help you with?"))).replace("@@ASK_HINT@@", css_text(t("Ask a question, drop in files, or switch on goal mode and give Joshua a task.")))
+CSS = CSS.replace("@@WHAT_HELP@@", css_text(t("Hello. What would you like to do today?"))).replace("@@ASK_HINT@@", css_text(t("Everything you write here is stored only on this computer."))).replace("@@MODEL@@", css_text(t("Model:")))
 JS_TEXT = lambda text: json.dumps(text, ensure_ascii=False).replace("'", "\\'")  # a text inside the js="..." handlers below
 
 
@@ -1629,10 +1649,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             language = gr.Dropdown([(t("Language: automatic"), "auto")] + [(name, code) for code, name in LANGS.items()], value=i18n.chosen() if i18n.chosen() in LANGS else "auto",
                                    show_label=False, container=False, elem_id="language")
             new = gr.Button("＋  " + t("New chat"), size="sm", elem_id="newchat")
-            convs = gr.Radio(choices=conv_choices(), show_label=False, container=False, elem_id="convs")
-            dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
             tune = gr.Button("🧪  " + t("Teach Joshua (fine-tune)"), size="sm", elem_id="tunebtn")
             sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
+            convs = gr.Radio(choices=conv_choices(), show_label=False, container=False, elem_id="convs")
+            dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
         tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
         with gr.Column(visible=False, scale=5, elem_id="schedpanel") as sched_panel:
             with gr.Row():
@@ -1647,7 +1667,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     t_when = gr.Radio([(t("Once"), "once"), (t("Every day"), "daily"), (t("On some days"), "weekly"), (t("Every few hours"), "hours")], value="daily", label=t("When"))
                     with gr.Row():
                         t_date = gr.Textbox(label=t("Date (YYYY-MM-DD)"), value=time.strftime("%Y-%m-%d"), max_lines=1, visible=False)
-                        t_time = gr.Textbox(label=t("Time (HH:MM)"), value="07:30", max_lines=1)
+                        t_time = gr.Textbox(label=t("Time (HH:MM)"), value="07:30", placeholder="07:30", max_lines=1)
                         t_every = gr.Slider(1, 24, value=6, step=1, label=t("Every how many hours"), visible=False)
                     t_days = gr.CheckboxGroup([(t(d), d) for d in DAYS], value=["Mon", "Tue", "Wed", "Thu", "Fri"], label=t("Days"), visible=False)
                     with gr.Row():
@@ -1659,13 +1679,14 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 with gr.Column(scale=2, elem_id="schedlist"):
                     gr.HTML("<div class='schedsub'>" + t("YOUR TASKS") + "</div>")
                     task_list = gr.HTML("")
-                    t_pick = gr.Dropdown([], label=t("Pick a task to run, change, pause or delete"))
-                    with gr.Row():
-                        t_run = gr.Button("▶ " + t("Run now"), size="sm")
-                        t_pause = gr.Button(t("Pause / resume"), size="sm")
-                        t_del = gr.Button(t("Delete"), size="sm", elem_id="schedel")
+                    with gr.Column(visible=False) as t_controls:
+                        t_pick = gr.Dropdown([], label=t("Choose a task"))
+                        with gr.Row():
+                            t_run = gr.Button("▶ " + t("Run now"), size="sm")
+                            t_pause = gr.Button(t("Pause"), size="sm")
+                        t_del = gr.Button(t("Delete this task"), size="sm", elem_id="schedel")
         with gr.Column(scale=4, elem_id="chatcol", elem_classes="chat-panel") as chatcol:
-            chatbot = gr.Chatbot(height="76vh", show_label=False, elem_id="chat", placeholder="### " + t("JOSHUA ONLINE") + "\n" + t("AWAITING INPUT. ASK A QUESTION, OR SWITCH ON GOAL MODE AND ASSIGN A TASK."))
+            chatbot = gr.Chatbot(height="76vh", show_label=False, elem_id="chat", placeholder="### " + t("Hello. What would you like to do today?") + "\n" + t("Everything you write here is stored only on this computer."))
             with gr.Row(equal_height=True, elem_id="promptrow"):
                 box = gr.MultimodalTextbox(file_count="multiple", placeholder=t("Message Joshua, or drop files here…"), show_label=False, scale=12)
                 stop = gr.Button("■ " + t("Stop"), scale=1, min_width=64, elem_id="stop")
@@ -1735,14 +1756,14 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     cloudmem.change(share_memory_setting, cloudmem)
     cloud_box.expand(cloud_catalog, outputs=[cloud_pick, cloud_status])
     local_box.expand(local_catalog, outputs=[local_pick, local_status])
-    sched.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), gr.Dropdown(choices=models())), outputs=[sched_panel, chatcol, rightcol, tune_panel, t_model]).then(tasks_view, outputs=[task_list, t_pick])
+    sched.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), gr.Dropdown(choices=models())), outputs=[sched_panel, chatcol, rightcol, tune_panel, t_model]).then(tasks_view, outputs=[task_list, t_pick, t_controls])
     sched_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Radio(choices=conv_choices())), outputs=[sched_panel, chatcol, rightcol, convs])
-    t_pick.input(task_fill, t_pick, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model])
+    t_pick.input(task_fill, t_pick, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model]).then(pause_label, t_pick, t_pause)
     t_when.change(lambda w: (gr.Textbox(visible=w == "once"), gr.Textbox(visible=w != "hours"), gr.CheckboxGroup(visible=w == "weekly"), gr.Slider(visible=w == "hours")), t_when, [t_date, t_time, t_days, t_every])
-    t_add.click(task_add, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model], [task_list, t_pick])
-    t_run.click(lambda n: task_action(n, "run"), t_pick, [task_list, t_pick])
-    t_pause.click(lambda n: task_action(n, "pause"), t_pick, [task_list, t_pick])
-    t_del.click(lambda n: task_action(n, "delete"), t_pick, [task_list, t_pick], js="(n) => (n && confirm(" + JS_TEXT(t("Delete this scheduled task?")) + ")) ? n : null")
+    t_add.click(task_add, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model], [task_list, t_pick, t_controls])
+    t_run.click(lambda n: task_action(n, "run"), t_pick, [task_list, t_pick, t_controls])
+    t_pause.click(lambda n: task_action(n, "pause"), t_pick, [task_list, t_pick, t_controls])
+    t_del.click(lambda n: task_action(n, "delete"), t_pick, [task_list, t_pick, t_controls], js="(n) => (n && confirm(" + JS_TEXT(t("Delete '{name}'? It won't run again.")) + ".replace('{name}', n))) ? n : null")
     api_box.expand(api_panel, outputs=[api_info, api_example])
     api_lan_box.input(api_lan, api_lan_box, [api_info, api_example])
     api_key_btn.click(api_new_key, outputs=[api_info, api_example])
@@ -1754,7 +1775,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     cloud_add.click(cloud_add_model, cloud_pick, [model, cloud_status])
     mem_box.expand(mem_view, mem_topic, [mem_topic, mem_text])
     mem_topic.input(mem_view, mem_topic, [mem_topic, mem_text])
-    mem_btn.click(mem_save, [mem_topic, mem_text], [mem_topic, mem_text])
+    mem_btn.click(mem_save, [mem_topic, mem_text], [mem_topic, mem_text],
+                  js="(topic, text) => (text.trim() || confirm(" + JS_TEXT(t("Clear all the notes in '{topic}'? This can't be undone.")) + ".replace('{topic}', topic))) ? [topic, text] : [topic, null]")
     swarm.change(lambda s: (gr.Slider(visible=s), gr.Checkbox(value=False) if s else gr.skip()), swarm, [agents, goal])
     stop.click(stop_chat, cid, concurrency_limit=None)
     goal.change(lambda g: (gr.Slider(visible=g), gr.MultimodalTextbox(placeholder=t("Describe a goal for Joshua to accomplish…") if g else t("Message Joshua, or drop files here…")), gr.Checkbox(value=False) if g else gr.skip()), goal, [rounds, box, swarm])
@@ -1764,18 +1786,20 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     files.upload(upload_files, [files, cid], [files, cid, convs])
     files.delete(delete_file, cid, files)
     gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
-    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm(" + JS_TEXT(t("Delete this chat and its files? They will be moved to the Trash.")) + ")) ? c : null")
+    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
-    tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("CHECKING YOUR COMPUTER…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
+    tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
     tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models(True))), outputs=[tune_panel, chatcol, rightcol, model])
     reloading = gr.State(False)
     language.input(set_language, language, reloading).then(None, reloading, None, js="(r) => { if (r) setTimeout(() => location.reload(), 8000) }")
     # Gradio's own few labels follow the browser's language, not Joshua's: swap them for Joshua's translation as they appear
     gradio_texts = {k: t(k) for k in ("Drop File Here", "- or -", "Click to Upload", "Info", "Warning", "Error", "Clear")}
-    if LANG != "en":
-        demo.load(None, None, None, js="""() => { const T = """ + json.dumps(gradio_texts, ensure_ascii=False) + """;
+    chat_files = {"Drop File Here": t("Add files to this chat"), "- or -": "", "Click to Upload": ""}  # the file area in the right column
+    if True:
+        demo.load(None, None, None, js="""() => { const T = """ + json.dumps(gradio_texts, ensure_ascii=False) + """, F = """ + json.dumps(chat_files, ensure_ascii=False) + """;
           const fix = (root) => { const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
-            while ((n = w.nextNode())) { const k = n.nodeValue.trim(); if (T[k] && T[k] !== k) n.nodeValue = n.nodeValue.replace(k, T[k]); } };
+            while ((n = w.nextNode())) { const k = n.nodeValue.trim(), M = n.parentElement && n.parentElement.closest('#wfiles') ? F : T;
+              if (k in M && M[k] !== k) n.nodeValue = n.nodeValue.replace(k, M[k]); } };
           fix(document.body); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(x => x.nodeType === 1 ? fix(x) : x.nodeType === 3 && fix(x.parentNode || document.body)))).observe(document.body, {childList: true, subtree: true}); }""")
     screen.change(None, screen, None, js="(v) => { document.body.dataset.screen = v; try { localStorage.setItem('joshua-screen2', v) } catch (e) {} }")
     demo.load(None, None, screen, js="() => { let v = 'novel'; try { v = localStorage.getItem('joshua-screen2') || 'novel' } catch (e) {} document.body.dataset.screen = v; return v }")

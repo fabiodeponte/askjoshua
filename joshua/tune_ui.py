@@ -148,7 +148,7 @@ def build(conv_root, conv_choices):
             with gr.Row():
                 instb = gr.Button("⬇ " + t("Install into Joshua"), variant="primary")
                 delb = gr.Button("🗑 " + t("Delete this project"), elem_id="ftdel")
-        status = gr.HTML("<div class='ftstatus'>" + t("IDLE") + "</div>")
+        status = gr.HTML("<div class='ftstatus'>" + t("Ready when you are") + "</div>")
         log = gr.Textbox(label=t("Console"), lines=10, max_lines=10, autoscroll=True, interactive=False, elem_id="ftlog")
         seen = gr.State(None)
 
