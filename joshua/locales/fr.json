@@ -72,7 +72,6 @@
  "Added ☁ {model}: it's selected in the model menu. Nothing was downloaded: it runs on Ollama's servers.": "☁ {model} ajouté : il est sélectionné dans le menu des modèles. Rien n'a été téléchargé : il tourne sur les serveurs d'Ollama.",
  "Checked against sources": "Vérifiée avec les sources",
  "Not supported by the sources:": "Non confirmé par les sources :",
- "Deciding whether this needs a web search…": "Je décide s'il faut une recherche sur le web…",
  "This cloud model needs your computer to be connected to an Ollama account. Open **☁ Cloud models** in the right column and press **Connect**.": "Ce modèle cloud nécessite que votre ordinateur soit relié à un compte Ollama. Ouvrez **☁ Modèles cloud** dans la colonne de droite et appuyez sur **Connecter**.",
  "Project: {name}": "Projet : {name}",
  "Files in this chat": "Fichiers de cette discussion",
@@ -319,5 +318,7 @@
  "Apple's model refused to answer this: its safety filter stopped it. Pick another model in the menu.": "Le modèle d'Apple a refusé de répondre : son filtre de sécurité l'a arrêté. Choisissez un autre modèle dans le menu.",
  "Apple's model stopped with an error:": "Le modèle d'Apple s'est arrêté sur une erreur :",
  "Open folder": "Ouvrir le dossier",
- "Download all (.zip)": "Tout télécharger (.zip)"
+ "Download all (.zip)": "Tout télécharger (.zip)",
+ "Looking online…": "Recherche en ligne…",
+ "Sources from the web": "Sources trouvées sur le web"
 }

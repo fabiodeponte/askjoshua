@@ -72,7 +72,6 @@
  "Added ☁ {model}: it's selected in the model menu. Nothing was downloaded: it runs on Ollama's servers.": "已添加 ☁ {model}：已在模型菜单中选中。没有下载任何内容：它在 Ollama 的服务器上运行。",
  "Checked against sources": "已根据资料来源核查",
  "Not supported by the sources:": "资料来源不支持的内容：",
- "Deciding whether this needs a web search…": "正在判断是否需要网上搜索…",
  "This cloud model needs your computer to be connected to an Ollama account. Open **☁ Cloud models** in the right column and press **Connect**.": "这个云端模型需要电脑连接到 Ollama 账户。请打开右侧栏的 **☁ 云端模型**，然后按 **连接**。",
  "Project: {name}": "项目：{name}",
  "Files in this chat": "此对话中的文件",
@@ -319,5 +318,7 @@
  "Apple's model refused to answer this: its safety filter stopped it. Pick another model in the menu.": "Apple 的模型拒绝回答：被它的安全过滤器拦下了。请在菜单中选择其他模型。",
  "Apple's model stopped with an error:": "Apple 的模型出错停止：",
  "Open folder": "打开文件夹",
- "Download all (.zip)": "全部下载 (.zip)"
+ "Download all (.zip)": "全部下载 (.zip)",
+ "Looking online…": "正在上网查找…",
+ "Sources from the web": "网络来源"
 }

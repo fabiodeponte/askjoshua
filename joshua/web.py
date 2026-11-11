@@ -685,15 +685,19 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     evidence = None
     try:
         if not offline and user_text:
-            box = {"role": "assistant", "content": t("Deciding whether this needs a web search…"), "metadata": {"title": "🔎 " + t("Research"), "status": "pending"}}
-            shown.append(box)
-            job.publish(shown)
-            evidence = research(user_text, msgs, model, language, conv.get("region", "wt-wt"), box, lambda: job.publish(shown))
-            box["metadata"]["status"] = "done"
+            box = {"role": "assistant", "content": "", "metadata": {"title": "🔎 " + t("Looking online…"), "status": "pending"}}
+
+            def show():  # the box appears only once Joshua has decided to search
+                if not any(b is box for b in shown):
+                    shown.append(box)
+                job.publish(shown)
+
+            evidence = research(user_text, msgs, model, language, conv.get("region", "wt-wt"), box, show)
+            box["metadata"] = {"title": "🔎 " + t("Sources from the web"), "status": "done"}
             if evidence:
                 asked, original = msgs[-1], msgs[-1]["content"]
                 asked["content"] = original + USE_SOURCES.format(evidence=evidence, language=language or "my language")
-            else:
+            elif any(b is box for b in shown):
                 shown.remove(box)
             job.publish(shown)
         if swarm:
@@ -936,7 +940,7 @@ STEPS = {"web_search": t("searching the web"), "read_page": t("reading a web pag
          "list_files": t("browsing files"), "read_file": t("reading a file"), "write_file": t("writing a file"), "look_at_image": t("looking at an image"),
          "generate_image": t("generating an image (a minute or two)"), "edit_image": t("editing the image (several minutes)"), "remember": t("updating memory"),
          "forget": t("updating memory"), "read_memory": t("reading memory"), "get_datetime": t("checking the date"), "goal_done": t("wrapping up"), "give_up": t("wrapping up"),
-         t("Research"): t("researching: searching and reading sources"), t("Fact check"): t("fact-checking the answer"), t("Thinking"): t("thinking")}
+         t("Looking online…"): t("researching: searching and reading sources"), t("Sources from the web"): t("writing the answer"), t("Fact check"): t("fact-checking the answer"), t("Thinking"): t("thinking")}
 
 
 def status_html(cid):
