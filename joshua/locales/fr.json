@@ -343,5 +343,6 @@
  "No key yet.": "Pas encore de clé.",
  "API key": "Clé API",
  "Paste the key here": "Collez la clé ici",
- "Add a model": "Ajouter un modèle"
+ "Add a model": "Ajouter un modèle",
+ "This chat": "Cette discussion"
 }

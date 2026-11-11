@@ -1136,10 +1136,7 @@ textarea::placeholder {color: var(--dim) !important; opacity: .85}
 /* files panel */
 #wfiles {font-size: .8rem}
 body.noside #leftcol {display: none !important}
-#sidetoggle {position: absolute; z-index: 20; top: 8px; left: 8px; width: 34px !important; min-width: 0 !important; height: 30px; padding: 0 !important; font-size: 1.05rem !important; opacity: .65}
-#sidetoggle:hover {opacity: 1}
 #chatcol {position: relative}
-#convs {max-height: 38vh; overflow-y: auto}
 #chatopts {gap: 10px; padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important}
 #filebtns {gap: 6px; flex-wrap: nowrap} #filebtns button {font-size: .76rem !important; min-width: 0 !important; padding: 4px 6px !important}
 #wfiles .file-preview-holder {max-height: 40vh; overflow-y: auto}
@@ -1362,6 +1359,59 @@ body[data-screen^="modern"]:not(#a):not(#b) .ftres, body[data-screen^="modern"]:
 body[data-screen^="modern"]:not(#a):not(#b) #ftlog textarea {border: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #tuneback {border: none !important; background: var(--soft) !important}
 @media (prefers-reduced-motion: reduce) {body[data-screen^="modern"]:not(#a):not(#b) #working .wdot {animation: none}}
+/* ---- app frame: the page never scrolls; the side column and the messages each scroll in their own place ---- */
+html, body {height: 100%; overflow: hidden !important}
+.gradio-container {height: 100vh !important; max-height: 100vh; min-height: 0 !important; padding: 0 !important; margin: 0 !important; max-width: none !important; overflow: hidden}
+.gradio-container > .main, .gradio-container > .main > .wrap, main.contain, main.contain > .column {height: 100% !important; min-height: 0 !important; padding: 0 !important; margin: 0 !important; gap: 0 !important}
+main.contain > .column > .row {height: 100%; flex-wrap: nowrap !important; align-items: stretch !important; gap: 12px !important; padding: 10px !important; box-sizing: border-box}
+#leftcol {flex: 0 0 290px !important; width: 290px !important; min-width: 0 !important; max-height: 100%; overflow-y: auto !important; overscroll-behavior: contain}
+#leftcol, #chatopts {flex-wrap: nowrap !important}
+#leftcol > *, #chatopts > * {flex-shrink: 0 !important}
+#chatcol, #tune, #schedpanel {height: 100%; min-width: 0 !important; min-height: 0}
+#chatcol {display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important}
+#tune, #schedpanel {overflow-y: auto !important}
+#chat {flex: 1 1 auto !important; height: auto !important; min-height: 0 !important; max-height: none !important}
+#chat > .wrapper {height: 100% !important}
+#promptrow, #modelrow {flex: 0 0 auto !important}
+#convs {max-height: none !important; overflow: visible !important}
+* {scrollbar-width: thin; scrollbar-color: transparent transparent}
+*:hover {scrollbar-color: color-mix(in srgb, var(--ink) 25%, transparent) transparent}
+::-webkit-scrollbar {width: 8px; height: 8px}
+::-webkit-scrollbar-thumb {background: transparent; border-radius: 8px}
+*:hover::-webkit-scrollbar-thumb {background: color-mix(in srgb, var(--ink) 22%, transparent)}
+#chat .message-buttons, #chat .message-buttons-right, #chat .message-buttons-left {opacity: 0; transition: opacity .15s}
+#chat .message-row:hover + .message-buttons, #chat .message-buttons:hover, #chat .message-row:last-of-type ~ .message-buttons {opacity: 1}
+#sidetoggle {position: absolute; z-index: 20; top: 10px; left: 10px; width: 32px !important; min-width: 0 !important; height: 32px; padding: 0 !important; font-size: 1rem !important; border: none !important; background: transparent !important; box-shadow: none !important; opacity: .55}
+#sidetoggle:hover {opacity: 1; background: color-mix(in srgb, var(--ink) 8%, transparent) !important}
+@media (max-width: 760px) {#leftcol {flex-basis: 240px !important; width: 240px !important}}
+
+/* ---- Modern: the conversation in a calm reading column, the composer below it ---- */
+body[data-screen^="modern"]:not(#a):not(#b) #chat {background: transparent !important; border: none !important; box-shadow: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chat .message-wrap {max-width: 46rem; margin: 0 auto !important; padding: 3rem 1.5rem 2rem !important; width: 100%; box-sizing: border-box}
+body[data-screen^="modern"]:not(#a):not(#b) #chat .message-content, body[data-screen^="modern"]:not(#a):not(#b) #chat .message-content * {font-size: 1rem !important; line-height: 1.65 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chat .user-row .message {border-radius: 18px !important; padding: .55rem 1rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chat .placeholder {max-width: 40rem; margin: 0 auto}
+body[data-screen^="modern"]:not(#a):not(#b) #promptrow, body[data-screen^="modern"]:not(#a):not(#b) #modelrow {width: 100% !important; max-width: 48rem; margin: 0 auto !important; box-sizing: border-box}
+body[data-screen^="modern"]:not(#a):not(#b) #promptrow {padding: 0 .5rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #promptrow .multimodal-textbox {border-radius: 22px !important; box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent), 0 4px 18px color-mix(in srgb, var(--ink) 6%, transparent) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #promptrow textarea {font-size: 1rem !important; line-height: 1.5 !important; max-height: 40vh !important; overflow-y: auto !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelrow {padding: .35rem 1.25rem .5rem !important; justify-content: flex-start !important; gap: .75rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #leftcol {padding: 14px 10px !important; border-radius: 18px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #leftcol .lights {display: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #leftcol .status {padding: 0 6px 6px !important; letter-spacing: 0 !important; text-transform: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #newchat, body[data-screen^="modern"]:not(#a):not(#b) #tunebtn, body[data-screen^="modern"]:not(#a):not(#b) #schedbtn, body[data-screen^="modern"]:not(#a):not(#b) #delchat {justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #convs label {padding: .42rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #brand {font-size: 1.6rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
+#chat .top-panel {display: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) .side .label-wrap .icon {transform: scale(.65); opacity: .4}
+body[data-screen^="modern"]:not(#a):not(#b) .side .label-wrap:hover .icon {opacity: .8}
+body[data-screen^="modern"]:not(#a):not(#b) #filebtns button {background: transparent !important; border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent) !important; border-radius: 10px !important; box-shadow: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #filebtns button:hover {background: color-mix(in srgb, var(--ink) 6%, transparent) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chatopts .accordion, body[data-screen^="modern"]:not(#a):not(#b) #settings {border-top: 1px solid color-mix(in srgb, var(--ink) 8%, transparent) !important; border-radius: 0 !important}
+
 """
 
 _C = dict(
@@ -1747,16 +1797,17 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             convs = gr.Radio(choices=conv_choices(), show_label=False, container=False, elem_id="convs")
             dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
             with gr.Column(elem_id="chatopts") as rightcol:  # options for the chat; hidden while Teach or Scheduled tasks is open
-                thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", info=t("Slower, better on hard questions"))
-                goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", info=t("Give a goal; it keeps working until done"))
-                rounds = gr.Slider(2, 30, value=10, step=1, label=t("Max rounds"), visible=False)
-                swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes="opt", info=t("Several agents answer in parallel, then one combines the best answer"))
-                agents = gr.Slider(2, 6, value=5, step=1, label=t("Agents"), visible=False)
-                offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", info=t("Joshua doesn't search or read the web, and code can't go online"))
-                files = gr.File(file_count="multiple", label=t("Files in this chat"), elem_id="wfiles", height=None)
-                with gr.Row(elem_id="filebtns"):
-                    openf = gr.Button("📂 " + t("Open folder"), size="sm")
-                    dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
+                with gr.Accordion(t("This chat"), open=True, elem_id="thischat"):
+                    thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", info=t("Slower, better on hard questions"))
+                    goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", info=t("Give a goal; it keeps working until done"))
+                    rounds = gr.Slider(2, 30, value=10, step=1, label=t("Max rounds"), visible=False)
+                    swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes="opt", info=t("Several agents answer in parallel, then one combines the best answer"))
+                    agents = gr.Slider(2, 6, value=5, step=1, label=t("Agents"), visible=False)
+                    offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", info=t("Joshua doesn't search or read the web, and code can't go online"))
+                    files = gr.File(file_count="multiple", label=t("Files in this chat"), elem_id="wfiles", height=None)
+                    with gr.Row(elem_id="filebtns"):
+                        openf = gr.Button("📂 " + t("Open folder"), size="sm")
+                        dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
                 with gr.Accordion("🧠 " + t("Memory"), open=False) as mem_box:
                     mem = gr.Checkbox(True, label=t("Use memory"), info=t("Joshua learns lasting facts about you and uses them in every chat"))
                     mem_topic = gr.Dropdown(choices=["profile"], value="profile", label=t("Notes"), elem_id="memtopic")
@@ -1836,7 +1887,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                         t_del = gr.Button(t("Delete this task"), size="sm", elem_id="schedel")
         with gr.Column(scale=4, elem_id="chatcol", elem_classes="chat-panel") as chatcol:
             sidetoggle = gr.Button("☰", size="sm", elem_id="sidetoggle", min_width=0)
-            chatbot = gr.Chatbot(height="76vh", show_label=False, elem_id="chat", placeholder="### " + t("Hello. What would you like to do today?") + "\n" + t("Everything you write here is stored only on this computer."))
+            chatbot = gr.Chatbot(height="100%", show_label=False, elem_id="chat", placeholder="### " + t("Hello. What would you like to do today?") + "\n" + t("Everything you write here is stored only on this computer."))
             with gr.Row(equal_height=True, elem_id="promptrow"):
                 box = gr.MultimodalTextbox(file_count="multiple", placeholder=t("Message Joshua, or drop files here…"), show_label=False, scale=12)
                 stop = gr.Button("■ " + t("Stop"), scale=1, min_width=64, elem_id="stop")
@@ -1919,8 +1970,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           fix(document.body); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(x => x.nodeType === 1 ? fix(x) : x.nodeType === 3 && fix(x.parentNode || document.body)))).observe(document.body, {childList: true, subtree: true}); }""")
     screen.change(None, screen, None, js="(v) => { document.body.dataset.screen = v; try { localStorage.setItem('joshua-screen2', v) } catch (e) {} }")
     demo.load(None, None, screen, js="() => { let v = 'modern'; try { v = localStorage.getItem('joshua-screen2') || 'modern' } catch (e) {} document.body.dataset.screen = v; return v }")
-    textsize.change(None, textsize, None, js="(v) => { document.body.style.zoom = v; try { localStorage.setItem('joshua-zoom', v) } catch (e) {} }")
-    demo.load(None, None, textsize, js="() => { let v = '1'; try { v = localStorage.getItem('joshua-zoom') || '1' } catch (e) {} document.body.style.zoom = v; return v }")
+    textsize.change(None, textsize, None, js="(v) => { document.documentElement.style.fontSize = (16 * v) + 'px'; try { localStorage.setItem('joshua-zoom', v) } catch (e) {} }")
+    demo.load(None, None, textsize, js="() => { let v = '1'; try { v = localStorage.getItem('joshua-zoom') || '1' } catch (e) {} document.documentElement.style.fontSize = (16 * v) + 'px'; return v }")
     sidetoggle.click(None, None, None, js="() => { const h = document.body.classList.toggle('noside'); try { localStorage.setItem('joshua-noside', h ? '1' : '') } catch (e) {} }")
     demo.load(None, None, None, js="() => { try { if (localStorage.getItem('joshua-noside')) document.body.classList.add('noside') } catch (e) {} }")
 

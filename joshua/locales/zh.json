@@ -343,5 +343,6 @@
  "No key yet.": "还没有密钥。",
  "API key": "API 密钥",
  "Paste the key here": "在此粘贴密钥",
- "Add a model": "添加模型"
+ "Add a model": "添加模型",
+ "This chat": "当前对话"
 }
