@@ -1051,15 +1051,15 @@ footer {display: none !important}
 .message.bot pre, .message.user pre, .prose pre {background: var(--codebg) !important; border: 1px solid var(--line) !important; border-left: 3px solid var(--cyan) !important; border-radius: 3px !important; padding: 12px 14px !important; margin: 14px 0 !important; overflow-x: auto; box-shadow: inset 0 0 10px rgba(0, 0, 0, .35) !important}
 .message.bot pre code, .prose pre code {color: var(--codeink) !important}
 .message.bot :not(pre) > code, .prose :not(pre) > code {background: var(--codebg) !important; border: 1px solid color-mix(in srgb, var(--line) 60%, transparent) !important; border-radius: 3px; padding: 1px 5px; color: var(--cyan) !important}
-#screen {background: transparent !important; border: none !important; box-shadow: none !important; padding: 4px 2px 0 !important}
-#screen .wrap {gap: 4px; flex-wrap: wrap; border: none !important}
+#screen, #textsize {background: transparent !important; border: none !important; box-shadow: none !important; padding: 4px 2px 0 !important}
+#screen .wrap, #textsize .wrap {gap: 4px; flex-wrap: wrap; border: none !important}
 .side .info-text {font-size: 1.05rem !important; line-height: 1.1 !important; color: var(--dim) !important}
 .side .label-wrap, .side .label-wrap * {color: var(--ink) !important}
 textarea::placeholder {color: var(--dim) !important; opacity: .85}
 .status {letter-spacing: .06em !important}
-#screen label {padding: 1px 7px !important; font-size: 1rem !important; border: 1px solid var(--line) !important; border-radius: 2px !important; background: transparent !important; color: var(--dim) !important; box-shadow: none !important; text-transform: uppercase; letter-spacing: .06em}
-#screen label.selected {color: var(--bg) !important; background: var(--cyan) !important}
-#screen input {display: none}
+#screen label, #textsize label {padding: 1px 7px !important; font-size: 1rem !important; border: 1px solid var(--line) !important; border-radius: 2px !important; background: transparent !important; color: var(--dim) !important; box-shadow: none !important; text-transform: uppercase; letter-spacing: .06em}
+#screen label.selected, #textsize label.selected {color: var(--bg) !important; background: var(--cyan) !important}
+#screen input, #textsize input {display: none}
 .side {padding: 12px !important}
 #brand {font-size: 3rem !important; letter-spacing: .1em; color: var(--ink); padding: 2px 4px 0; text-shadow: var(--shadow); line-height: 1}
 #brand::after {color: var(--cyan)}
@@ -1095,6 +1095,12 @@ textarea::placeholder {color: var(--dim) !important; opacity: .85}
 .prose code, .prose pre {background: #02050a !important; color: var(--green) !important; border: 1px solid #12324a}
 /* files panel */
 #wfiles {font-size: .8rem}
+body.noside #leftcol {display: none !important}
+#sidetoggle {position: absolute; z-index: 20; top: 8px; left: 8px; width: 34px !important; min-width: 0 !important; height: 30px; padding: 0 !important; font-size: 1.05rem !important; opacity: .65}
+#sidetoggle:hover {opacity: 1}
+#chatcol {position: relative}
+#convs {max-height: 38vh; overflow-y: auto}
+#chatopts {gap: 10px; padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important}
 #filebtns {gap: 6px; flex-wrap: nowrap} #filebtns button {font-size: .76rem !important; min-width: 0 !important; padding: 4px 6px !important}
 #wfiles .file-preview-holder {max-height: 40vh; overflow-y: auto}
 #wfiles tr.file {display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 2px; background: transparent !important}
@@ -1210,10 +1216,10 @@ body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button {border-radius: 1
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button.primary {background: var(--cyan) !important; color: var(--panel) !important; border-color: var(--cyan) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .block, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .form {border: none !important; box-shadow: none !important}
 .task span {color: var(--dim)}
-body[data-screen^="modern"]:not(#a):not(#b) #rightcol .task, body[data-screen^="modern"]:not(#a):not(#b) #rightcol .task * {font-size: .85rem !important; line-height: 1.45 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chatopts .task, body[data-screen^="modern"]:not(#a):not(#b) #chatopts .task * {font-size: .85rem !important; line-height: 1.45 !important}
 body[data-screen^="modern"]:not(#a):not(#b) .task {border-bottom: none}
 .cloudstat code {word-break: break-all}
-body[data-screen^="modern"]:not(#a):not(#b) #rightcol .prose .cloudstat, body[data-screen^="modern"]:not(#a):not(#b) #rightcol .cloudstat * {font-size: .85rem !important; line-height: 1.45 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chatopts .prose .cloudstat, body[data-screen^="modern"]:not(#a):not(#b) #chatopts .cloudstat * {font-size: .85rem !important; line-height: 1.45 !important}
 .updnote {font-size: 1rem; line-height: 1.25; color: var(--amber); padding: 4px 4px 0}
 #updbtn {border: 1px solid var(--amber) !important; background: transparent !important; color: var(--amber) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #localhelp, body[data-screen^="modern"]:not(#a):not(#b) #localhelp *, body[data-screen^="modern"]:not(#a):not(#b) #apihelp, body[data-screen^="modern"]:not(#a):not(#b) #apihelp *, body[data-screen^="modern"]:not(#a):not(#b) #schedhelp, body[data-screen^="modern"]:not(#a):not(#b) #schedhelp *, body[data-screen^="modern"]:not(#a):not(#b) .updnote {font-size: .85rem !important; line-height: 1.45 !important}
@@ -1250,8 +1256,8 @@ body[data-screen^="modern"]:not(#a):not(#b) .side label > span, body[data-screen
 body[data-screen^="modern"]:not(#a):not(#b) .side .info, body[data-screen^="modern"]:not(#a):not(#b) .side .info-text, body[data-screen^="modern"]:not(#a):not(#b) .side [data-testid="block-info"] {font-size: .8rem !important; line-height: 1.35 !important}
 body[data-screen^="modern"]:not(#a):not(#b) .opt {border-bottom: 1px solid var(--line) !important}
 /* screen picker as soft pills */
-body[data-screen^="modern"]:not(#a):not(#b) #screen label {border-radius: 999px !important; text-transform: none !important; font-size: .8rem !important; padding: 2px 10px !important; border-color: var(--line) !important}
-body[data-screen^="modern"]:not(#a):not(#b) #screen label.selected {background: var(--ink) !important; color: var(--bg) !important; border-color: var(--ink) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label, body[data-screen^="modern"]:not(#a):not(#b) #textsize label {border-radius: 999px !important; text-transform: none !important; font-size: .8rem !important; padding: 2px 10px !important; border-color: var(--line) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label.selected, body[data-screen^="modern"]:not(#a):not(#b) #textsize label.selected {background: var(--ink) !important; color: var(--bg) !important; border-color: var(--ink) !important}
 /* sidebar buttons and chat list */
 body[data-screen^="modern"]:not(#a):not(#b) #newchat {border-radius: 10px !important; text-transform: none !important; border: 1px solid var(--line) !important; background: var(--panel) !important; color: var(--ink) !important; font-weight: 500 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #newchat:hover {background: var(--soft) !important}
@@ -1297,7 +1303,6 @@ body[data-screen^="modern"]:not(#a):not(#b) {--block-border-color: transparent !
 body[data-screen="modern-night"]:not(#a):not(#b) {--side: #23201c}
 body[data-screen^="modern"]:not(#a):not(#b) .side, body[data-screen^="modern"]:not(#a):not(#b) #tune {border: none !important; box-shadow: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol {background: var(--side) !important}
-body[data-screen^="modern"]:not(#a):not(#b) #rightcol {background: transparent !important}
 body[data-screen^="modern"]:not(#a):not(#b) .side .block, body[data-screen^="modern"]:not(#a):not(#b) .side .form, body[data-screen^="modern"]:not(#a):not(#b) .side fieldset, body[data-screen^="modern"]:not(#a):not(#b) .side .accordion, body[data-screen^="modern"]:not(#a):not(#b) #tune .block, body[data-screen^="modern"]:not(#a):not(#b) #tune .form {border: none !important; box-shadow: none !important; background: transparent !important}
 body[data-screen^="modern"]:not(#a):not(#b) .opt {border: none !important; padding-bottom: 4px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #wfiles, body[data-screen^="modern"]:not(#a):not(#b) #wfiles .wrap {background: var(--codebg) !important; border: none !important; border-radius: 12px !important}
@@ -1306,8 +1311,8 @@ body[data-screen^="modern"]:not(#a):not(#b) #newchat {border: none !important; b
 body[data-screen^="modern"]:not(#a):not(#b) #newchat:hover {background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #tunebtn:hover {background: var(--soft) !important}
-body[data-screen^="modern"]:not(#a):not(#b) #screen label {border-color: transparent !important; background: transparent !important}
-body[data-screen^="modern"]:not(#a):not(#b) #screen label:not(.selected):hover {background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label, body[data-screen^="modern"]:not(#a):not(#b) #textsize label {border-color: transparent !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label:not(.selected):hover, body[data-screen^="modern"]:not(#a):not(#b) #textsize label:not(.selected):hover {background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #chat .message.bot, body[data-screen^="modern"]:not(#a):not(#b) #chat .bot, body[data-screen^="modern"]:not(#a):not(#b) #chat .message-row.bot-row .message {border: none !important; box-shadow: none !important; outline: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #promptrow .block, body[data-screen^="modern"]:not(#a):not(#b) #promptrow .multimodal-textbox {border: 1px solid var(--line) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #stop {border: none !important; background: transparent !important}
@@ -1692,18 +1697,63 @@ JS_TEXT = lambda text: json.dumps(text, ensure_ascii=False).replace("'", "\\'") 
 with gr.Blocks(title="Joshua", fill_width=True) as demo:
     cid = gr.State(None)
     with gr.Row(equal_height=False):
-        with gr.Column(scale=1, min_width=220, elem_classes="side", elem_id="leftcol"):
+        with gr.Column(scale=1, min_width=270, elem_classes="side", elem_id="leftcol"):
             gr.HTML("<div id='brand'>JOSHUA</div><div class='lights'><span></span><span></span><span></span><span></span><span></span></div><div class='status'>" + t("LOCAL SYSTEM · ONLINE") + "<br>" + t("VERSION") + " " + VERSION + "</div>")
             updnote = gr.HTML("")
             updbtn = gr.Button("⬆  " + t("Update Joshua"), size="sm", visible=False, elem_id="updbtn")
-            screen = gr.Radio([(t("Novel"), "novel"), (t("Black"), "black"), (t("White"), "white"), (t("Green"), "green"), (t("Amber"), "amber"), (t("Blue"), "blue"), (t("Modern"), "modern"), (t("Modern night"), "modern-night")], value="novel", show_label=False, container=False, elem_id="screen")
-            language = gr.Dropdown([(t("Language: automatic"), "auto")] + [(name, code) for code, name in LANGS.items()], value=i18n.chosen() if i18n.chosen() in LANGS else "auto",
-                                   show_label=False, container=False, elem_id="language")
             new = gr.Button("＋  " + t("New chat"), size="sm", elem_id="newchat")
             tune = gr.Button("🧪  " + t("Teach Joshua (fine-tune)"), size="sm", elem_id="tunebtn")
             sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
             convs = gr.Radio(choices=conv_choices(), show_label=False, container=False, elem_id="convs")
             dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
+            with gr.Column(elem_id="chatopts") as rightcol:  # options for the chat; hidden while Teach or Scheduled tasks is open
+                thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", info=t("Slower, better on hard questions"))
+                goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", info=t("Give a goal; it keeps working until done"))
+                rounds = gr.Slider(2, 30, value=10, step=1, label=t("Max rounds"), visible=False)
+                swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes="opt", info=t("Several agents answer in parallel, then one combines the best answer"))
+                agents = gr.Slider(2, 6, value=5, step=1, label=t("Agents"), visible=False)
+                offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", info=t("Joshua doesn't search or read the web, and code can't go online"))
+                files = gr.File(file_count="multiple", label=t("Files in this chat"), elem_id="wfiles", height=None)
+                with gr.Row(elem_id="filebtns"):
+                    openf = gr.Button("📂 " + t("Open folder"), size="sm")
+                    dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
+                with gr.Accordion("🧠 " + t("Memory"), open=False) as mem_box:
+                    mem = gr.Checkbox(True, label=t("Use memory"), info=t("Joshua learns lasting facts about you and uses them in every chat"))
+                    mem_topic = gr.Dropdown(choices=["profile"], value="profile", label=t("Notes"), elem_id="memtopic")
+                    mem_text = gr.Textbox(lines=8, max_lines=20, show_label=False, placeholder=t("Nothing remembered yet. Joshua adds notes as you chat, or you can type them here, one per line."))
+                    mem_btn = gr.Button(t("Save notes"), size="sm")
+                    cloudmem = gr.Checkbox(share_memory_setting(), label=t("Share notes with cloud models"), info=t("Off: cloud models never see your memory notes (Joshua still learns, on this computer)"))
+                with gr.Accordion("☁ " + t("Cloud models"), open=False, elem_id="cloudbox") as cloud_box:
+                    gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
+                    cloud_status = gr.HTML("")
+                    connect = gr.Button(t("Connect this computer to Ollama"), size="sm")
+                    gr.HTML("<div class='cloudlinks'><a href='https://ollama.com/dashboard' target='_blank' rel='noopener'>💳 " + t("Add credit on ollama.com") + "</a>"
+                            "<a href='https://ollama.com/settings' target='_blank' rel='noopener'>" + t("See what you've used") + "</a></div>"
+                            "<div class='cloudnote'>" + t("Credit is paid to Ollama for the computing power of its servers, which run the cloud models. Joshua itself is free: none of this money goes to Joshua, and local models never need credit.") + "</div>")
+                    cloud_pick = gr.Dropdown([], label=t("Add a cloud model"), info=t("All of these can use Joshua's tools; 👁 ones can also see images"))
+                    cloud_add = gr.Button(t("Add to the model menu"), size="sm")
+                with gr.Accordion("⬇ " + t("Local models"), open=False) as local_box:
+                    gr.Markdown(t("Models that run on this computer: private and free, as fast as your hardware allows. The list comes from ollama.com and shows only versions that fit this computer's memory."), elem_id="localhelp")
+                    local_status = gr.HTML("")
+                    local_pick = gr.Dropdown([], label=t("Download a model"))
+                    local_get = gr.Button(t("Download"), size="sm")
+                    local_upd = gr.Button(t("Update my models"), size="sm")
+                with gr.Accordion("🔌 API", open=False) as api_box:
+                    gr.Markdown(API_HELP, elem_id="apihelp")
+                    api_info = gr.HTML("")
+                    api_example = gr.Code(language="shell", label=t("Try it in Terminal"), interactive=False)
+                    api_lan_box = gr.Checkbox(api_settings()["lan"], label=t("Allow other devices on my network"), info=t("Off: only programs on this computer. Needs a restart of Joshua."))
+                    api_key_btn = gr.Button(t("Make a new key"), size="sm")
+                with gr.Accordion(t("Project & code settings"), open=False):
+                    project = gr.Textbox(label=t("Project folder (optional)"), placeholder=t("e.g. ~/Projects/my-project"), info=t("The chat works directly in this folder. Press Enter to apply."), max_lines=1)
+                    net = gr.Checkbox(True, label="🌐 " + t("Internet for code"), info=t("Lets code go online and install packages"))
+                    timeout = gr.Slider(10, 600, value=120, step=10, label=t("Code time limit (seconds)"))
+                with gr.Accordion(t("Tools"), open=False):
+                    gr.Markdown("<div id='tools'>🔎 " + t("Web search") + "<br>📄 " + t("Read web pages") + "<br>🐍 " + t("Run Python (sandboxed)") + "<br>📦 " + t("Install packages") + "<br>🗂️ " + t("Browse folders") + "<br>📂 " + t("Read & 💾 write files (text, Word, PDF)") + "<br>🕒 " + t("Date and time") + "<br>🖼️ " + t("Look at images") + "<br>" + ("🎨 " + t("Generate images") + "<br>🖌️ " + t("Edit your photos") + "<br>" if "edit_image" in tools else "") + "🧠 " + t("Remember & forget") + "</div>")
+            with gr.Accordion("⚙ " + t("Settings"), open=False, elem_id="settings"):
+                screen = gr.Radio([(t("Novel"), "novel"), (t("Black"), "black"), (t("White"), "white"), (t("Green"), "green"), (t("Amber"), "amber"), (t("Blue"), "blue"), (t("Modern"), "modern"), (t("Modern night"), "modern-night")], value="modern", label=t("Look"), elem_id="screen")
+                textsize = gr.Radio([("90%", "0.9"), ("100%", "1"), ("110%", "1.1"), ("125%", "1.25"), ("140%", "1.4")], value="1", label=t("Text size"), elem_id="textsize")
+                language = gr.Dropdown([(t("Language: automatic"), "auto")] + [(name, code) for code, name in LANGS.items()], value=i18n.chosen() if i18n.chosen() in LANGS else "auto", label=t("Language"), elem_id="language")
         tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
         with gr.Column(visible=False, scale=5, elem_id="schedpanel") as sched_panel:
             with gr.Row():
@@ -1737,6 +1787,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                             t_pause = gr.Button(t("Pause"), size="sm")
                         t_del = gr.Button(t("Delete this task"), size="sm", elem_id="schedel")
         with gr.Column(scale=4, elem_id="chatcol", elem_classes="chat-panel") as chatcol:
+            sidetoggle = gr.Button("☰", size="sm", elem_id="sidetoggle", min_width=0)
             chatbot = gr.Chatbot(height="76vh", show_label=False, elem_id="chat", placeholder="### " + t("Hello. What would you like to do today?") + "\n" + t("Everything you write here is stored only on this computer."))
             with gr.Row(equal_height=True, elem_id="promptrow"):
                 box = gr.MultimodalTextbox(file_count="multiple", placeholder=t("Message Joshua, or drop files here…"), show_label=False, scale=12)
@@ -1745,50 +1796,6 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 working = gr.HTML("", elem_id="working")
                 cloudbadge = gr.HTML("", elem_id="cloudbadge")
                 model = gr.Dropdown(choices=models(True), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200)
-        with gr.Column(scale=1, min_width=250, elem_classes="side", elem_id="rightcol") as rightcol:
-            thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", info=t("Slower, better on hard questions"))
-            goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", info=t("Give a goal; it keeps working until done"))
-            rounds = gr.Slider(2, 30, value=10, step=1, label=t("Max rounds"), visible=False)
-            swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes="opt", info=t("Several agents answer in parallel, then one combines the best answer"))
-            agents = gr.Slider(2, 6, value=5, step=1, label=t("Agents"), visible=False)
-            offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", info=t("Joshua doesn't search or read the web, and code can't go online"))
-            files = gr.File(file_count="multiple", label=t("Files in this chat"), elem_id="wfiles", height=None)
-            with gr.Row(elem_id="filebtns"):
-                openf = gr.Button("📂 " + t("Open folder"), size="sm")
-                dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
-            with gr.Accordion("🧠 " + t("Memory"), open=False) as mem_box:
-                mem = gr.Checkbox(True, label=t("Use memory"), info=t("Joshua learns lasting facts about you and uses them in every chat"))
-                mem_topic = gr.Dropdown(choices=["profile"], value="profile", label=t("Notes"), elem_id="memtopic")
-                mem_text = gr.Textbox(lines=8, max_lines=20, show_label=False, placeholder=t("Nothing remembered yet. Joshua adds notes as you chat, or you can type them here, one per line."))
-                mem_btn = gr.Button(t("Save notes"), size="sm")
-                cloudmem = gr.Checkbox(share_memory_setting(), label=t("Share notes with cloud models"), info=t("Off: cloud models never see your memory notes (Joshua still learns, on this computer)"))
-            with gr.Accordion("☁ " + t("Cloud models"), open=False, elem_id="cloudbox") as cloud_box:
-                gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
-                cloud_status = gr.HTML("")
-                connect = gr.Button(t("Connect this computer to Ollama"), size="sm")
-                gr.HTML("<div class='cloudlinks'><a href='https://ollama.com/dashboard' target='_blank' rel='noopener'>💳 " + t("Add credit on ollama.com") + "</a>"
-                        "<a href='https://ollama.com/settings' target='_blank' rel='noopener'>" + t("See what you've used") + "</a></div>"
-                        "<div class='cloudnote'>" + t("Credit is paid to Ollama for the computing power of its servers, which run the cloud models. Joshua itself is free: none of this money goes to Joshua, and local models never need credit.") + "</div>")
-                cloud_pick = gr.Dropdown([], label=t("Add a cloud model"), info=t("All of these can use Joshua's tools; 👁 ones can also see images"))
-                cloud_add = gr.Button(t("Add to the model menu"), size="sm")
-            with gr.Accordion("⬇ " + t("Local models"), open=False) as local_box:
-                gr.Markdown(t("Models that run on this computer: private and free, as fast as your hardware allows. The list comes from ollama.com and shows only versions that fit this computer's memory."), elem_id="localhelp")
-                local_status = gr.HTML("")
-                local_pick = gr.Dropdown([], label=t("Download a model"))
-                local_get = gr.Button(t("Download"), size="sm")
-                local_upd = gr.Button(t("Update my models"), size="sm")
-            with gr.Accordion("🔌 API", open=False) as api_box:
-                gr.Markdown(API_HELP, elem_id="apihelp")
-                api_info = gr.HTML("")
-                api_example = gr.Code(language="shell", label=t("Try it in Terminal"), interactive=False)
-                api_lan_box = gr.Checkbox(api_settings()["lan"], label=t("Allow other devices on my network"), info=t("Off: only programs on this computer. Needs a restart of Joshua."))
-                api_key_btn = gr.Button(t("Make a new key"), size="sm")
-            with gr.Accordion(t("Project & code settings"), open=False):
-                project = gr.Textbox(label=t("Project folder (optional)"), placeholder=t("e.g. ~/Projects/my-project"), info=t("The chat works directly in this folder. Press Enter to apply."), max_lines=1)
-                net = gr.Checkbox(True, label="🌐 " + t("Internet for code"), info=t("Lets code go online and install packages"))
-                timeout = gr.Slider(10, 600, value=120, step=10, label=t("Code time limit (seconds)"))
-            with gr.Accordion(t("Tools"), open=False):
-                gr.Markdown("<div id='tools'>🔎 " + t("Web search") + "<br>📄 " + t("Read web pages") + "<br>🐍 " + t("Run Python (sandboxed)") + "<br>📦 " + t("Install packages") + "<br>🗂️ " + t("Browse folders") + "<br>📂 " + t("Read & 💾 write files (text, Word, PDF)") + "<br>🕒 " + t("Date and time") + "<br>🖼️ " + t("Look at images") + "<br>" + ("🎨 " + t("Generate images") + "<br>🖌️ " + t("Edit your photos") + "<br>" if "edit_image" in tools else "") + "🧠 " + t("Remember & forget") + "</div>")
 
     box.submit(send, [box, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem], [chatbot, box, cid, convs, files], concurrency_limit=None)
     model.change(badge, model, cloudbadge)
@@ -1859,7 +1866,11 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
               if (k in M && M[k] !== k) n.nodeValue = n.nodeValue.replace(k, M[k]); } };
           fix(document.body); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(x => x.nodeType === 1 ? fix(x) : x.nodeType === 3 && fix(x.parentNode || document.body)))).observe(document.body, {childList: true, subtree: true}); }""")
     screen.change(None, screen, None, js="(v) => { document.body.dataset.screen = v; try { localStorage.setItem('joshua-screen2', v) } catch (e) {} }")
-    demo.load(None, None, screen, js="() => { let v = 'novel'; try { v = localStorage.getItem('joshua-screen2') || 'novel' } catch (e) {} document.body.dataset.screen = v; return v }")
+    demo.load(None, None, screen, js="() => { let v = 'modern'; try { v = localStorage.getItem('joshua-screen2') || 'modern' } catch (e) {} document.body.dataset.screen = v; return v }")
+    textsize.change(None, textsize, None, js="(v) => { document.body.style.zoom = v; try { localStorage.setItem('joshua-zoom', v) } catch (e) {} }")
+    demo.load(None, None, textsize, js="() => { let v = '1'; try { v = localStorage.getItem('joshua-zoom') || '1' } catch (e) {} document.body.style.zoom = v; return v }")
+    sidetoggle.click(None, None, None, js="() => { const h = document.body.classList.toggle('noside'); try { localStorage.setItem('joshua-noside', h ? '1' : '') } catch (e) {} }")
+    demo.load(None, None, None, js="() => { try { if (localStorage.getItem('joshua-noside')) document.body.classList.add('noside') } catch (e) {} }")
 
 ICON = (pathlib.Path(__file__).parent / "icon.png").resolve()
 APP_HEAD = (f"<link rel='apple-touch-icon' href='/gradio_api/file={ICON}'>"  # the icon Safari uses for "Add to Dock"

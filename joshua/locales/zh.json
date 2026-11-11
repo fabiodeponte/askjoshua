@@ -320,5 +320,9 @@
  "Open folder": "打开文件夹",
  "Download all (.zip)": "全部下载 (.zip)",
  "Looking online…": "正在上网查找…",
- "Sources from the web": "网络来源"
+ "Sources from the web": "网络来源",
+ "Settings": "设置",
+ "Look": "外观",
+ "Text size": "文字大小",
+ "Language": "语言"
 }
