@@ -344,5 +344,8 @@
  "API key": "Klucz API",
  "Paste the key here": "Wklej tutaj klucz",
  "Add a model": "Dodaj model",
- "This chat": "Ta rozmowa"
+ "This chat": "Ta rozmowa",
+ "Open a chat first.": "Najpierw otwórz rozmowę.",
+ "Rename this chat": "Zmień nazwę rozmowy",
+ "New name, then press Enter": "Nowa nazwa, potem Enter"
 }

@@ -344,5 +344,8 @@
  "API key": "API-Schlüssel",
  "Paste the key here": "Schlüssel hier einfügen",
  "Add a model": "Modell hinzufügen",
- "This chat": "Dieser Chat"
+ "This chat": "Dieser Chat",
+ "Open a chat first.": "Öffne zuerst einen Chat.",
+ "Rename this chat": "Diesen Chat umbenennen",
+ "New name, then press Enter": "Neuer Name, dann Enter drücken"
 }

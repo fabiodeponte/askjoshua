@@ -344,5 +344,8 @@
  "API key": "API 密钥",
  "Paste the key here": "在此粘贴密钥",
  "Add a model": "添加模型",
- "This chat": "当前对话"
+ "This chat": "当前对话",
+ "Open a chat first.": "请先打开一个对话。",
+ "Rename this chat": "重命名此对话",
+ "New name, then press Enter": "输入新名称，然后按回车"
 }

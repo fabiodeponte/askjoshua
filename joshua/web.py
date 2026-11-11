@@ -998,6 +998,22 @@ def status_html(cid):
     return f"<div class='working'><span class='wdot'></span>{t('JOSHUA IS WORKING')} · {html.escape(step)} · {secs // 60}:{secs % 60:02d}</div>"
 
 
+def rename_open(cid):
+    if not cid:
+        gr.Info(t("Open a chat first."))
+        return gr.skip()
+    return gr.Textbox(value=load(cid)["title"], visible=True)
+
+
+def rename_save(cid, name):
+    name = (name or "").strip()
+    if cid and name:
+        conv = load(cid)
+        conv["title"] = name[:80]
+        (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))  # not save(): a new name doesn't move the chat to the top
+    return gr.Textbox(visible=False), gr.Radio(choices=conv_choices(), value=cid)
+
+
 def delete_chat(cid):
     nothing = (gr.skip(),) * 5
     if not cid or not (ROOT / cid).exists():
@@ -1162,6 +1178,7 @@ body.noside #leftcol {display: none !important}
 #working .working {display: flex; align-items: center; gap: 8px; color: var(--cyan); font-size: 1.15rem; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
 #working .progress-text, #working .eta-bar, #working .timer, #working .meta-text, #working .meta-text-center, #working .progress-level {display: none !important}
 #working .wdot {flex: 0 0 auto; width: 9px; height: 15px; background: var(--cyan); animation: blink 1s steps(1) infinite}
+#renchat {justify-content: flex-start}
 #delchat {justify-content: flex-start; border: 1px dashed color-mix(in srgb, var(--red) 60%, transparent) !important; background: transparent !important; color: var(--red) !important; font-size: 1rem !important; margin-top: 6px}
 #delchat:hover {background: color-mix(in srgb, var(--red) 10%, transparent) !important}
 #model {max-width: 230px; background: transparent !important; border: none !important; box-shadow: none !important}
@@ -1303,6 +1320,7 @@ body[data-screen^="modern"]:not(#a):not(#b) #convs label:hover {background: var(
 body[data-screen^="modern"]:not(#a):not(#b) #convs label.selected {background: var(--soft) !important; font-weight: 500 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs label.selected::before {content: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat, body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border-radius: 10px !important; text-transform: none !important; border-style: solid !important; font-size: .9rem !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #renchat {border-color: transparent !important; color: var(--dim) !important; justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important; background: transparent !important; box-shadow: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat {border-color: transparent !important; color: var(--dim) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat:hover {color: var(--red) !important; background: transparent !important}
 body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border-color: var(--line) !important; color: var(--cyan) !important}
@@ -1805,8 +1823,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                         openf = gr.Button("📂 " + t("Open folder"), size="sm")
                         dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
             convs = gr.Radio(choices=conv_choices(), show_label=False, container=False, elem_id="convs")
+            renbtn = gr.Button("✏  " + t("Rename this chat"), size="sm", elem_id="renchat")
+            renbox = gr.Textbox(visible=False, show_label=False, max_lines=1, placeholder=t("New name, then press Enter"), elem_id="renbox")
             dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
-            tune = gr.Button("🧪  " + t("Teach Joshua (fine-tune)"), size="sm", elem_id="tunebtn")
             sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
             with gr.Column(elem_id="panels"):
                 with gr.Accordion("🧠 " + t("Memory"), open=False) as mem_box:
@@ -1815,6 +1834,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     mem_text = gr.Textbox(lines=8, max_lines=20, show_label=False, placeholder=t("Nothing remembered yet. Joshua adds notes as you chat, or you can type them here, one per line."))
                     mem_btn = gr.Button(t("Save notes"), size="sm")
                     cloudmem = gr.Checkbox(share_memory_setting(), label=t("Share notes with cloud models"), info=t("Off: cloud models never see your memory notes (Joshua still learns, on this computer)"))
+                tune = gr.Button("🧪  " + t("Teach Joshua (fine-tune)"), size="sm", elem_id="tunebtn")
                 with gr.Accordion("☁ " + t("Cloud models"), open=False, elem_id="cloudbox") as cloud_box:
                     gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
                     cloud_status = gr.HTML("")
@@ -1954,6 +1974,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     chatbot.retry(retry, [cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem], [chatbot, box, cid, convs, files])
     files.delete(delete_file, cid, files)
     gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
+    renbtn.click(rename_open, cid, renbox)
+    renbox.submit(rename_save, [cid, renbox], [renbox, convs])
     dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
     tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
