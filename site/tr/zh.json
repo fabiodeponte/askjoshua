@@ -303,5 +303,7 @@
  "<a aria-current=\"page\" href=\"install.html\">Install</a>": "<a aria-current=\"page\" href=\"install.html\">安装</a>",
  "Download": "下载",
  "Install<br/><em>Joshua</em>": "安装<br/><em>Joshua</em>",
- "How to install Joshua on a Mac or a Linux PC: one command, a few questions, about 20 minutes.": "如何在 Mac 或 Linux 电脑上安装 Joshua：一条命令，几个问题，大约 20 分钟。"
+ "How to install Joshua on a Mac or a Linux PC: one command, a few questions, about 20 minutes.": "如何在 Mac 或 Linux 电脑上安装 Joshua：一条命令，几个问题，大约 20 分钟。",
+ "<span>&gt;</span> You can retrain the model itself": "<span>&gt;</span> 你可以重新训练模型本身",
+ "In the ChatGPT or Claude apps you can give the model instructions and documents, but you can't change the model. Even where the big companies sell fine-tuning, the retrained model stays on their servers and you can never take it home. Joshua's model is a file on your disk: retrain it on your own examples, keep the result, copy it to another computer. Nobody can change it overnight or take it away. <a href=\"features.html#teach\">How fine-tuning works</a>": "在 ChatGPT 或 Claude 的应用里，你可以给模型指令和文件，但不能改变模型本身。即使大公司出售微调服务，重新训练后的模型也留在它们的服务器上，你永远无法把它带回家。Joshua 的模型是你磁盘上的一个文件：用你自己的例子重新训练它，保留结果，复制到另一台电脑。没有人能一夜之间改变它，也没有人能把它拿走。<a href=\"features.html#teach\">微调是怎么回事</a>"
 }
