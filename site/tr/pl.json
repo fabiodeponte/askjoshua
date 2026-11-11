@@ -283,7 +283,6 @@
  "<a href=\"#who\">Who</a> <a href=\"#why\">Why</a> <a href=\"#how\">How it is made</a> <a href=\"#contact\">Contact</a>": "<a href=\"#who\">Kto</a> <a href=\"#why\">Dlaczego</a> <a href=\"#how\">Jak powstaje</a> <a href=\"#contact\">Kontakt</a>",
  "Who": "Kto",
  "Joshua is made by <a href=\"https://fabiodeponte.eu\" rel=\"noopener\">Fabio De Ponte</a>, a journalist who reports on artificial intelligence and teaches other journalists how to use it.": "Joshuę tworzy <a href=\"https://fabiodeponte.eu\" rel=\"noopener\">Fabio De Ponte</a>, dziennikarz, który zajmuje się sztuczną inteligencją i uczy innych dziennikarzy, jak z niej korzystać.",
- "He is doing a PhD on how language emerges among AI agents, at the Vrije Universiteit Brussel and the University of Namur, and holds an MSc in Data Science and Artificial Intelligence from Goldsmiths, University of London. He wrote critical biographies of Steve Jobs and Bill Gates.": "Robi doktorat o tym, jak powstaje język między agentami sztucznej inteligencji, na Vrije Universiteit Brussel i Uniwersytecie w Namur, i ma tytuł MSc z Data Science i Sztucznej Inteligencji z Goldsmiths, University of London. Napisał krytyczne biografie Steve'a Jobsa i Billa Gatesa.",
  "He also builds the <a href=\"https://www.yattaphone.org\" rel=\"noopener\">Yattaphone</a>, a phone you make yourself from a Raspberry Pi.": "Buduje też <a href=\"https://www.yattaphone.org\" rel=\"noopener\">Yattaphone</a>, telefon, który robisz sam z Raspberry Pi.",
  "The personal computer came with a simple promise: the machine on your desk is yours. Artificial intelligence is moving the other way, into the data centres of a few companies.": "Komputer osobisty narodził się z prostą obietnicą: maszyna na twoim biurku należy do ciebie. Sztuczna inteligencja zmierza w przeciwną stronę, do centrów danych kilku firm.",
  "Joshua is an attempt to bring it back to the desk: small enough to run at home, open enough to understand, simple enough to install without being an engineer. It is not a company and it sells nothing. The <a href=\"manifesto.html\">manifesto</a> says the rest.": "Joshua to próba przywrócenia jej na biurko: na tyle małej, żeby działała w domu, na tyle otwartej, żeby dało się ją zrozumieć, na tyle prostej, żeby zainstalować ją bez bycia inżynierem. To nie jest firma i niczego nie sprzedaje. Resztę mówi <a href=\"manifesto.html\">manifest</a>.",
@@ -292,5 +291,6 @@
  "Contact": "Kontakt",
  "Write to <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. For bugs and ideas, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">open an issue on GitHub</a>.": "Napisz na <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. W sprawie błędów i pomysłów <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">zgłoś to na GitHubie</a>.",
  "Who makes Joshua, and why.": "Kto tworzy Joshuę i dlaczego.",
- "Locally grown AI": "AI z lokalnej uprawy"
+ "Locally grown AI": "AI z lokalnej uprawy",
+ "He is doing a PhD on how language emerges among AI agents.": "Robi doktorat o tym, jak powstaje język między agentami sztucznej inteligencji."
 }

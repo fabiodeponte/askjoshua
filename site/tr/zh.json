@@ -283,7 +283,6 @@
  "<a href=\"#who\">Who</a> <a href=\"#why\">Why</a> <a href=\"#how\">How it is made</a> <a href=\"#contact\">Contact</a>": "<a href=\"#who\">是谁</a> <a href=\"#why\">为什么</a> <a href=\"#how\">怎么做的</a> <a href=\"#contact\">联系</a>",
  "Who": "是谁",
  "Joshua is made by <a href=\"https://fabiodeponte.eu\" rel=\"noopener\">Fabio De Ponte</a>, a journalist who reports on artificial intelligence and teaches other journalists how to use it.": "Joshua 由 <a href=\"https://fabiodeponte.eu\" rel=\"noopener\">Fabio De Ponte</a> 开发。他是一名报道人工智能的记者，也教其他记者如何使用人工智能。",
- "He is doing a PhD on how language emerges among AI agents, at the Vrije Universiteit Brussel and the University of Namur, and holds an MSc in Data Science and Artificial Intelligence from Goldsmiths, University of London. He wrote critical biographies of Steve Jobs and Bill Gates.": "他正在布鲁塞尔自由大学（Vrije Universiteit Brussel）和那慕尔大学攻读博士，研究语言如何在人工智能智能体之间产生；他拥有伦敦大学金史密斯学院的数据科学与人工智能硕士学位。他写过史蒂夫·乔布斯和比尔·盖茨的批判性传记。",
  "He also builds the <a href=\"https://www.yattaphone.org\" rel=\"noopener\">Yattaphone</a>, a phone you make yourself from a Raspberry Pi.": "他还在制作 <a href=\"https://www.yattaphone.org\" rel=\"noopener\">Yattaphone</a>，一部用树莓派亲手组装的手机。",
  "The personal computer came with a simple promise: the machine on your desk is yours. Artificial intelligence is moving the other way, into the data centres of a few companies.": "个人电脑诞生时带着一个简单的承诺：你桌上的这台机器属于你。人工智能却在朝相反的方向走，进入少数几家公司的数据中心。",
  "Joshua is an attempt to bring it back to the desk: small enough to run at home, open enough to understand, simple enough to install without being an engineer. It is not a company and it sells nothing. The <a href=\"manifesto.html\">manifesto</a> says the rest.": "Joshua 想把它带回桌面：小到可以在家里运行，开放到可以理解，简单到不是工程师也能安装。它不是一家公司，也不卖任何东西。其余的，<a href=\"manifesto.html\">宣言</a>里都写了。",
@@ -292,5 +291,6 @@
  "Contact": "联系",
  "Write to <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. For bugs and ideas, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">open an issue on GitHub</a>.": "请写信到 <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>。报告 bug 或提出想法，请<a href=\"https://github.com/fabiodeponte/askjoshua/issues\">在 GitHub 上提交 issue</a>。",
  "Who makes Joshua, and why.": "谁在做 Joshua，以及为什么。",
- "Locally grown AI": "土生土长的 AI"
+ "Locally grown AI": "土生土长的 AI",
+ "He is doing a PhD on how language emerges among AI agents.": "他正在攻读博士，研究语言如何在人工智能智能体之间产生。"
 }
