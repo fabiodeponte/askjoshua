@@ -50,5 +50,8 @@ since = min((k for k, d in days.items() if d["installs"]), default=None)
 PUBLIC.write_text(json.dumps({"installs": installs, "since": since}))
 started = sum(d["started"] for d in days.values())
 report = [f"Joshua: {installs} installs completed, {started} install commands run, {updates} updates (installs counted since {since})", ""] + [f"{k}  installs {d['installs']:4}  started {d['started']:4}  updates {d['updates']:4}" for k, d in sorted(days.items()) if d["installs"] or d["started"] or d["updates"]]
-(HERE / "report.txt").write_text("\n".join(report) + "\n")
+legend = ["", "* installs: completed first installations, the number shown on the website. Counted since 11 November 2026.",
+          "* started: how many times the install command was run, including repeats and abandoned attempts. Those on 8 and 11 November 2026 were almost all our tests.",
+          "* updates: how many times Joshua's Update button downloaded a new version."]
+(HERE / "report.txt").write_text("\n".join(report + legend) + "\n")
 print(report[0])
