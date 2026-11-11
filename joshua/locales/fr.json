@@ -325,14 +325,13 @@
  "Look": "Apparence",
  "Text size": "Taille du texte",
  "Language": "Langue",
- "{name} refused the API key. Check it in 🔑 Claude, ChatGPT, Gemini, or make a new one.": "{name} a refusé la clé API. Vérifiez-la dans 🔑 Claude, ChatGPT, Gemini, ou créez-en une nouvelle.",
- "There is no API key for {name}. Add it in 🔑 Claude, ChatGPT, Gemini.": "Il n'y a pas de clé API pour {name}. Ajoutez-la dans 🔑 Claude, ChatGPT, Gemini.",
+ "{name} refused the API key. Check it in 🔑 Claude, ChatGPT, Gemini, DeepSeek, or make a new one.": "{name} a refusé la clé API. Vérifiez-la dans 🔑 Claude, ChatGPT, Gemini, DeepSeek, ou créez-en une nouvelle.",
+ "There is no API key for {name}. Add it in 🔑 Claude, ChatGPT, Gemini, DeepSeek.": "Il n'y a pas de clé API pour {name}. Ajoutez-la dans 🔑 Claude, ChatGPT, Gemini, DeepSeek.",
  "Your {name} account has no credit left for the API. Add some on the company's website: API use is paid separately from any chat subscription.": "Votre compte {name} n'a plus de crédit pour l'API. Ajoutez-en sur le site de l'entreprise : l'usage de l'API se paie à part de tout abonnement de chat.",
  "{name} says too many requests: wait a minute and try again.": "{name} signale trop de requêtes : attendez une minute et réessayez.",
  "{name} doesn't know this model, or your key can't use it. Pick another one.": "{name} ne connaît pas ce modèle, ou votre clé ne peut pas l'utiliser. Choisissez-en un autre.",
  "{name} answered with an error ({code}).": "{name} a répondu par une erreur ({code}).",
  "Message from {name}:": "Message de {name} :",
- "Use Claude, ChatGPT or Gemini inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from a ChatGPT, Claude or Gemini subscription. The key is kept in providers.json on this computer, readable only by you.": "Utilisez Claude, ChatGPT ou Gemini dans Joshua, avec tous les outils de Joshua. Vos discussions, fichiers et mémoire restent sur cet ordinateur ; la conversation va aux serveurs de l'entreprise, comme pour tout modèle cloud.\n\n**Il vous faut une clé API**, un mot de passe pour les programmes, depuis le site développeurs de l'entreprise. Elle se paie à l'usage, à part d'un abonnement ChatGPT, Claude ou Gemini. La clé est gardée dans providers.json sur cet ordinateur, lisible par vous seul.",
  "Get a key from {company}": "Obtenir une clé chez {company}",
  "From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.": "À partir d'ici, cette discussion est traitée par **{model}** sur les serveurs de {company} : chaque message y envoie la conversation, y compris le texte des fichiers et des pages que Joshua lit.",
  "🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here": "🔑 Modèle de {company} : les messages vont aux serveurs de {company} ; tout reste enregistré ici",
@@ -347,5 +346,6 @@
  "This chat": "Cette discussion",
  "Open a chat first.": "Ouvrez d'abord une discussion.",
  "Rename this chat": "Renommer cette discussion",
- "New name, then press Enter": "Nouveau nom, puis Entrée"
+ "New name, then press Enter": "Nouveau nom, puis Entrée",
+ "Use Claude, ChatGPT, Gemini or DeepSeek inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from any chat subscription. The key is kept in providers.json on this computer, readable only by you.": "Utilisez Claude, ChatGPT, Gemini ou DeepSeek dans Joshua, avec tous les outils de Joshua. Vos discussions, fichiers et mémoire restent sur cet ordinateur ; la conversation va aux serveurs de l'entreprise, comme pour tout modèle cloud.\n\n**Il vous faut une clé API**, un mot de passe pour les programmes, depuis le site développeurs de l'entreprise. Elle se paie à l'usage, à part de tout abonnement de chat. La clé est gardée dans providers.json sur cet ordinateur, lisible par vous seul."
 }

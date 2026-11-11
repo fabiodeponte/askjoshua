@@ -325,14 +325,13 @@
  "Look": "Wygląd",
  "Text size": "Rozmiar tekstu",
  "Language": "Język",
- "{name} refused the API key. Check it in 🔑 Claude, ChatGPT, Gemini, or make a new one.": "{name} odrzucił klucz API. Sprawdź go w 🔑 Claude, ChatGPT, Gemini albo utwórz nowy.",
- "There is no API key for {name}. Add it in 🔑 Claude, ChatGPT, Gemini.": "Brak klucza API dla {name}. Dodaj go w 🔑 Claude, ChatGPT, Gemini.",
+ "{name} refused the API key. Check it in 🔑 Claude, ChatGPT, Gemini, DeepSeek, or make a new one.": "{name} odrzucił klucz API. Sprawdź go w 🔑 Claude, ChatGPT, Gemini, DeepSeek albo utwórz nowy.",
+ "There is no API key for {name}. Add it in 🔑 Claude, ChatGPT, Gemini, DeepSeek.": "Brak klucza API dla {name}. Dodaj go w 🔑 Claude, ChatGPT, Gemini, DeepSeek.",
  "Your {name} account has no credit left for the API. Add some on the company's website: API use is paid separately from any chat subscription.": "Na twoim koncie {name} skończyły się środki na API. Doładuj je na stronie firmy: za API płaci się osobno, niezależnie od subskrypcji czatu.",
  "{name} says too many requests: wait a minute and try again.": "{name} zgłasza zbyt wiele zapytań: odczekaj minutę i spróbuj ponownie.",
  "{name} doesn't know this model, or your key can't use it. Pick another one.": "{name} nie zna tego modelu albo twój klucz nie może go używać. Wybierz inny.",
  "{name} answered with an error ({code}).": "{name} odpowiedział błędem ({code}).",
  "Message from {name}:": "Wiadomość od {name}:",
- "Use Claude, ChatGPT or Gemini inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from a ChatGPT, Claude or Gemini subscription. The key is kept in providers.json on this computer, readable only by you.": "Korzystaj z Claude, ChatGPT lub Gemini w Joshui, ze wszystkimi narzędziami Joshui. Twoje rozmowy, pliki i pamięć zostają na tym komputerze; rozmowa trafia na serwery firmy, jak przy każdym modelu w chmurze.\n\n**Potrzebujesz klucza API**, czyli hasła dla programów, ze strony dla programistów danej firmy. Płaci się za zużycie, osobno od subskrypcji ChatGPT, Claude czy Gemini. Klucz jest zapisany w providers.json na tym komputerze i tylko ty możesz go odczytać.",
  "Get a key from {company}": "Zdobądź klucz od {company}",
  "From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.": "Od teraz w tej rozmowie odpowiada **{model}** na serwerach firmy {company}: każda wiadomość wysyła tam rozmowę, łącznie z tekstem plików i stron, które czyta Joshua.",
  "🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here": "🔑 Model firmy {company}: wiadomości trafiają na serwery {company}; wszystko zostaje zapisane tutaj",
@@ -347,5 +346,6 @@
  "This chat": "Ta rozmowa",
  "Open a chat first.": "Najpierw otwórz rozmowę.",
  "Rename this chat": "Zmień nazwę rozmowy",
- "New name, then press Enter": "Nowa nazwa, potem Enter"
+ "New name, then press Enter": "Nowa nazwa, potem Enter",
+ "Use Claude, ChatGPT, Gemini or DeepSeek inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from any chat subscription. The key is kept in providers.json on this computer, readable only by you.": "Korzystaj z Claude, ChatGPT, Gemini lub DeepSeek w Joshui, ze wszystkimi narzędziami Joshui. Twoje rozmowy, pliki i pamięć zostają na tym komputerze; rozmowa trafia na serwery firmy, jak przy każdym modelu w chmurze.\n\n**Potrzebujesz klucza API**, czyli hasła dla programów, ze strony dla programistów danej firmy. Płaci się za zużycie, osobno od jakiejkolwiek subskrypcji czatu. Klucz jest zapisany w providers.json na tym komputerze i tylko ty możesz go odczytać."
 }

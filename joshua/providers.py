@@ -1,4 +1,4 @@
-"""Claude, ChatGPT and Gemini inside Joshua, with your own API key.
+"""Claude, ChatGPT, Gemini and DeepSeek inside Joshua, with your own API key.
 
 All three companies accept the same request format (the one OpenAI made common), so one small
 adapter serves them all. Like apple.chat, chat() answers in ollama.chat's shape, so the rest of
@@ -14,10 +14,12 @@ from i18n import t
 
 FILE = pathlib.Path(__file__).parent / "providers.json"
 PROVIDERS = {
-    "anthropic": {"name": "Claude", "company": "Anthropic", "url": "https://api.anthropic.com/v1", "keys": "https://console.anthropic.com/settings/keys"},
-    "openai": {"name": "ChatGPT", "company": "OpenAI", "url": "https://api.openai.com/v1", "keys": "https://platform.openai.com/api-keys"},
-    "gemini": {"name": "Gemini", "company": "Google", "url": "https://generativelanguage.googleapis.com/v1beta/openai", "keys": "https://aistudio.google.com/apikey"},
+    "anthropic": {"name": "Claude", "company": "Anthropic", "url": "https://api.anthropic.com/v1", "keys": "https://console.anthropic.com/settings/keys", "open": False},
+    "openai": {"name": "ChatGPT", "company": "OpenAI", "url": "https://api.openai.com/v1", "keys": "https://platform.openai.com/api-keys", "open": False},
+    "gemini": {"name": "Gemini", "company": "Google", "url": "https://generativelanguage.googleapis.com/v1beta/openai", "keys": "https://aistudio.google.com/apikey", "open": False},
+    "deepseek": {"name": "DeepSeek", "company": "DeepSeek", "url": "https://api.deepseek.com", "keys": "https://platform.deepseek.com/api_keys", "open": True},  # open weights, served by its makers
 }
+PANEL = "🔑 Claude, ChatGPT, Gemini, DeepSeek"
 SEP = "::"
 
 
@@ -68,10 +70,14 @@ def company(value):
     return PROVIDERS[split(value)[0]]["company"]
 
 
-def menu():
-    """The models you added, for the model menu, if their key is still there."""
+def menu(open_weights):
+    """The models you added, for the model menu, if their key is still there: open-weight ones, or the others."""
     data = settings()
-    return [(label(v), v) for v in data["models"] if is_api(v) and data["keys"].get(split(v)[0])]
+    return [(label(v), v) for v in data["models"] if is_api(v) and data["keys"].get(split(v)[0]) and PROVIDERS[split(v)[0]]["open"] == open_weights]
+
+
+def sees_images(value):
+    return split(value)[0] != "deepseek"  # DeepSeek's API models read text only; Joshua's local model looks at pictures for them
 
 
 # ---------- talking to the company's servers ----------
@@ -79,7 +85,7 @@ def menu():
 def headers(provider):
     key = settings()["keys"].get(provider)
     if not key:
-        raise RuntimeError(t("There is no API key for {name}. Add it in 🔑 Claude, ChatGPT, Gemini.", name=PROVIDERS[provider]["name"]))
+        raise RuntimeError(t("There is no API key for {name}. Add it in 🔑 Claude, ChatGPT, Gemini, DeepSeek.", name=PROVIDERS[provider]["name"]))
     return {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
 
@@ -93,6 +99,8 @@ def catalog(provider):
         ids = [i for i in ids if i.startswith(("gpt-", "o1", "o3", "o4", "o5", "chatgpt"))]
     if provider == "gemini":
         ids = [i for i in ids if i.startswith("gemini")]
+    if provider == "deepseek":
+        ids = [i for i in ids if i.startswith("deepseek")]
     return sorted({i for i in ids if not any(s in i for s in skip)}, reverse=True)
 
 
@@ -107,7 +115,7 @@ def check(r, provider):
     except Exception:
         detail = r.text[:300]
     if code in (401, 403):
-        text = t("{name} refused the API key. Check it in 🔑 Claude, ChatGPT, Gemini, or make a new one.", name=name)
+        text = t("{name} refused the API key. Check it in 🔑 Claude, ChatGPT, Gemini, DeepSeek, or make a new one.", name=name)
     elif code in (402, 429) and any(w in detail.lower() for w in ("credit", "billing", "quota", "balance", "payment")):
         text = t("Your {name} account has no credit left for the API. Add some on the company's website: API use is paid separately from any chat subscription.", name=name)
     elif code == 429:
@@ -138,6 +146,8 @@ def convert(messages):
                 calls.append({"id": f"call_{n}_{k}", "type": "function", "function": {"name": name, "arguments": json.dumps(dict(args), ensure_ascii=False)}})
             pending = [c["id"] for c in calls]
             out.append({"role": "assistant", "content": content or None, "tool_calls": calls})
+            if m.get("thinking"):
+                out[-1]["reasoning_content"] = m["thinking"]
         elif role == "tool":
             out.append({"role": "tool", "tool_call_id": pending.pop(0) if pending else f"call_{n}", "content": str(content)})
         elif m.get("images"):
@@ -147,9 +157,9 @@ def convert(messages):
     return out
 
 
-def reply(provider, content="", calls=()):
+def reply(provider, content="", calls=(), thinking=None):
     tool_calls = [ollama.Message.ToolCall(function=ollama.Message.ToolCall.Function(name=c["name"], arguments=json.loads(c["arguments"] or "{}"))) for c in calls]
-    return ollama.ChatResponse(model=provider, done=True, message=ollama.Message(role="assistant", content=content, tool_calls=tool_calls or None))
+    return ollama.ChatResponse(model=provider, done=True, message=ollama.Message(role="assistant", content=content, thinking=thinking or None, tool_calls=tool_calls or None))
 
 
 def chat(model, messages=(), tools=None, stream=False, format=None, options=None, **ignored):
@@ -171,7 +181,7 @@ def chat(model, messages=(), tools=None, stream=False, format=None, options=None
         text = (msg.get("content") or "").strip()
         if format:
             text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        return reply(provider, text, [c["function"] for c in msg.get("tool_calls") or []])
+        return reply(provider, text, [c["function"] for c in msg.get("tool_calls") or []], msg.get("reasoning_content"))
     return pieces(r, provider)
 
 
@@ -186,6 +196,8 @@ def pieces(r, provider):
             break
         choices = json.loads(data).get("choices") or [{}]
         delta = choices[0].get("delta") or {}
+        if delta.get("reasoning_content"):
+            yield reply(provider, thinking=delta["reasoning_content"])
         if delta.get("content"):
             yield reply(provider, delta["content"])
         for c in delta.get("tool_calls") or []:

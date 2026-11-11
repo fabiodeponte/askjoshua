@@ -325,14 +325,13 @@
  "Look": "外观",
  "Text size": "文字大小",
  "Language": "语言",
- "{name} refused the API key. Check it in 🔑 Claude, ChatGPT, Gemini, or make a new one.": "{name} 拒绝了这个 API 密钥。请在 🔑 Claude、ChatGPT、Gemini 中检查，或创建一个新的。",
- "There is no API key for {name}. Add it in 🔑 Claude, ChatGPT, Gemini.": "没有 {name} 的 API 密钥。请在 🔑 Claude、ChatGPT、Gemini 中添加。",
+ "{name} refused the API key. Check it in 🔑 Claude, ChatGPT, Gemini, DeepSeek, or make a new one.": "{name} 拒绝了这个 API 密钥。请在 🔑 Claude、ChatGPT、Gemini、DeepSeek 中检查，或创建一个新的。",
+ "There is no API key for {name}. Add it in 🔑 Claude, ChatGPT, Gemini, DeepSeek.": "没有 {name} 的 API 密钥。请在 🔑 Claude、ChatGPT、Gemini、DeepSeek 中添加。",
  "Your {name} account has no credit left for the API. Add some on the company's website: API use is paid separately from any chat subscription.": "你的 {name} 账户已没有 API 余额。请到该公司网站充值：API 用量与任何聊天订阅分开计费。",
  "{name} says too many requests: wait a minute and try again.": "{name} 提示请求过多：请等一分钟再试。",
  "{name} doesn't know this model, or your key can't use it. Pick another one.": "{name} 不认识这个模型，或你的密钥无权使用。请换一个。",
  "{name} answered with an error ({code}).": "{name} 返回了错误（{code}）。",
  "Message from {name}:": "{name} 的消息：",
- "Use Claude, ChatGPT or Gemini inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from a ChatGPT, Claude or Gemini subscription. The key is kept in providers.json on this computer, readable only by you.": "在 Joshua 里使用 Claude、ChatGPT 或 Gemini，并可使用 Joshua 的全部工具。你的对话、文件和记忆留在这台电脑上；对话内容会发送到该公司的服务器，和其他云端模型一样。\n\n**你需要一个 API 密钥**，即供程序使用的密码，可在该公司的开发者网站获取。按用量付费，与 ChatGPT、Claude 或 Gemini 的订阅分开。密钥保存在这台电脑上的 providers.json 中，只有你能读取。",
  "Get a key from {company}": "从 {company} 获取密钥",
  "From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.": "从现在起，这个对话由 {company} 服务器上的 **{model}** 回答：每条消息都会把对话发送到那里，包括 Joshua 读取的文件和网页内容。",
  "🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here": "🔑 {company} 的模型：消息发送到 {company} 的服务器；所有内容仍保存在这里",
@@ -347,5 +346,6 @@
  "This chat": "当前对话",
  "Open a chat first.": "请先打开一个对话。",
  "Rename this chat": "重命名此对话",
- "New name, then press Enter": "输入新名称，然后按回车"
+ "New name, then press Enter": "输入新名称，然后按回车",
+ "Use Claude, ChatGPT, Gemini or DeepSeek inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from any chat subscription. The key is kept in providers.json on this computer, readable only by you.": "在 Joshua 里使用 Claude、ChatGPT、Gemini 或 DeepSeek，并可使用 Joshua 的全部工具。你的对话、文件和记忆留在这台电脑上；对话内容会发送到该公司的服务器，和其他云端模型一样。\n\n**你需要一个 API 密钥**，即供程序使用的密码，可在该公司的开发者网站获取。按用量付费，与任何聊天订阅分开。密钥保存在这台电脑上的 providers.json 中，只有你能读取。"
 }

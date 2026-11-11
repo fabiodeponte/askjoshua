@@ -41,8 +41,8 @@ CAPS = {}
 
 
 def caps(name):
-    if providers.is_api(name):  # Claude, ChatGPT and Gemini all use tools and see images
-        return {"tools", "vision"}
+    if providers.is_api(name):  # all use tools; all but DeepSeek see images
+        return {"tools", "vision"} if providers.sees_images(name) else {"tools"}
     if name not in CAPS:
         try:
             CAPS[name] = set(ollama.show(name).capabilities or [])
@@ -76,8 +76,11 @@ def models(add=False):
     if FAST in names and (MODEL in names or MODEL + ":latest" in names):
         choices.insert(0, (agent.CONFIG.get("label", "qwen3-vl"), PAIR))
     if not apple.why_not():  # macOS 26 with Apple Intelligence on: free, and already on this Mac
-        choices.insert(sum(not is_cloud(v) for _, v in choices), (apple.LABEL, apple.NAME))
-    choices += providers.menu()  # Claude, ChatGPT, Gemini models added with your own key
+        choices.append((apple.LABEL, apple.NAME))
+    # the order: on this computer, then open-weight models in the cloud, then closed ones (Claude, ChatGPT, Gemini)
+    local = [c for c in choices if not is_cloud(c[1])]
+    cloud_open = [c for c in choices if is_cloud(c[1])] + providers.menu(open_weights=True)
+    choices = local + cloud_open + providers.menu(open_weights=False)
     return (choices or [(FAST, FAST)]) + ([(t("＋ Add a model…"), ADD)] if add else [])
 
 
@@ -313,9 +316,9 @@ def cloud_add_model(name):
     return gr.Dropdown(choices=models(True), value=tag), "<div class='cloudstat'>" + t("Added ☁ {model}: it's selected in the model menu. Nothing was downloaded: it runs on Ollama's servers.", model=html.escape(name)) + "</div>"
 
 
-KEYS_HELP = t("""Use Claude, ChatGPT or Gemini inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.
+KEYS_HELP = t("""Use Claude, ChatGPT, Gemini or DeepSeek inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.
 
-**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from a ChatGPT, Claude or Gemini subscription. The key is kept in providers.json on this computer, readable only by you.""")
+**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from any chat subscription. The key is kept in providers.json on this computer, readable only by you.""")
 
 
 def keys_status(provider):
@@ -432,6 +435,8 @@ def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
                 break
         shown += live
         msgs.append({"role": "assistant", "content": content, "tool_calls": [{"function": {"name": c.function.name, "arguments": dict(c.function.arguments)}} for c in calls]})
+        if thought and providers.is_api(model):  # DeepSeek wants its reasoning back with the tool results
+            msgs[-1]["thinking"] = thought
         if not calls or stop.is_set():
             return
         for c in calls:
@@ -1844,7 +1849,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                             "<div class='cloudnote'>" + t("Credit is paid to Ollama for the computing power of its servers, which run the cloud models. Joshua itself is free: none of this money goes to Joshua, and local models never need credit.") + "</div>")
                     cloud_pick = gr.Dropdown([], label=t("Add a cloud model"), info=t("All of these can use Joshua's tools; 👁 ones can also see images"))
                     cloud_add = gr.Button(t("Add to the model menu"), size="sm")
-                with gr.Accordion("🔑 Claude, ChatGPT, Gemini", open=False, elem_id="keysbox") as keys_box:
+                with gr.Accordion(providers.PANEL, open=False, elem_id="keysbox") as keys_box:
                     gr.Markdown(KEYS_HELP, elem_id="keyshelp")
                     k_provider = gr.Radio([(v["name"], k) for k, v in providers.PROVIDERS.items()], value="anthropic", show_label=False, elem_id="kprov")
                     k_key = gr.Textbox(type="password", label=t("API key"), placeholder=t("Paste the key here"), max_lines=1)

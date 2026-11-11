@@ -325,14 +325,13 @@
  "Look": "Aussehen",
  "Text size": "Textgröße",
  "Language": "Sprache",
- "{name} refused the API key. Check it in 🔑 Claude, ChatGPT, Gemini, or make a new one.": "{name} hat den API-Schlüssel abgelehnt. Prüfe ihn in 🔑 Claude, ChatGPT, Gemini oder erstelle einen neuen.",
- "There is no API key for {name}. Add it in 🔑 Claude, ChatGPT, Gemini.": "Es gibt keinen API-Schlüssel für {name}. Füge ihn in 🔑 Claude, ChatGPT, Gemini hinzu.",
+ "{name} refused the API key. Check it in 🔑 Claude, ChatGPT, Gemini, DeepSeek, or make a new one.": "{name} hat den API-Schlüssel abgelehnt. Prüfe ihn in 🔑 Claude, ChatGPT, Gemini, DeepSeek oder erstelle einen neuen.",
+ "There is no API key for {name}. Add it in 🔑 Claude, ChatGPT, Gemini, DeepSeek.": "Es gibt keinen API-Schlüssel für {name}. Füge ihn in 🔑 Claude, ChatGPT, Gemini, DeepSeek hinzu.",
  "Your {name} account has no credit left for the API. Add some on the company's website: API use is paid separately from any chat subscription.": "Dein {name}-Konto hat kein Guthaben mehr für die API. Lade welches auf der Website der Firma auf: Die API wird getrennt von jedem Chat-Abo bezahlt.",
  "{name} says too many requests: wait a minute and try again.": "{name} meldet zu viele Anfragen: Warte eine Minute und versuch es noch einmal.",
  "{name} doesn't know this model, or your key can't use it. Pick another one.": "{name} kennt dieses Modell nicht, oder dein Schlüssel darf es nicht nutzen. Wähle ein anderes.",
  "{name} answered with an error ({code}).": "{name} hat mit einem Fehler geantwortet ({code}).",
  "Message from {name}:": "Nachricht von {name}:",
- "Use Claude, ChatGPT or Gemini inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from a ChatGPT, Claude or Gemini subscription. The key is kept in providers.json on this computer, readable only by you.": "Nutze Claude, ChatGPT oder Gemini in Joshua, mit allen Werkzeugen von Joshua. Deine Chats, Dateien und dein Gedächtnis bleiben auf diesem Computer; das Gespräch geht an die Server der Firma, wie bei jedem Cloud-Modell.\n\n**Du brauchst einen API-Schlüssel**, ein Passwort für Programme, von der Entwickler-Website der Firma. Er wird nach Verbrauch bezahlt, getrennt von einem ChatGPT-, Claude- oder Gemini-Abo. Der Schlüssel liegt in providers.json auf diesem Computer, nur für dich lesbar.",
  "Get a key from {company}": "Schlüssel bei {company} holen",
  "From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.": "Ab hier antwortet in diesem Chat **{model}** auf den Servern von {company}: Jede Nachricht schickt das Gespräch dorthin, auch den Text der Dateien und Seiten, die Joshua liest.",
  "🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here": "🔑 Modell von {company}: Nachrichten gehen an die Server von {company}; alles bleibt hier gespeichert",
@@ -347,5 +346,6 @@
  "This chat": "Dieser Chat",
  "Open a chat first.": "Öffne zuerst einen Chat.",
  "Rename this chat": "Diesen Chat umbenennen",
- "New name, then press Enter": "Neuer Name, dann Enter drücken"
+ "New name, then press Enter": "Neuer Name, dann Enter drücken",
+ "Use Claude, ChatGPT, Gemini or DeepSeek inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from any chat subscription. The key is kept in providers.json on this computer, readable only by you.": "Nutze Claude, ChatGPT, Gemini oder DeepSeek in Joshua, mit allen Werkzeugen von Joshua. Deine Chats, Dateien und dein Gedächtnis bleiben auf diesem Computer; das Gespräch geht an die Server der Firma, wie bei jedem Cloud-Modell.\n\n**Du brauchst einen API-Schlüssel**, ein Passwort für Programme, von der Entwickler-Website der Firma. Er wird nach Verbrauch bezahlt, getrennt von jedem Chat-Abo. Der Schlüssel liegt in providers.json auf diesem Computer, nur für dich lesbar."
 }
