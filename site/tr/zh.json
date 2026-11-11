@@ -261,7 +261,6 @@
  "JOSHUA": "JOSHUA",
  "<a href=\"about.html\">About</a>": "<a href=\"about.html\">关于</a>",
  "joshua.earth": "joshua.earth",
- "AI at kilometre zero": "身边的 AI",
  "Joshua is artificial intelligence on a human scale. It runs on the computer you already own, on a small model, with the power of the machine on your desk instead of a data centre's. No tech giant sits in the middle holding your data and setting the rules. Technology at the service of people and of the planet, not the other way round. <a href=\"manifesto.html\">Read the manifesto</a>": "Joshua 是以人为尺度的人工智能。它运行在你已有的电脑上，用一个小模型，靠的是你桌上那台机器的算力，而不是数据中心。没有科技巨头夹在中间掌握你的数据、制定规则。技术为人和地球服务，而不是反过来。<a href=\"manifesto.html\">阅读宣言</a>",
  "The honest small print: the models were trained in data centres, and your computer uses electricity too. What changes is the scale, and who is in control.": "坦白说明：这些模型是在数据中心训练出来的，你的电脑也要用电。改变的是规模，以及由谁掌控。",
  "Goal mode works until a task is done and checked. Swarm mode asks several agents and merges the best answer. Scheduled tasks run on their own at set times, while Joshua is open and the computer is on. <a href=\"#modes\">More</a>": "目标模式会一直工作，直到任务完成并经过核实。群体模式会询问多个智能体，并合并出最佳答案。定时任务会在设定的时间自动运行，前提是 Joshua 开着、电脑没关机。<a href=\"#modes\">了解更多</a>",
@@ -292,5 +291,6 @@
  "Joshua is written with the help of AI coding assistants and tested on ordinary Macs, from an 8 GB M1 to a 16 GB M4. It stands on the work of others: Ollama, the Qwen models, Gradio, mlx and many more. Every line of Joshua's own code is <a href=\"https://github.com/fabiodeponte/askjoshua\">on GitHub</a>.": "Joshua 是在 AI 编程助手的帮助下编写的，并在普通 Mac 上测试，从 8 GB 的 M1 到 16 GB 的 M4。它建立在他人的成果之上：Ollama、Qwen 模型、Gradio、mlx 等等。Joshua 自己的每一行代码都在 <a href=\"https://github.com/fabiodeponte/askjoshua\">GitHub 上</a>。",
  "Contact": "联系",
  "Write to <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. For bugs and ideas, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">open an issue on GitHub</a>.": "请写信到 <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>。报告 bug 或提出想法，请<a href=\"https://github.com/fabiodeponte/askjoshua/issues\">在 GitHub 上提交 issue</a>。",
- "Who makes Joshua, and why.": "谁在做 Joshua，以及为什么。"
+ "Who makes Joshua, and why.": "谁在做 Joshua，以及为什么。",
+ "Locally grown AI": "土生土长的 AI"
 }

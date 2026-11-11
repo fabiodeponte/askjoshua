@@ -261,7 +261,6 @@
  "JOSHUA": "JOSHUA",
  "<a href=\"about.html\">About</a>": "<a href=\"about.html\">O nas</a>",
  "joshua.earth": "joshua.earth",
- "AI at kilometre zero": "AI z najbliższej okolicy",
  "Joshua is artificial intelligence on a human scale. It runs on the computer you already own, on a small model, with the power of the machine on your desk instead of a data centre's. No tech giant sits in the middle holding your data and setting the rules. Technology at the service of people and of the planet, not the other way round. <a href=\"manifesto.html\">Read the manifesto</a>": "Joshua to sztuczna inteligencja na ludzką skalę. Działa na komputerze, który już masz, na małym modelu, z mocą maszyny stojącej na twoim biurku zamiast centrum danych. Żaden technologiczny gigant nie stoi pośrodku, nie trzyma twoich danych i nie ustala zasad. Technologia w służbie ludzi i planety, a nie odwrotnie. <a href=\"manifesto.html\">Przeczytaj manifest</a>",
  "The honest small print: the models were trained in data centres, and your computer uses electricity too. What changes is the scale, and who is in control.": "Uczciwy drobny druk: modele zostały wytrenowane w centrach danych, a twój komputer też zużywa prąd. Zmienia się skala, i to, kto ma kontrolę.",
  "Goal mode works until a task is done and checked. Swarm mode asks several agents and merges the best answer. Scheduled tasks run on their own at set times, while Joshua is open and the computer is on. <a href=\"#modes\">More</a>": "Tryb celu pracuje, aż zadanie będzie wykonane i sprawdzone. Tryb roju pyta kilku agentów i łączy najlepszą odpowiedź. Zaplanowane zadania uruchamiają się same o ustalonej porze, gdy Joshua jest otwarty, a komputer włączony. <a href=\"#modes\">Więcej</a>",
@@ -292,5 +291,6 @@
  "Joshua is written with the help of AI coding assistants and tested on ordinary Macs, from an 8 GB M1 to a 16 GB M4. It stands on the work of others: Ollama, the Qwen models, Gradio, mlx and many more. Every line of Joshua's own code is <a href=\"https://github.com/fabiodeponte/askjoshua\">on GitHub</a>.": "Joshua jest pisany z pomocą asystentów programowania opartych na AI i testowany na zwykłych Macach, od M1 z 8 GB po M4 z 16 GB. Opiera się na pracy innych: Ollamie, modelach Qwen, Gradio, mlx i wielu innych. Każda linijka własnego kodu Joshui jest <a href=\"https://github.com/fabiodeponte/askjoshua\">na GitHubie</a>.",
  "Contact": "Kontakt",
  "Write to <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. For bugs and ideas, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">open an issue on GitHub</a>.": "Napisz na <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. W sprawie błędów i pomysłów <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">zgłoś to na GitHubie</a>.",
- "Who makes Joshua, and why.": "Kto tworzy Joshuę i dlaczego."
+ "Who makes Joshua, and why.": "Kto tworzy Joshuę i dlaczego.",
+ "Locally grown AI": "AI z lokalnej uprawy"
 }
