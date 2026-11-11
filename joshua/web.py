@@ -2,7 +2,7 @@ import copy, html, inspect, json, os, pathlib, re, secrets, shutil, subprocess, 
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, tune_ui
+import agent, apple, providers, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -11,7 +11,7 @@ from agent import FAST, MODEL, tools
 # Every part of Joshua calls ollama.chat. Calls for Apple's model go to apple.chat instead,
 # which answers in the same shape, so nothing else needs to know which model it is talking to.
 _ollama_chat = ollama.chat
-ollama.chat = lambda model, *args, **kw: apple.chat(model, *args, **kw) if model == apple.NAME else _ollama_chat(model, *args, **kw)
+ollama.chat = lambda model, *args, **kw: (apple.chat if model == apple.NAME else providers.chat if providers.is_api(model) else _ollama_chat)(model, *args, **kw)
 
 ROOT = (pathlib.Path(__file__).parent / "conversations").resolve()
 ROOT.mkdir(exist_ok=True)
@@ -41,6 +41,8 @@ CAPS = {}
 
 
 def caps(name):
+    if providers.is_api(name):  # Claude, ChatGPT and Gemini all use tools and see images
+        return {"tools", "vision"}
     if name not in CAPS:
         try:
             CAPS[name] = set(ollama.show(name).capabilities or [])
@@ -53,7 +55,7 @@ CLOUD = set()  # models that run on Ollama's servers, not on this computer
 
 
 def is_cloud(name):
-    return name in CLOUD or name.split(":")[-1].endswith("cloud")
+    return providers.is_api(name) or name in CLOUD or name.split(":")[-1].endswith("cloud")
 
 
 PAIR = "auto:qwen3-vl"  # one menu entry: the deep-thinking switch picks qwen3-vl or its faster instruct version
@@ -75,6 +77,7 @@ def models(add=False):
         choices.insert(0, (agent.CONFIG.get("label", "qwen3-vl"), PAIR))
     if not apple.why_not():  # macOS 26 with Apple Intelligence on: free, and already on this Mac
         choices.insert(sum(not is_cloud(v) for _, v in choices), (apple.LABEL, apple.NAME))
+    choices += providers.menu()  # Claude, ChatGPT, Gemini models added with your own key
     return (choices or [(FAST, FAST)]) + ([(t("＋ Add a model…"), ADD)] if add else [])
 
 
@@ -87,6 +90,8 @@ CLOUD_BADGE = "<div class='cloudbadge'>" + t("☁ Cloud model: messages go to Ol
 
 
 def badge(choice):
+    if choice and providers.is_api(choice):
+        return "<div class='cloudbadge'>" + t("🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here", company=providers.company(choice)) + "</div>"
     return CLOUD_BADGE if choice and choice != ADD and is_cloud(resolve(choice, False)) else ""
 
 
@@ -306,6 +311,39 @@ def cloud_add_model(name):
         return gr.skip(), "<div class='cloudstat'>" + t("Couldn't add {model}: {error}", model=html.escape(tag), error=html.escape((r.stderr or r.stdout)[-200:])) + "</div>"
     CAPS.pop(tag, None)
     return gr.Dropdown(choices=models(True), value=tag), "<div class='cloudstat'>" + t("Added ☁ {model}: it's selected in the model menu. Nothing was downloaded: it runs on Ollama's servers.", model=html.escape(name)) + "</div>"
+
+
+KEYS_HELP = t("""Use Claude, ChatGPT or Gemini inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.
+
+**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from a ChatGPT, Claude or Gemini subscription. The key is kept in providers.json on this computer, readable only by you.""")
+
+
+def keys_status(provider):
+    """What we know about this company's key, and its models if the key works."""
+    info = providers.PROVIDERS[provider]
+    link = f"<a href='{info['keys']}' target='_blank' rel='noopener'>" + t("Get a key from {company}", company=info["company"]) + "</a>"
+    if not providers.settings()["keys"].get(provider):
+        return gr.Dropdown(choices=[], value=None), "<div class='cloudstat'>" + t("No key yet.") + " " + link + "</div>"
+    try:
+        names = providers.catalog(provider)
+    except Exception as e:
+        return gr.Dropdown(choices=[], value=None), "<div class='cloudstat'>" + html.escape(str(e)) + " " + link + "</div>"
+    return gr.Dropdown(choices=names, value=names[0] if names else None), "<div class='cloudstat'>" + t("Key works: {n} models available.", n=len(names)) + "</div>"
+
+
+def keys_save(provider, key):
+    if not key or not key.strip():
+        return gr.skip(), "<div class='cloudstat'>" + t("Paste the key first.") + "</div>", gr.skip()
+    providers.set_key(provider, key)
+    pick, status = keys_status(provider)
+    return pick, status, ""  # empty the box: the key is not shown again
+
+
+def keys_add(provider, name):
+    if not name:
+        return gr.skip(), "<div class='cloudstat'>" + t("Pick a model first.") + "</div>"
+    value = providers.add_model(provider, name)
+    return gr.Dropdown(choices=models(True), value=value), "<div class='cloudstat'>" + t("Added {model}: it's selected in the model menu.", model=html.escape(providers.label(value))) + "</div>"
 
 
 def share_memory_setting(value=None):
@@ -733,9 +771,9 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     except Exception as e:
         text = str(e)
         low = text.lower()
-        if is_cloud(model) and ("unauthorized" in low or "401" in low):
+        if is_cloud(model) and not providers.is_api(model) and ("unauthorized" in low or "401" in low):
             text = t("This cloud model needs your computer to be connected to an Ollama account. Open **☁ Cloud models** in the right column and press **Connect**.")
-        elif is_cloud(model) and any(w in low for w in ("free usage", "free plan", "402", "payment", "billing", "credit", "subscription", "insufficient", "balance")):
+        elif is_cloud(model) and not providers.is_api(model) and any(w in low for w in ("free usage", "free plan", "402", "payment", "billing", "credit", "subscription", "insufficient", "balance")):
             free = re.search(r"[Tt]ry ([\w.:-]+)", text)  # Ollama suggests a model that is in the free plan
             if free:  # Ollama names a model the account can use for free
                 text = (t("Ollama refused this model for your account. **{model}** is in the free plan: add it from **☁ Cloud models** and pick it in the menu. Or add credit (pay as you go) or a plan on [ollama.com](https://ollama.com/settings). Local models keep working for free.", model=free[1])
@@ -743,7 +781,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
             else:  # no free usage on this account (not every account gets it), or it's used up
                 text = (t("Ollama refused this request: your Ollama account has no cloud credit. New Ollama accounts pay per use (older ones may have a small free allowance, which may be used up). [💳 Add a few dollars of credit on ollama.com](https://ollama.com/dashboard): it pays Ollama for the computing power of its servers, not Joshua, which is free. Gemma 4 31B costs well under a cent per message. Or switch to a local model in the menu below: those are free and run on this computer.")
                         + "\n\n" + t("Ollama's message:") + " " + text)
-        elif is_cloud(model) and any(w in low for w in ("429", "quota", "usage limit", "rate limit", "too many requests")):
+        elif is_cloud(model) and not providers.is_api(model) and any(w in low for w in ("429", "quota", "usage limit", "rate limit", "too many requests")):
             text = t("Ollama's cloud refused this request: you've reached your plan's usage limit or too many requests are running. Wait a moment, check your usage on [ollama.com](https://ollama.com/settings), or switch to a local model.")
         shown.append({"role": "assistant", "content": text, "metadata": {"title": "⚠️ " + t("Something went wrong"), "status": "done"}})
     finally:
@@ -785,7 +823,9 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     conv["model"] = choice
     if cloud and conv.get("cloud_notice") != model:  # say it once in the chat, each time a new cloud model is picked
         conv["cloud_notice"] = model
-        conv["display"].append({"role": "assistant", "content": "☁ *" + t("From here on this chat is answered by **{model}** on Ollama's servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model) + ("" if cloudmem else " " + t("Your memory notes are not sent.")) + " " + t("Everything stays stored only on this computer.") + "*"})
+        where = (t("From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model, company=providers.company(model))
+                 if providers.is_api(model) else t("From here on this chat is answered by **{model}** on Ollama's servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model))
+        conv["display"].append({"role": "assistant", "content": "☁ *" + where + ("" if cloudmem else " " + t("Your memory notes are not sent.")) + " " + t("Everything stays stored only on this computer.") + "*"})
     conv["lang"] = agent.lang_for(text, conv.get("lang"))
     conv["region"] = agent.REGIONS.get(conv["lang"], "wt-wt") if conv["lang"] else "wt-wt"
     language = agent.LANGUAGES.get(conv["lang"])
@@ -1052,14 +1092,14 @@ footer {display: none !important}
 .message.bot pre code, .prose pre code {color: var(--codeink) !important}
 .message.bot :not(pre) > code, .prose :not(pre) > code {background: var(--codebg) !important; border: 1px solid color-mix(in srgb, var(--line) 60%, transparent) !important; border-radius: 3px; padding: 1px 5px; color: var(--cyan) !important}
 #screen, #textsize {background: transparent !important; border: none !important; box-shadow: none !important; padding: 4px 2px 0 !important}
-#screen .wrap, #textsize .wrap {gap: 4px; flex-wrap: wrap; border: none !important}
+#screen .wrap, #textsize .wrap, #kprov .wrap {gap: 4px; flex-wrap: wrap; border: none !important}
 .side .info-text {font-size: 1.05rem !important; line-height: 1.1 !important; color: var(--dim) !important}
 .side .label-wrap, .side .label-wrap * {color: var(--ink) !important}
 textarea::placeholder {color: var(--dim) !important; opacity: .85}
 .status {letter-spacing: .06em !important}
-#screen label, #textsize label {padding: 1px 7px !important; font-size: 1rem !important; border: 1px solid var(--line) !important; border-radius: 2px !important; background: transparent !important; color: var(--dim) !important; box-shadow: none !important; text-transform: uppercase; letter-spacing: .06em}
-#screen label.selected, #textsize label.selected {color: var(--bg) !important; background: var(--cyan) !important}
-#screen input, #textsize input {display: none}
+#screen label, #textsize label, #kprov label {padding: 1px 7px !important; font-size: 1rem !important; border: 1px solid var(--line) !important; border-radius: 2px !important; background: transparent !important; color: var(--dim) !important; box-shadow: none !important; text-transform: uppercase; letter-spacing: .06em}
+#screen label.selected, #textsize label.selected, #kprov label.selected {color: var(--bg) !important; background: var(--cyan) !important}
+#screen input, #textsize input, #kprov input {display: none}
 .side {padding: 12px !important}
 #brand {font-size: 3rem !important; letter-spacing: .1em; color: var(--ink); padding: 2px 4px 0; text-shadow: var(--shadow); line-height: 1}
 #brand::after {color: var(--cyan)}
@@ -1225,9 +1265,9 @@ body[data-screen^="modern"]:not(#a):not(#b) #chatopts .prose .cloudstat, body[da
 body[data-screen^="modern"]:not(#a):not(#b) #localhelp, body[data-screen^="modern"]:not(#a):not(#b) #localhelp *, body[data-screen^="modern"]:not(#a):not(#b) #apihelp, body[data-screen^="modern"]:not(#a):not(#b) #apihelp *, body[data-screen^="modern"]:not(#a):not(#b) #schedhelp, body[data-screen^="modern"]:not(#a):not(#b) #schedhelp *, body[data-screen^="modern"]:not(#a):not(#b) .updnote {font-size: .85rem !important; line-height: 1.45 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #updbtn {border-radius: 10px !important; text-transform: none !important; border: none !important; background: var(--soft) !important; color: var(--cyan) !important}
 .cloudstat a {color: var(--cyan)}
-#cloudhelp, #cloudhelp * {font-size: 1.05rem !important; line-height: 1.3 !important}
+#cloudhelp, #cloudhelp *, #keyshelp, #keyshelp * {font-size: 1.05rem !important; line-height: 1.3 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #cloudbadge .cloudbadge {font-size: .85rem !important; color: var(--dim) !important; padding: 4px 8px 0 !important}
-body[data-screen^="modern"]:not(#a):not(#b) #cloudhelp, body[data-screen^="modern"]:not(#a):not(#b) #cloudhelp *, body[data-screen^="modern"]:not(#a):not(#b) .cloudstat {font-size: .85rem !important; line-height: 1.45 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #cloudhelp, body[data-screen^="modern"]:not(#a):not(#b) #cloudhelp *, body[data-screen^="modern"]:not(#a):not(#b) .cloudstat, body[data-screen^="modern"]:not(#a):not(#b) #keyshelp, body[data-screen^="modern"]:not(#a):not(#b) #keyshelp * {font-size: .85rem !important; line-height: 1.45 !important}
 #model ul.options {font-size: .82rem; background: var(--panel) !important; border: 1px solid var(--cyan) !important}
 
 /* ===== Modern look: calm, rounded, readable. Everything below applies only when a Modern screen is chosen.
@@ -1256,8 +1296,8 @@ body[data-screen^="modern"]:not(#a):not(#b) .side label > span, body[data-screen
 body[data-screen^="modern"]:not(#a):not(#b) .side .info, body[data-screen^="modern"]:not(#a):not(#b) .side .info-text, body[data-screen^="modern"]:not(#a):not(#b) .side [data-testid="block-info"] {font-size: .8rem !important; line-height: 1.35 !important}
 body[data-screen^="modern"]:not(#a):not(#b) .opt {border-bottom: 1px solid var(--line) !important}
 /* screen picker as soft pills */
-body[data-screen^="modern"]:not(#a):not(#b) #screen label, body[data-screen^="modern"]:not(#a):not(#b) #textsize label {border-radius: 999px !important; text-transform: none !important; font-size: .8rem !important; padding: 2px 10px !important; border-color: var(--line) !important}
-body[data-screen^="modern"]:not(#a):not(#b) #screen label.selected, body[data-screen^="modern"]:not(#a):not(#b) #textsize label.selected {background: var(--ink) !important; color: var(--bg) !important; border-color: var(--ink) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label, body[data-screen^="modern"]:not(#a):not(#b) #textsize label, body[data-screen^="modern"]:not(#a):not(#b) #kprov label {border-radius: 999px !important; text-transform: none !important; font-size: .8rem !important; padding: 2px 10px !important; border-color: var(--line) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label.selected, body[data-screen^="modern"]:not(#a):not(#b) #textsize label.selected, body[data-screen^="modern"]:not(#a):not(#b) #kprov label.selected {background: var(--ink) !important; color: var(--bg) !important; border-color: var(--ink) !important}
 /* sidebar buttons and chat list */
 body[data-screen^="modern"]:not(#a):not(#b) #newchat {border-radius: 10px !important; text-transform: none !important; border: 1px solid var(--line) !important; background: var(--panel) !important; color: var(--ink) !important; font-weight: 500 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #newchat:hover {background: var(--soft) !important}
@@ -1311,8 +1351,8 @@ body[data-screen^="modern"]:not(#a):not(#b) #newchat {border: none !important; b
 body[data-screen^="modern"]:not(#a):not(#b) #newchat:hover {background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #tunebtn:hover {background: var(--soft) !important}
-body[data-screen^="modern"]:not(#a):not(#b) #screen label, body[data-screen^="modern"]:not(#a):not(#b) #textsize label {border-color: transparent !important; background: transparent !important}
-body[data-screen^="modern"]:not(#a):not(#b) #screen label:not(.selected):hover, body[data-screen^="modern"]:not(#a):not(#b) #textsize label:not(.selected):hover {background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label, body[data-screen^="modern"]:not(#a):not(#b) #textsize label, body[data-screen^="modern"]:not(#a):not(#b) #kprov label {border-color: transparent !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #screen label:not(.selected):hover, body[data-screen^="modern"]:not(#a):not(#b) #textsize label:not(.selected):hover, body[data-screen^="modern"]:not(#a):not(#b) #kprov label:not(.selected):hover {background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #chat .message.bot, body[data-screen^="modern"]:not(#a):not(#b) #chat .bot, body[data-screen^="modern"]:not(#a):not(#b) #chat .message-row.bot-row .message {border: none !important; box-shadow: none !important; outline: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #promptrow .block, body[data-screen^="modern"]:not(#a):not(#b) #promptrow .multimodal-textbox {border: 1px solid var(--line) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #stop {border: none !important; background: transparent !important}
@@ -1732,6 +1772,14 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                             "<div class='cloudnote'>" + t("Credit is paid to Ollama for the computing power of its servers, which run the cloud models. Joshua itself is free: none of this money goes to Joshua, and local models never need credit.") + "</div>")
                     cloud_pick = gr.Dropdown([], label=t("Add a cloud model"), info=t("All of these can use Joshua's tools; 👁 ones can also see images"))
                     cloud_add = gr.Button(t("Add to the model menu"), size="sm")
+                with gr.Accordion("🔑 Claude, ChatGPT, Gemini", open=False, elem_id="keysbox") as keys_box:
+                    gr.Markdown(KEYS_HELP, elem_id="keyshelp")
+                    k_provider = gr.Radio([(v["name"], k) for k, v in providers.PROVIDERS.items()], value="anthropic", show_label=False, elem_id="kprov")
+                    k_key = gr.Textbox(type="password", label=t("API key"), placeholder=t("Paste the key here"), max_lines=1)
+                    k_save = gr.Button(t("Save the key"), size="sm")
+                    k_status = gr.HTML("")
+                    k_pick = gr.Dropdown([], label=t("Add a model"))
+                    k_add = gr.Button(t("Add to the model menu"), size="sm")
                 with gr.Accordion("⬇ " + t("Local models"), open=False) as local_box:
                     gr.Markdown(t("Models that run on this computer: private and free, as fast as your hardware allows. The list comes from ollama.com and shows only versions that fit this computer's memory."), elem_id="localhelp")
                     local_status = gr.HTML("")
@@ -1834,6 +1882,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     updbtn.click(do_update, outputs=updnote)
     connect.click(cloud_connect, outputs=cloud_status)
     cloud_add.click(cloud_add_model, cloud_pick, [model, cloud_status])
+    keys_box.expand(keys_status, k_provider, [k_pick, k_status])
+    k_provider.change(keys_status, k_provider, [k_pick, k_status])
+    k_save.click(keys_save, [k_provider, k_key], [k_pick, k_status, k_key])
+    k_add.click(keys_add, [k_provider, k_pick], [model, k_status])
     mem_box.expand(mem_view, mem_topic, [mem_topic, mem_text])
     mem_topic.input(mem_view, mem_topic, [mem_topic, mem_text])
     mem_btn.click(mem_save, [mem_topic, mem_text], [mem_topic, mem_text],
