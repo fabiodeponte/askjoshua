@@ -229,5 +229,9 @@
  "Why Joshua exists: an assistant you own, on your own computer. Adapted from the Yattaphone manifesto.": "Warum es Joshua gibt: ein Assistent, der dir gehört, auf deinem Computer. Nach dem Manifest des Yattaphone.",
  "Copied": "Kopiert",
  "Selected": "Ausgewählt",
- "Language": "Sprache"
+ "Language": "Sprache",
+ "Download other local models that fit your computer from inside Joshua, keep them up to date, or pick a bigger cloud model for a chat. On macOS 26 Joshua can also use Apple Intelligence, the model built into the Mac.": "Lade in Joshua weitere lokale Modelle herunter, die zu deinem Computer passen, halte sie aktuell, oder wähle für einen Chat ein größeres Cloud-Modell. Unter macOS 26 kann Joshua auch Apple Intelligence nutzen, das im Mac eingebaute Modell.",
+ "Mac with macOS 26": "Mac mit macOS 26",
+ "🍎 Apple Intelligence · already on the Mac": "🍎 Apple Intelligence · schon im Mac",
+ "Added by itself, with any choice above, when Apple Intelligence is on (any Mac with an M1 or later). Free, private and fast, but small: no tools, short chats, more mistakes.": "Kommt von selbst dazu, bei jeder Wahl oben, wenn Apple Intelligence eingeschaltet ist (jeder Mac mit M1 oder neuer). Kostenlos, privat und schnell, aber klein: keine Werkzeuge, kurze Chats, mehr Fehler."
 }

@@ -229,5 +229,9 @@
  "Why Joshua exists: an assistant you own, on your own computer. Adapted from the Yattaphone manifesto.": "Joshua 为什么存在：一个属于你的助手，在你的电脑上。改编自 Yattaphone 宣言。",
  "Copied": "已复制",
  "Selected": "已选择",
- "Language": "语言"
+ "Language": "语言",
+ "Download other local models that fit your computer from inside Joshua, keep them up to date, or pick a bigger cloud model for a chat. On macOS 26 Joshua can also use Apple Intelligence, the model built into the Mac.": "在 Joshua 里下载适合你电脑的其他本地模型并保持更新，或者为某个对话选择更大的云端模型。在 macOS 26 上，Joshua 还能使用 Mac 内置的模型 Apple Intelligence。",
+ "Mac with macOS 26": "macOS 26 的 Mac",
+ "🍎 Apple Intelligence · already on the Mac": "🍎 Apple Intelligence · Mac 自带",
+ "Added by itself, with any choice above, when Apple Intelligence is on (any Mac with an M1 or later). Free, private and fast, but small: no tools, short chats, more mistakes.": "只要打开了 Apple Intelligence（任何 M1 或更新芯片的 Mac），无论上面选哪一项，都会自动加入。免费、私密、快速，但模型较小：没有工具，对话较短，出错更多。"
 }
