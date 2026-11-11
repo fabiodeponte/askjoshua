@@ -347,5 +347,6 @@
  "Open a chat first.": "请先打开一个对话。",
  "Rename this chat": "重命名此对话",
  "New name, then press Enter": "输入新名称，然后按回车",
- "Use Claude, ChatGPT, Gemini or DeepSeek inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from any chat subscription. The key is kept in providers.json on this computer, readable only by you.": "在 Joshua 里使用 Claude、ChatGPT、Gemini 或 DeepSeek，并可使用 Joshua 的全部工具。你的对话、文件和记忆留在这台电脑上；对话内容会发送到该公司的服务器，和其他云端模型一样。\n\n**你需要一个 API 密钥**，即供程序使用的密码，可在该公司的开发者网站获取。按用量付费，与任何聊天订阅分开。密钥保存在这台电脑上的 providers.json 中，只有你能读取。"
+ "Use Claude, ChatGPT, Gemini or DeepSeek inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from any chat subscription. The key is kept in providers.json on this computer, readable only by you.": "在 Joshua 里使用 Claude、ChatGPT、Gemini 或 DeepSeek，并可使用 Joshua 的全部工具。你的对话、文件和记忆留在这台电脑上；对话内容会发送到该公司的服务器，和其他云端模型一样。\n\n**你需要一个 API 密钥**，即供程序使用的密码，可在该公司的开发者网站获取。按用量付费，与任何聊天订阅分开。密钥保存在这台电脑上的 providers.json 中，只有你能读取。",
+ "Send feedback": "发送反馈"
 }

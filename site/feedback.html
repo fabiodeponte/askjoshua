@@ -1,0 +1,322 @@
+<title>Joshua beta test</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Tell us how Joshua worked for you: could it replace the AI you use now?">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column of manifesto text, broken by full-width "screens" (terminal panels) that show the real thing. */
+:root {
+  --paper: #dfdbc3; --paper-hi: #e9e5cf; --panel: #d6d1b6; --ink: #3b2322; --dim: #75604f; --rust: #9c3b1c; --line: rgba(90, 60, 40, .38);
+  --screen: #e7e3cc; --screen-ink: #3b2322; --code: #9c3b1c; --ok: #3d7a4a; --glow: none;
+  --display: "VT323", "Courier New", monospace; --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; --mono: "IBM Plex Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #000308; --paper-hi: #06101c; --panel: #050a14; --ink: #a6e6ff; --dim: #5d8ea6; --rust: #ffb347; --line: rgba(143, 233, 255, .35);
+  --screen: #02060d; --screen-ink: #a6e6ff; --code: #59f08a; --ok: #59f08a; --glow: 0 0 6px rgba(80, 200, 255, .45); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #000308; --paper-hi: #06101c; --panel: #050a14; --ink: #a6e6ff; --dim: #5d8ea6; --rust: #ffb347; --line: rgba(143, 233, 255, .35);
+  --screen: #02060d; --screen-ink: #a6e6ff; --code: #59f08a; --ok: #59f08a; --glow: 0 0 6px rgba(80, 200, 255, .45); color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: radial-gradient(ellipse at 50% 0%, var(--paper-hi) 0%, var(--paper) 70%) fixed; background-color: var(--paper); color: var(--ink);
+  font: 18px/1.6 var(--body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 88px; padding-block: 28px 64px }
+.col { max-width: 680px }
+a { color: var(--rust) }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--rust); outline-offset: 3px }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; text-wrap: balance; margin: 0; letter-spacing: .04em; text-shadow: var(--glow) }
+h2 { font-size: clamp(2.4rem, 5vw, 3.4rem); line-height: 1; color: var(--rust); text-transform: uppercase }
+h3 { font-size: 1.75rem; line-height: 1.1; text-transform: uppercase }
+p { margin: 0 }
+.stack { display: flex; flex-direction: column; gap: 18px }
+.label { font: 600 .78rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim) }
+code, .mono { font-family: var(--mono); font-size: .88em }
+:not(pre) > code { color: var(--rust); background: var(--panel); border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px }
+
+/* top bar */
+nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap }
+.brand { font: 2.4rem/1 var(--display); letter-spacing: .1em; color: var(--ink); text-decoration: none; text-shadow: var(--glow) }
+.brand::after { content: "█"; color: var(--rust); margin-left: 4px; animation: blink 1.1s steps(1) infinite }
+nav ul { list-style: none; display: flex; gap: 16px; margin: 0; padding: 0; flex-wrap: wrap; font: 1.35rem var(--display); letter-spacing: .06em; text-transform: uppercase }
+nav a { color: var(--dim); text-decoration: none } nav a:hover { color: var(--rust) }
+@keyframes blink { 50% { opacity: 0 } }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 48px; align-items: center }
+.hero h1 { font-size: clamp(3.4rem, 8.5vw, 6.4rem); line-height: .9; text-transform: uppercase; color: var(--ink) }
+.hero h1 em { font-style: normal; color: var(--rust) }
+.lede { font-size: 1.2rem; max-width: 34ch }
+.install { display: flex; align-items: stretch; border: 1px solid var(--rust); border-radius: 4px; background: var(--screen); overflow: hidden; max-width: 100% }
+.install code { flex: 1; min-width: 0; padding: 12px 14px; background: none; border: 0; color: var(--code); overflow-x: auto; white-space: nowrap; font-size: .82rem }
+.install button { border: 0; border-left: 1px solid var(--rust); background: transparent; color: var(--rust); font: 1.3rem var(--display); letter-spacing: .08em; padding: 0 16px; cursor: pointer; text-transform: uppercase }
+.install button:hover { background: color-mix(in srgb, var(--rust) 12%, transparent) }
+.fine { font: .8rem/1.5 var(--mono); color: var(--dim) }
+
+/* terminal "screens" */
+.screen { background: var(--screen); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--glow), inset 0 0 30px rgba(0, 0, 0, .08); overflow: hidden; min-width: 0 }
+.screen .bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font: .72rem var(--mono); color: var(--dim); letter-spacing: .1em; text-transform: uppercase }
+.screen .bar i { width: 14px; height: 4px; background: currentColor; display: inline-block; opacity: .7 }
+.screen .bar i:nth-child(1) { color: var(--ok) } .screen .bar i:nth-child(2) { color: var(--rust) }
+.screen pre { margin: 0; padding: 16px 18px; font: .82rem/1.55 var(--mono); color: var(--screen-ink); overflow-x: auto; white-space: pre }
+.screen pre b { color: var(--rust); font-weight: 600 } .screen pre .ok { color: var(--ok) } .screen pre .d { color: var(--dim) }
+.cursor { display: inline-block; width: .6em; height: 1.05em; background: var(--rust); vertical-align: -2px; animation: blink 1s steps(1) infinite }
+
+/* manifesto */
+.manifesto { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px }
+.manifesto .side h2 { font-size: clamp(2.4rem, 4vw, 2.9rem) }
+.manifesto .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start }
+.theses { display: flex; flex-direction: column; gap: 34px; max-width: 680px }
+.thesis h3 { color: var(--ink); margin-bottom: 8px }
+.thesis h3 span { color: var(--rust) }
+.limits { border-top: 1px dashed var(--line); padding-top: 22px; color: var(--dim) }
+.limits strong { color: var(--ink) }
+
+/* abilities */
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line) }
+.grid > div { background: var(--paper); padding: 20px 20px 22px; display: flex; flex-direction: column; gap: 6px }
+.grid h3 { font-size: 1.45rem; color: var(--rust) }
+.grid p { font-size: .95rem; color: var(--ink) }
+
+/* tiers */
+.tiers { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 460px }
+.tiers th, .tiers td { text-align: left; padding: 12px 14px; border-bottom: 1px dashed var(--line); vertical-align: top; font-size: .95rem }
+.tiers th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.tiers td:first-child { font: 1.7rem/1 var(--display); color: var(--rust); white-space: nowrap }
+.scroll { overflow-x: auto; min-width: 0 }
+
+/* steps (a real sequence) */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; counter-reset: s }
+.steps li { counter-increment: s; border-top: 3px solid var(--rust); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: .93rem }
+.steps li::before { content: counter(s); font: 2.6rem/1 var(--display); color: var(--rust) }
+.steps strong { font: 1.45rem/1 var(--display); letter-spacing: .04em; text-transform: uppercase }
+.callout { border-left: 3px solid var(--rust); padding: 4px 0 4px 18px; font-size: 1.1rem }
+
+/* loop diagram */
+.loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; position: relative }
+.loop div { border: 1px solid var(--line); background: var(--screen); padding: 14px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px; position: relative }
+.loop div:not(:last-child)::after { content: "→"; position: absolute; right: -14px; top: 50%; transform: translate(50%, -50%); color: var(--rust); font: 1.6rem var(--display) }
+.loop b { font: 1.4rem/1 var(--display); color: var(--rust); letter-spacing: .04em; font-weight: 400 }
+.loop span { font-size: .88rem }
+.back { font: .82rem var(--mono); color: var(--dim); border-top: 1px dashed var(--line); padding-top: 10px }
+
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 40px }
+footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font: .85rem var(--mono); color: var(--dim) }
+
+@media (max-width: 860px) {
+  .hero, .manifesto, .two { grid-template-columns: minmax(0, 1fr) }
+  .manifesto .side { position: static }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .loop { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .loop div:nth-child(2)::after { display: none }
+  .wrap { gap: 64px }
+}
+@media (max-width: 520px) {
+  .grid, .steps, .loop { grid-template-columns: minmax(0, 1fr) }
+  .loop div::after { display: none }
+  nav ul { gap: 14px }
+}
+@media (prefers-reduced-motion: reduce) { .brand::after, .cursor { animation: none } }
+
+/* data map */
+.data { width: 100%; border-collapse: collapse; min-width: 720px; font-size: .93rem }
+.data th, .data td { text-align: left; padding: 12px 14px; border-bottom: 1px dashed var(--line); vertical-align: top }
+.data thead th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.data tbody th { font: 1.4rem/1.05 var(--display); color: var(--rust); font-weight: 400; letter-spacing: .03em; width: 17% }
+.data code { font-size: .8rem; word-break: break-all }
+.data .no { color: var(--ok) } .data .yes { color: var(--rust) }
+.trust { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px }
+.trust > div { border-top: 3px solid var(--rust); padding-top: 12px; display: flex; flex-direction: column; gap: 8px }
+.trust > div:first-child { border-top-color: var(--ok) }
+.trust h3 { font-size: 1.6rem }
+.howto { margin: 0; padding: 0; list-style: none; counter-reset: h; display: flex; flex-direction: column; gap: 10px }
+.howto li { counter-increment: h; display: grid; grid-template-columns: 2em minmax(0, 1fr) }
+.howto li::before { content: counter(h); color: var(--rust); font: 1.6rem/1.1 var(--display) }
+@media (max-width: 860px) { .trust { grid-template-columns: minmax(0, 1fr) } }
+
+/* api page */
+.doc { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; align-items: start }
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); display: flex; flex-direction: column; gap: 6px; font: 1.25rem var(--display); letter-spacing: .04em; text-transform: uppercase }
+.toc a { color: var(--dim); text-decoration: none } .toc a:hover { color: var(--rust) }
+.docmain { display: flex; flex-direction: column; gap: 64px; min-width: 0 }
+.docmain section { display: flex; flex-direction: column; gap: 16px; min-width: 0 }
+.docmain p, .docmain li { max-width: 70ch }
+.docmain ol, .docmain ul { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 8px }
+.screen { position: relative }
+.copy { position: absolute; top: 4px; right: 6px; border: 1px solid var(--line); background: var(--screen); color: var(--dim); font: .72rem var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 3px; cursor: pointer }
+.copy:hover { color: var(--rust); border-color: var(--rust) }
+.ref { width: 100%; border-collapse: collapse; min-width: 520px; font-size: .93rem }
+.ref th, .ref td { text-align: left; padding: 10px 12px; border-bottom: 1px dashed var(--line); vertical-align: top }
+.ref thead th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.ref td:first-child { font-family: var(--mono); font-size: .85rem; color: var(--rust); white-space: nowrap }
+.note { border-left: 3px solid var(--rust); padding: 4px 0 4px 16px }
+h1.page { font-size: clamp(3rem, 7vw, 5rem); line-height: .95; text-transform: uppercase; color: var(--ink) }
+h1.page em { font-style: normal; color: var(--rust) }
+@media (max-width: 860px) { .doc { grid-template-columns: minmax(0, 1fr) } .toc { position: static; flex-direction: row; flex-wrap: wrap; gap: 14px } }
+.docmain ol li, .docmain ul li { margin-bottom: 10px }
+.closing { font-size: 1.25rem; font-weight: 600; margin-top: 8px }
+@media (max-width: 480px) { h1.page { font-size: 2.6rem } }
+
+/* small phones: long words in big headings must not push the page wider than the screen */
+@media (max-width: 380px) { h1 { font-size: 2.1rem !important } h1, h2, h3 { overflow-wrap: anywhere; hyphens: auto } }
+html { overflow-x: clip }  /* no sideways wobble on phones; tables keep their own scroll box */
+
+/* phones: the menu is one row you can swipe, in smaller type */
+@media (max-width: 640px) {
+  nav { flex-wrap: nowrap; flex-direction: column; align-items: flex-start; gap: 10px }
+  .brand { font-size: 1.9rem }
+  nav ul { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; gap: 18px; font-size: 1.05rem; padding-bottom: 6px; -webkit-overflow-scrolling: touch; scrollbar-width: none }
+  nav ul::-webkit-scrollbar { display: none }
+  nav li { flex: none }
+}
+
+.fb { max-width: 46rem; display: grid; gap: 1.4rem }
+.fb label, .fb legend { font-weight: 600; display: block; margin-bottom: .35rem }
+.fb input[type=text], .fb input[type=email], .fb textarea, .fb select { width: 100%; box-sizing: border-box; font: inherit; padding: .5rem .6rem; border: 1px solid var(--line); background: var(--paper-hi); color: var(--ink) }
+.fb textarea { min-height: 8rem }
+.fb fieldset { border: 0; padding: 0; margin: 0 }
+.fb .tasks { display: grid; grid-template-columns: 1fr 11rem; gap: .45rem 1rem; align-items: center }
+.fb .tasks span { font-weight: 400 }
+.fb .choice { display: flex; gap: 1.2rem; flex-wrap: wrap } .fb .choice label { font-weight: 400; display: inline }
+.fb .hint { color: var(--dim); font-size: .9rem; margin: .2rem 0 0 }
+.fb .trap { position: absolute; left: -9999px }
+.fb button { justify-self: start; font: 1.1rem/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--paper); background: var(--rust); border: 0; padding: .8rem 2rem; cursor: pointer }
+.notice { padding: .8rem 1rem; border: 1px solid var(--line); background: var(--paper-hi); max-width: 46rem }
+@media (max-width: 560px) { .fb .tasks { grid-template-columns: 1fr } }
+</style>
+<div class="wrap">
+  <nav>
+    <a class="brand" href="./">JOSHUA</a>
+    <ul>
+      <li><a href="./#why">Why local</a></li>
+      <li><a href="./#data">Your data</a></li>
+      <li><a href="features.html">What it does</a></li>
+      <li><a href="install.html">Install</a></li>
+      <li><a href="api.html">API</a></li>
+      <li><a href="manifesto.html">Manifesto</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="https://github.com/fabiodeponte/askjoshua">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <header class="stack">
+    <h1 class="page">Joshua<br><em>beta test</em></h1>
+    <p class="lede" style="max-width:60ch">Could Joshua replace the AI you use now? Use it for a week for your everyday tasks, then tell us where it held up and where it failed. It takes three minutes.</p>
+  </header>
+
+  <p class="notice" id="thanks" hidden>Thank you: your answers are saved. They help decide what Joshua needs next.</p>
+  <p class="notice" id="error" hidden>Your answers couldn't be saved. Please try again later, or write to <a href="mailto:info@joshua.earth">info@joshua.earth</a>.</p>
+
+  <form class="fb" method="post" action="/feedback.php" id="fb">
+    <input type="hidden" name="lang" id="lang">
+    <input type="hidden" name="version" id="version">
+    <div class="trap" aria-hidden="true"><input type="text" name="website" tabindex="-1" autocomplete="off"></div>
+    <div>
+      <label for="computer">Your computer</label>
+      <input type="text" name="computer" id="computer" placeholder="For example: MacBook Air M1, 8 GB">
+      <p class="hint">Filled in by Joshua if you came from its feedback button.</p>
+    </div>
+    <div>
+      <label for="model">The model you used most</label>
+      <input type="text" name="model" id="model" placeholder="For example: qwen3-vl 8b">
+    </div>
+    <div>
+      <label for="before">The AI you used before, if any</label>
+      <input type="text" name="before" id="before" placeholder="For example: ChatGPT, Claude, Gemini">
+    </div>
+    <fieldset>
+      <legend>How did Joshua do?</legend>
+      <div class="tasks">
+          <span>Writing and editing texts</span>
+          <select name="task[writing]" aria-label="Writing and editing texts">
+            <option value="">Didn't try</option>
+            <option value="worked">Worked well</option>
+            <option value="partly">Partly</option>
+            <option value="failed">Didn't work</option>
+          </select>
+          <span>Research and current facts</span>
+          <select name="task[research]" aria-label="Research and current facts">
+            <option value="">Didn't try</option>
+            <option value="worked">Worked well</option>
+            <option value="partly">Partly</option>
+            <option value="failed">Didn't work</option>
+          </select>
+          <span>Translation</span>
+          <select name="task[translation]" aria-label="Translation">
+            <option value="">Didn't try</option>
+            <option value="worked">Worked well</option>
+            <option value="partly">Partly</option>
+            <option value="failed">Didn't work</option>
+          </select>
+          <span>Summarising documents and files</span>
+          <select name="task[documents]" aria-label="Summarising documents and files">
+            <option value="">Didn't try</option>
+            <option value="worked">Worked well</option>
+            <option value="partly">Partly</option>
+            <option value="failed">Didn't work</option>
+          </select>
+          <span>Code</span>
+          <select name="task[code]" aria-label="Code">
+            <option value="">Didn't try</option>
+            <option value="worked">Worked well</option>
+            <option value="partly">Partly</option>
+            <option value="failed">Didn't work</option>
+          </select>
+          <span>Looking at or creating pictures</span>
+          <select name="task[pictures]" aria-label="Looking at or creating pictures">
+            <option value="">Didn't try</option>
+            <option value="worked">Worked well</option>
+            <option value="partly">Partly</option>
+            <option value="failed">Didn't work</option>
+          </select>
+          <span>Everyday questions and planning</span>
+          <select name="task[everyday]" aria-label="Everyday questions and planning">
+            <option value="">Didn't try</option>
+            <option value="worked">Worked well</option>
+            <option value="partly">Partly</option>
+            <option value="failed">Didn't work</option>
+          </select>
+          <span>Something else</span>
+          <select name="task[other]" aria-label="Something else">
+            <option value="">Didn't try</option>
+            <option value="worked">Worked well</option>
+            <option value="partly">Partly</option>
+            <option value="failed">Didn't work</option>
+          </select>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Could Joshua replace the AI you use now?</legend>
+      <div class="choice">
+        <label><input type="radio" name="replace" value="yes"> Yes</label>
+        <label><input type="radio" name="replace" value="some"> For some things</label>
+        <label><input type="radio" name="replace" value="no"> No</label>
+      </div>
+    </fieldset>
+    <div>
+      <label for="comment">What worked best? What failed, and when?</label>
+      <textarea name="comment" id="comment" placeholder="The more concrete, the more useful: what you asked, what you got."></textarea>
+    </div>
+    <div>
+      <label for="email">Your email, if we may write to you (optional)</label>
+      <input type="email" name="email" id="email">
+    </div>
+    <p class="hint">Your answers are saved on the Joshua server, with the date and nothing else: no address, no cookies. Your email only if you give it, never shared.</p>
+    <button type="submit">Send</button>
+  </form>
+
+  <footer>
+    <span>Ask Joshua · <a href="./">back to the home page</a></span>
+    <span>Joshua 2026.11.11.10 · Own your hardware. Own your data. Own your intelligence.</span>
+  </footer>
+</div>
+<script>
+// what Joshua's feedback button puts in the address (?version=…&model=…&computer=…) fills in the form
+(function () {
+  var q = new URLSearchParams(location.search);
+  ["version", "model", "computer"].forEach(function (k) { if (q.get(k)) document.getElementById(k).value = q.get(k); });
+  document.getElementById("lang").value = document.documentElement.lang || "en";
+  if (q.has("thanks")) { document.getElementById("thanks").hidden = false; document.getElementById("fb").hidden = true; }
+  if (q.has("error")) document.getElementById("error").hidden = false;
+})();
+</script>

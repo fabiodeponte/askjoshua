@@ -1,4 +1,4 @@
-import copy, html, inspect, json, os, pathlib, re, secrets, shutil, subprocess, sys, threading, time, zipfile
+import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, subprocess, sys, threading, time, zipfile, urllib.parse
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
@@ -1003,6 +1003,23 @@ def status_html(cid):
     return f"<div class='working'><span class='wdot'></span>{t('JOSHUA IS WORKING')} · {html.escape(step)} · {secs // 60}:{secs % 60:02d}</div>"
 
 
+def machine():
+    """The kind of computer, for the feedback form: chip and memory, nothing that identifies it."""
+    try:
+        if sys.platform == "darwin":
+            chip = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout.strip()
+            ram = int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True).stdout) // 2**30
+            return f"{chip}, {ram} GB, macOS {platform.mac_ver()[0]}"
+        ram = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") // 2**30
+        return f"Linux {platform.machine()}, {ram} GB"
+    except Exception:
+        return ""
+
+
+# the beta-test form on the website, filled in with what Joshua knows: its version and the kind of computer (the model is added on click)
+FEEDBACK = (f"{SITE}/{'' if LANG == 'en' else LANG + '/'}feedback.html?version={VERSION}&computer=" + urllib.parse.quote(machine()))
+
+
 def rename_open(cid):
     if not cid:
         gr.Info(t("Open a chat first."))
@@ -1325,6 +1342,7 @@ body[data-screen^="modern"]:not(#a):not(#b) #convs label:hover {background: var(
 body[data-screen^="modern"]:not(#a):not(#b) #convs label.selected {background: var(--soft) !important; font-weight: 500 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs label.selected::before {content: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat, body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border-radius: 10px !important; text-transform: none !important; border-style: solid !important; font-size: .9rem !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #fbbtn {justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #renchat {border-color: transparent !important; color: var(--dim) !important; justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important; background: transparent !important; box-shadow: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat {border-color: transparent !important; color: var(--dim) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat:hover {color: var(--red) !important; background: transparent !important}
@@ -1832,6 +1850,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             renbox = gr.Textbox(visible=False, show_label=False, max_lines=1, placeholder=t("New name, then press Enter"), elem_id="renbox")
             dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
             sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
+            feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
             with gr.Column(elem_id="panels"):
                 with gr.Accordion("🧠 " + t("Memory"), open=False) as mem_box:
                     mem = gr.Checkbox(True, label=t("Use memory"), info=t("Joshua learns lasting facts about you and uses them in every chat"))
@@ -1979,6 +1998,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     chatbot.retry(retry, [cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem], [chatbot, box, cid, convs, files])
     files.delete(delete_file, cid, files)
     gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
+    feedback.click(None, model, None, js="(m) => { window.open(" + json.dumps(FEEDBACK) + " + '&model=' + encodeURIComponent(m || ''), '_blank') }")
     renbtn.click(rename_open, cid, renbox)
     renbox.submit(rename_save, [cid, renbox], [renbox, convs])
     dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
