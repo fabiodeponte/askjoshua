@@ -152,18 +152,25 @@ html { overflow-x: clip }  /* no sideways wobble on phones; tables keep their ow
   nav ul::-webkit-scrollbar { display: none }
   nav li { flex: none }
 }
+
+.cta { display: flex; align-items: center; gap: 18px; flex-wrap: wrap }
+.download { display: inline-block; font: 1.9rem/1 var(--display); letter-spacing: .1em; text-transform: uppercase; text-decoration: none;
+  color: var(--paper); background: var(--rust); border: 1px solid var(--rust); padding: 12px 34px 10px; box-shadow: var(--glow) }
+.download:hover { filter: brightness(1.12) }
+h1.page { font-size: clamp(3rem, 7vw, 5rem); line-height: .95; text-transform: uppercase; color: var(--ink) }
+h1.page em { font-style: normal; color: var(--rust) }
+@media (max-width: 480px) { h1.page { font-size: 2.6rem } }
+h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
 </style>
 
 <div class="wrap">
   <nav>
     <a class="brand" href="#top" id="top">JOSHUA</a>
     <ul>
-      <li><a href="#why">Why local</a></li>
-      <li><a href="#data">Your data</a></li>
-      <li><a href="#does">What it does</a></li>
-      <li><a href="#install">Install</a></li>
-      <li><a href="#teach">Teach it</a></li>
-      <li><a href="#inside">Inside</a></li>
+      <li><a href="./#why">Why local</a></li>
+      <li><a href="./#data">Your data</a></li>
+      <li><a href="features.html">What it does</a></li>
+      <li><a href="install.html">Install</a></li>
       <li><a href="api.html">API</a></li>
       <li><a href="manifesto.html">Manifesto</a></li>
       <li><a href="about.html">About</a></li>
@@ -176,11 +183,10 @@ html { overflow-x: clip }  /* no sideways wobble on phones; tables keep their ow
       <span class="label">Ask Joshua · a private AI assistant</span>
       <h1>Your AI.<br><em>On your</em><br>computer.</h1>
       <p class="lede">Joshua is an assistant that runs entirely on your own computer, a Mac or a Linux PC. It searches the web, reads your files, writes code, makes pictures and learns how you like answers, without sending your life to anyone's servers.</p>
-      <div class="install" role="group" aria-label="Install command">
-        <code id="cmd">curl -fsSL https://ask.joshua.earth/install.sh | bash</code>
-        <button type="button" id="copy">Copy</button>
+      <div class="cta">
+        <a class="download" href="install.html">Download</a>
+        <span class="fine">Free and open · Mac or Linux</span>
       </div>
-      <p class="fine">Paste it in a terminal. A Mac with Apple Silicon (M1 or later) or a Linux PC, 8 GB of memory, 10–40 GB of free disk. On Linux an NVIDIA graphics card makes it much faster. Free and open.</p>
     </div>
     <div class="screen" aria-label="What the installer shows">
       <div class="bar"><i></i><i></i><span>install.sh</span></div>
@@ -271,113 +277,8 @@ html { overflow-x: clip }  /* no sideways wobble on phones; tables keep their ow
     </div>
   </section>
 
-  <section class="stack" id="does">
-    <span class="label">Abilities</span>
-    <h2>What Joshua does</h2>
-    <div class="grid">
-      <div><h3>Researches first</h3><p>For facts that change, it searches, reads the pages, answers with numbered sources, then fact-checks its own answer against them.</p></div>
-      <div><h3>Reads your files</h3><p>Drop in text, Word, PDF or images. Each chat has its own folder; point a chat at a project folder and it works there.</p></div>
-      <div><h3>Writes and runs code</h3><p>Python in a sandbox that can only write in the chat's folder. Packages install on demand.</p></div>
-      <div><h3>Sees and draws</h3><p>Looks at your photos and screenshots. With images installed it creates pictures and edits your own photos, locally.</p></div>
-      <div><h3>Remembers you</h3><p>Keeps short notes on who you are and how you like answers, in files you can read and edit. Switch it off any time.</p></div>
-      <div><h3>Any model you like</h3><p>Download other local models that fit your computer from inside Joshua, keep them up to date, or pick a bigger cloud model for a chat. On macOS 26 Joshua can also use Apple Intelligence, the model built into the Mac.</p></div>
-      <div><h3>Works with your apps</h3><p>A built-in API in the common OpenAI format lets your scripts, a robot or other apps use Joshua, tools and memory included, from this computer or your home network. <a href="api.html">How to use it</a></p></div>
-      <div><h3>Keeps going</h3><p>Goal mode works until a task is done and checked. Swarm mode asks several agents and merges the best answer. Scheduled tasks run on their own at set times, while Joshua is open and the computer is on. <a href="#modes">More</a></p></div>
-    </div>
-  </section>
-
-  <section class="stack" id="modes">
-    <span class="label">Ways of working</span>
-    <h2>More than questions and answers</h2>
-    <div class="grid">
-      <div><h3>🎯 Goal mode</h3><p>Give Joshua a goal instead of a question. It plans, uses its tools, checks the result and keeps going, round after round up to the limit you set, until it marks the goal as done or tells you why it can't. <em>“Read the three PDFs in this chat and write a one-page comparison as a Word file.”</em></p></div>
-      <div><h3>🐝 Swarm mode</h3><p>Several agents work on the same request at once, each in its own way: one methodical, one sceptical, one practical. Joshua then compares their answers, checks the facts they disagree on and writes one final answer. Slower, better on hard or open questions. <em>“What are the strongest arguments for and against a four-day week?”</em></p></div>
-      <div><h3>🕒 Scheduled tasks</h3><p>Ask Joshua to do something at a set time: once, every day, every week or every few hours. Each run appears as a new ⏰ chat. <em>“Every morning at 8, summarise the news about artificial intelligence.”</em> Tasks run while Joshua is open and the computer is on.</p></div>
-      <div><h3>💭 Deep thinking</h3><p>The model reasons step by step before it answers, and you can read its reasoning. Slower, but better at maths, logic and problems with many parts. Switch it on only when a question needs it.</p></div>
-    </div>
-  </section>
-
-  <section class="two" id="install">
-    <div class="stack">
-      <span class="label">Install</span>
-      <h2>One line, a few questions</h2>
-      <p>The installer looks at your computer first: chip, graphics card, memory, free disk, and estimates how fast each model would run on it. It asks whether you want deep thinking, images and fine-tuning, or cloud models only, shows the plan and the space it needs, and waits for your yes.</p>
-      <p>Then it installs <a href="https://ollama.com" rel="noopener">Ollama</a>, the engine that runs the models, a private copy of Python, Joshua and the models you chose, and offers to start Joshua when you log in, so it opens at once and scheduled tasks can run. On a Mac, Joshua is an app of its own in the Applications folder, with its own window and Dock icon; on Linux it opens in its own window from the applications menu. Everything else stays in one folder, <code>~/AskJoshua</code>, with an <code>uninstall.sh</code> that removes it.</p>
-      <p class="limits"><strong>Before you start.</strong> Installing takes about 20 minutes, most of it downloading, depending on your connection and the options you choose. On some Macs, macOS also offers to install Apple's “Command Line Developer Tools” along the way: let it finish. Its first time estimate (sometimes many hours) is wrong; it usually takes 10–20 minutes. Cloud models need an Ollama account: when the installer opens the sign-in page, <b>Continue with Google</b> with your Gmail address is enough. New Ollama accounts pay per use: add a few dollars of credit on ollama.com before using cloud models. Local models are always free. Local models need no account.</p>
-      <p class="fine">Prefer to read before you run? <a href="https://ask.joshua.earth/install.sh">Open install.sh</a>: it is plain, commented shell. All of Joshua's code is <a href="https://github.com/fabiodeponte/askjoshua">on GitHub</a>, under the AGPL licence.</p>
-    </div>
-    <div class="stack">
-      <span class="label">Which model you get (Mac memory)</span>
-      <div class="scroll">
-        <table class="tiers">
-          <thead><tr><th>Memory</th><th>Model</th><th>Options</th></tr></thead>
-          <tbody>
-            <tr><td>8 GB</td><td>qwen3-vl 4B · about 3 GB</td><td>Deep thinking. Images are not offered: they need 16 GB. On a slow chip the 4B is suggested even with 16 GB.</td></tr>
-            <tr><td>16–24 GB</td><td>qwen3-vl 8B · about 6 GB</td><td>Deep thinking, images (FLUX.2 klein), fine-tuning.</td></tr>
-            <tr><td>32 GB+</td><td>qwen3-vl 30B · about 20 GB</td><td>Everything, with a larger and smarter model if you want it.</td></tr>
-            <tr><td>Any computer</td><td>Cloud models only · about 1 GB</td><td>For computers too small or too old for local models (Intel Macs, under 8 GB of memory, little free disk), or if you prefer. Answers come from Ollama's servers; chats, files and memory stay on your computer. Needs an internet connection and an Ollama account with a few dollars of pay-as-you-go credit.</td></tr>
-            <tr><td>Mac with macOS 26</td><td>🍎 Apple Intelligence · already on the Mac</td><td>Added by itself, with any choice above, when Apple Intelligence is on (any Mac with an M1 or later). Free, private and fast, but small: no tools, short chats, more mistakes.</td></tr>
-            <tr><td>Linux</td><td>chosen by the graphics card: 4B under 7 GB, 8B from 7 GB, 30B from 22 GB</td><td>Images from 12 GB, fine-tuning from 8 GB, on NVIDIA cards. Without a card, the 4B runs on the processor, slowly.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <section class="stack" id="steps">
-    <span class="label">What installing looks like</span>
-    <div class="shots">
-      <figure><a href="img/install-step1.png"><img src="img/install-step1.png" alt="The installer checks the computer (Apple M4, 16 GB) and asks about deep thinking, images, fine-tuning and cloud models, then shows the plan" loading="lazy"></a>
-        <figcaption><b>1. A few questions.</b> The installer checks your computer, suggests the model that fits, asks what you want, and shows the plan before it installs anything.</figcaption></figure>
-      <figure><a href="img/install-step2.png"><img src="img/install-step2.png" alt="Choosing cloud models only: about 1 GB; Ollama, Python and Joshua are installed and a cloud model is added after signing in to Ollama" loading="lazy"></a>
-        <figcaption><b>2. Or cloud models only.</b> About 1 GB. A browser page opens to sign in to Ollama: <b>Continue with Google</b> is enough.</figcaption></figure>
-      <figure><a href="img/install-step3.png"><img src="img/install-step3.png" alt="The end of the installation: Joshua starts at login and is in the Applications folder, shown with its icon" loading="lazy"></a>
-        <figcaption><b>3. Joshua is in your Applications.</b> Open it from there or from Launchpad, and drag it to the Dock to keep it at hand.</figcaption></figure>
-    </div>
-  </section>
-
-  <section class="stack" id="teach">
-    <span class="label">Fine-tuning</span>
-    <h2>Teach Joshua your style</h2>
-    <div class="col stack">
-      <p>Fine-tuning nudges a few of the model's billions of numbers with your examples, so it picks up a habit: a tone of voice, a format, your jargon. Joshua walks you through it in the <strong>Teach Joshua</strong> panel, explaining each step as you go. It runs on your Mac in 15 to 60 minutes, and your examples never leave it.</p>
-      <p><strong>Not the same as “customising” ChatGPT or Claude.</strong> In those apps, custom GPTs and Projects hand the model your documents and instructions to read before it answers. The model itself stays the same, and it stays on their servers. Fine-tuning changes the model. Joshua trains a LoRA adapter: a few million new numbers, next to the model's billions, learned from your examples and then merged into a new copy of the model that belongs to you.</p>
-      <p><strong>Why small models.</strong> A small model knows less and reasons less well than the giants. But it can be retrained on a laptop in an hour, copied and run anywhere, so it can become a specialist in your tone, your formats, your field's jargon. That kind of flexibility is out of reach with a model you can only rent.</p>
-      <p class="callout">It teaches style, not facts. Train it on 200 answers about your company and it will sound like it knows your company, but it will invent the details. For facts, Joshua has memory, your files and the web.</p>
-    </div>
-    <ol class="steps">
-      <li><strong>Name it</strong>Each fine-tune is a project. The result is a new model called <code>joshua-&lt;name&gt;</code>.</li>
-      <li><strong>Examples</strong>100–500 pairs of what you say and the answer you want. Upload a file, pick past chats, or write them.</li>
-      <li><strong>Train</strong>A LoRA adapter learns from them with mlx-lm. A live chart shows when it learns and when it starts memorising.</li>
-      <li><strong>Compare</strong>Ask the same new question before and after, side by side.</li>
-      <li><strong>Install</strong>Merged, converted to GGUF, added to Ollama, and listed in Joshua's model menu.</li>
-    </ol>
-  </section>
-
-  <section class="stack" id="inside">
-    <span class="label">Inside</span>
-    <h2>How Joshua thinks</h2>
-    <p class="col">The model has no memory of its own. Every time you write, Joshua sends it the whole conversation, and the model either answers or asks for a tool. Joshua runs the tool, adds the result, and asks again, up to 25 rounds.</p>
-    <div class="loop">
-      <div><b>1 · The chat</b><span>Instructions, your messages, every tool result.</span></div>
-      <div><b>2 · The model</b><span>qwen3-vl in Ollama reads all of it and replies.</span></div>
-      <div><b>3 · Tools?</b><span>No: the answer is shown. Yes: go on.</span></div>
-      <div><b>4 · Run tools</b><span>Search, read, code, files, images. Results go back to 1.</span></div>
-    </div>
-    <p class="back">Built with Ollama · qwen3-vl · FLUX.2 klein via mflux · mlx-lm · llama.cpp's converter · Gradio · anonymous search through ddgs. All open source.</p>
-  </section>
-
   <footer>
     <span>Ask Joshua · from the people behind <a href="https://yattaphone.org">Yattaphone</a>, the phone you build yourself.</span>
     <span>Version 2026.11.11.3 · Own your hardware. Own your data. Own your intelligence.</span>
   </footer>
 </div>
-
-<script>
-document.getElementById("copy").addEventListener("click", async (e) => {
-  const b = e.currentTarget, text = document.getElementById("cmd").textContent;
-  try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; }
-  catch (err) { const r = document.createRange(); r.selectNodeContents(document.getElementById("cmd")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selected"; }
-  setTimeout(() => (b.textContent = "Copy"), 1800);
-});
-</script>

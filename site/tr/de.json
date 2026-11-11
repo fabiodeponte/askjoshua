@@ -292,5 +292,16 @@
  "Write to <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. For bugs and ideas, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">open an issue on GitHub</a>.": "Schreib an <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. Für Fehler und Ideen <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">eröffne ein Issue auf GitHub</a>.",
  "Who makes Joshua, and why.": "Wer Joshua macht, und warum.",
  "Locally grown AI": "KI aus der Region",
- "He is doing a PhD on how language emerges among AI agents.": "Er promoviert darüber, wie Sprache zwischen KI-Agenten entsteht."
+ "He is doing a PhD on how language emerges among AI agents.": "Er promoviert darüber, wie Sprache zwischen KI-Agenten entsteht.",
+ "<a href=\"features.html\">What it does</a>": "<a href=\"features.html\">Was er kann</a>",
+ "<a href=\"install.html\">Install</a>": "<a href=\"install.html\">Installieren</a>",
+ "<a class=\"download\" href=\"install.html\">Download</a> <span class=\"fine\">Free and open · Mac or Linux</span>": "<a class=\"download\" href=\"install.html\">Herunterladen</a> <span class=\"fine\">Kostenlos und offen · Mac oder Linux</span>",
+ "<a aria-current=\"page\" href=\"features.html\">What it does</a>": "<a aria-current=\"page\" href=\"features.html\">Was er kann</a>",
+ "What Joshua<br/><em>does</em>": "Was Joshua<br/><em>kann</em>",
+ "What Joshua can do: research, files, code, pictures, memory, goal and swarm modes, scheduled tasks, fine-tuning.": "Was Joshua kann: Recherche, Dateien, Code, Bilder, Gedächtnis, Ziel- und Schwarmmodus, geplante Aufgaben, Fine-Tuning.",
+ "Install Joshua": "Joshua installieren",
+ "<a aria-current=\"page\" href=\"install.html\">Install</a>": "<a aria-current=\"page\" href=\"install.html\">Installieren</a>",
+ "Download": "Herunterladen",
+ "Install<br/><em>Joshua</em>": "Joshua<br/><em>installieren</em>",
+ "How to install Joshua on a Mac or a Linux PC: one command, a few questions, about 20 minutes.": "So installierst du Joshua auf einem Mac oder Linux-PC: ein Befehl, ein paar Fragen, etwa 20 Minuten."
 }

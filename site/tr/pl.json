@@ -292,5 +292,16 @@
  "Write to <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. For bugs and ideas, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">open an issue on GitHub</a>.": "Napisz na <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. W sprawie błędów i pomysłów <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">zgłoś to na GitHubie</a>.",
  "Who makes Joshua, and why.": "Kto tworzy Joshuę i dlaczego.",
  "Locally grown AI": "AI z lokalnej uprawy",
- "He is doing a PhD on how language emerges among AI agents.": "Robi doktorat o tym, jak powstaje język między agentami sztucznej inteligencji."
+ "He is doing a PhD on how language emerges among AI agents.": "Robi doktorat o tym, jak powstaje język między agentami sztucznej inteligencji.",
+ "<a href=\"features.html\">What it does</a>": "<a href=\"features.html\">Co robi</a>",
+ "<a href=\"install.html\">Install</a>": "<a href=\"install.html\">Instalacja</a>",
+ "<a class=\"download\" href=\"install.html\">Download</a> <span class=\"fine\">Free and open · Mac or Linux</span>": "<a class=\"download\" href=\"install.html\">Pobierz</a> <span class=\"fine\">Darmowy i otwarty · Mac lub Linux</span>",
+ "<a aria-current=\"page\" href=\"features.html\">What it does</a>": "<a aria-current=\"page\" href=\"features.html\">Co robi</a>",
+ "What Joshua<br/><em>does</em>": "Co robi<br/><em>Joshua</em>",
+ "What Joshua can do: research, files, code, pictures, memory, goal and swarm modes, scheduled tasks, fine-tuning.": "Co potrafi Joshua: wyszukiwanie, pliki, kod, obrazy, pamięć, tryby celu i roju, zaplanowane zadania, fine-tuning.",
+ "Install Joshua": "Zainstaluj Joshuę",
+ "<a aria-current=\"page\" href=\"install.html\">Install</a>": "<a aria-current=\"page\" href=\"install.html\">Instalacja</a>",
+ "Download": "Pobierz",
+ "Install<br/><em>Joshua</em>": "Zainstaluj<br/><em>Joshuę</em>",
+ "How to install Joshua on a Mac or a Linux PC: one command, a few questions, about 20 minutes.": "Jak zainstalować Joshuę na Macu lub pececie z Linuksem: jedno polecenie, kilka pytań, około 20 minut."
 }

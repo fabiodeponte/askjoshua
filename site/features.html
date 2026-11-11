@@ -1,0 +1,247 @@
+<title>What Joshua does</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="What Joshua can do: research, files, code, pictures, memory, goal and swarm modes, scheduled tasks, fine-tuning.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column of manifesto text, broken by full-width "screens" (terminal panels) that show the real thing. */
+:root {
+  --paper: #dfdbc3; --paper-hi: #e9e5cf; --panel: #d6d1b6; --ink: #3b2322; --dim: #75604f; --rust: #9c3b1c; --line: rgba(90, 60, 40, .38);
+  --screen: #e7e3cc; --screen-ink: #3b2322; --code: #9c3b1c; --ok: #3d7a4a; --glow: none;
+  --display: "VT323", "Courier New", monospace; --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; --mono: "IBM Plex Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #000308; --paper-hi: #06101c; --panel: #050a14; --ink: #a6e6ff; --dim: #5d8ea6; --rust: #ffb347; --line: rgba(143, 233, 255, .35);
+  --screen: #02060d; --screen-ink: #a6e6ff; --code: #59f08a; --ok: #59f08a; --glow: 0 0 6px rgba(80, 200, 255, .45); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #000308; --paper-hi: #06101c; --panel: #050a14; --ink: #a6e6ff; --dim: #5d8ea6; --rust: #ffb347; --line: rgba(143, 233, 255, .35);
+  --screen: #02060d; --screen-ink: #a6e6ff; --code: #59f08a; --ok: #59f08a; --glow: 0 0 6px rgba(80, 200, 255, .45); color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: radial-gradient(ellipse at 50% 0%, var(--paper-hi) 0%, var(--paper) 70%) fixed; background-color: var(--paper); color: var(--ink);
+  font: 18px/1.6 var(--body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 88px; padding-block: 28px 64px }
+.col { max-width: 680px }
+a { color: var(--rust) }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--rust); outline-offset: 3px }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; text-wrap: balance; margin: 0; letter-spacing: .04em; text-shadow: var(--glow) }
+h2 { font-size: clamp(2.4rem, 5vw, 3.4rem); line-height: 1; color: var(--rust); text-transform: uppercase }
+h3 { font-size: 1.75rem; line-height: 1.1; text-transform: uppercase }
+p { margin: 0 }
+.stack { display: flex; flex-direction: column; gap: 18px }
+.label { font: 600 .78rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim) }
+code, .mono { font-family: var(--mono); font-size: .88em }
+:not(pre) > code { color: var(--rust); background: var(--panel); border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px }
+
+/* top bar */
+nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap }
+.brand { font: 2.4rem/1 var(--display); letter-spacing: .1em; color: var(--ink); text-decoration: none; text-shadow: var(--glow) }
+.brand::after { content: "█"; color: var(--rust); margin-left: 4px; animation: blink 1.1s steps(1) infinite }
+nav ul { list-style: none; display: flex; gap: 16px; margin: 0; padding: 0; flex-wrap: wrap; font: 1.35rem var(--display); letter-spacing: .06em; text-transform: uppercase }
+nav a { color: var(--dim); text-decoration: none } nav a:hover { color: var(--rust) }
+@keyframes blink { 50% { opacity: 0 } }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 48px; align-items: center }
+.hero h1 { font-size: clamp(3.4rem, 8.5vw, 6.4rem); line-height: .9; text-transform: uppercase; color: var(--ink) }
+.hero h1 em { font-style: normal; color: var(--rust) }
+.lede { font-size: 1.2rem; max-width: 34ch }
+.install { display: flex; align-items: stretch; border: 1px solid var(--rust); border-radius: 4px; background: var(--screen); overflow: hidden; max-width: 100% }
+.install code { flex: 1; min-width: 0; padding: 12px 14px; background: none; border: 0; color: var(--code); overflow-x: auto; white-space: nowrap; font-size: .82rem }
+.install button { border: 0; border-left: 1px solid var(--rust); background: transparent; color: var(--rust); font: 1.3rem var(--display); letter-spacing: .08em; padding: 0 16px; cursor: pointer; text-transform: uppercase }
+.install button:hover { background: color-mix(in srgb, var(--rust) 12%, transparent) }
+.fine { font: .8rem/1.5 var(--mono); color: var(--dim) }
+
+/* terminal "screens" */
+.screen { background: var(--screen); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--glow), inset 0 0 30px rgba(0, 0, 0, .08); overflow: hidden; min-width: 0 }
+.screen .bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font: .72rem var(--mono); color: var(--dim); letter-spacing: .1em; text-transform: uppercase }
+.screen .bar i { width: 14px; height: 4px; background: currentColor; display: inline-block; opacity: .7 }
+.screen .bar i:nth-child(1) { color: var(--ok) } .screen .bar i:nth-child(2) { color: var(--rust) }
+.screen pre { margin: 0; padding: 16px 18px; font: .82rem/1.55 var(--mono); color: var(--screen-ink); overflow-x: auto; white-space: pre }
+.screen pre b { color: var(--rust); font-weight: 600 } .screen pre .ok { color: var(--ok) } .screen pre .d { color: var(--dim) }
+.cursor { display: inline-block; width: .6em; height: 1.05em; background: var(--rust); vertical-align: -2px; animation: blink 1s steps(1) infinite }
+
+/* manifesto */
+.manifesto { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px }
+.manifesto .side h2 { font-size: clamp(2.4rem, 4vw, 2.9rem) }
+.manifesto .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start }
+.theses { display: flex; flex-direction: column; gap: 34px; max-width: 680px }
+.thesis h3 { color: var(--ink); margin-bottom: 8px }
+.thesis h3 span { color: var(--rust) }
+.limits { border-top: 1px dashed var(--line); padding-top: 22px; color: var(--dim) }
+.limits strong { color: var(--ink) }
+
+/* abilities */
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line) }
+.grid > div { background: var(--paper); padding: 20px 20px 22px; display: flex; flex-direction: column; gap: 6px }
+.grid h3 { font-size: 1.45rem; color: var(--rust) }
+.grid p { font-size: .95rem; color: var(--ink) }
+
+/* tiers */
+.tiers { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 460px }
+.tiers th, .tiers td { text-align: left; padding: 12px 14px; border-bottom: 1px dashed var(--line); vertical-align: top; font-size: .95rem }
+.tiers th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.tiers td:first-child { font: 1.7rem/1 var(--display); color: var(--rust); white-space: nowrap }
+.scroll { overflow-x: auto; min-width: 0 }
+
+/* steps (a real sequence) */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; counter-reset: s }
+.steps li { counter-increment: s; border-top: 3px solid var(--rust); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: .93rem }
+.steps li::before { content: counter(s); font: 2.6rem/1 var(--display); color: var(--rust) }
+.steps strong { font: 1.45rem/1 var(--display); letter-spacing: .04em; text-transform: uppercase }
+.callout { border-left: 3px solid var(--rust); padding: 4px 0 4px 18px; font-size: 1.1rem }
+
+/* loop diagram */
+.loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; position: relative }
+.loop div { border: 1px solid var(--line); background: var(--screen); padding: 14px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px; position: relative }
+.loop div:not(:last-child)::after { content: "→"; position: absolute; right: -14px; top: 50%; transform: translate(50%, -50%); color: var(--rust); font: 1.6rem var(--display) }
+.loop b { font: 1.4rem/1 var(--display); color: var(--rust); letter-spacing: .04em; font-weight: 400 }
+.loop span { font-size: .88rem }
+.back { font: .82rem var(--mono); color: var(--dim); border-top: 1px dashed var(--line); padding-top: 10px }
+
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 40px }
+footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font: .85rem var(--mono); color: var(--dim) }
+
+@media (max-width: 860px) {
+  .hero, .manifesto, .two { grid-template-columns: minmax(0, 1fr) }
+  .manifesto .side { position: static }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .loop { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .loop div:nth-child(2)::after { display: none }
+  .wrap { gap: 64px }
+}
+@media (max-width: 520px) {
+  .grid, .steps, .loop { grid-template-columns: minmax(0, 1fr) }
+  .loop div::after { display: none }
+  nav ul { gap: 14px }
+}
+@media (prefers-reduced-motion: reduce) { .brand::after, .cursor { animation: none } }
+
+/* data map */
+.data { width: 100%; border-collapse: collapse; min-width: 720px; font-size: .93rem }
+.data th, .data td { text-align: left; padding: 12px 14px; border-bottom: 1px dashed var(--line); vertical-align: top }
+.data thead th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.data tbody th { font: 1.4rem/1.05 var(--display); color: var(--rust); font-weight: 400; letter-spacing: .03em; width: 17% }
+.data code { font-size: .8rem; word-break: break-all }
+.data .no { color: var(--ok) } .data .yes { color: var(--rust) }
+.trust { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px }
+.trust > div { border-top: 3px solid var(--rust); padding-top: 12px; display: flex; flex-direction: column; gap: 8px }
+.trust > div:first-child { border-top-color: var(--ok) }
+.trust h3 { font-size: 1.6rem }
+.howto { margin: 0; padding: 0; list-style: none; counter-reset: h; display: flex; flex-direction: column; gap: 10px }
+.howto li { counter-increment: h; display: grid; grid-template-columns: 2em minmax(0, 1fr) }
+.howto li::before { content: counter(h); color: var(--rust); font: 1.6rem/1.1 var(--display) }
+@media (max-width: 860px) { .trust { grid-template-columns: minmax(0, 1fr) } }
+.shots { display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; max-width: 860px }
+.shots figure { margin: 0; display: flex; flex-direction: column; gap: 10px }
+.shots img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--paper-hi) }
+.shots figcaption { font-size: .95rem; color: var(--dim) }
+.shots figcaption b { color: var(--ink) }
+@media (max-width: 860px) { .shots { grid-template-columns: minmax(0, 1fr) } }
+
+/* small phones: long words in big headings must not push the page wider than the screen */
+@media (max-width: 380px) { h1 { font-size: 2.1rem !important } h1, h2, h3 { overflow-wrap: anywhere; hyphens: auto } }
+html { overflow-x: clip }  /* no sideways wobble on phones; tables keep their own scroll box */
+
+/* phones: the menu is one row you can swipe, in smaller type */
+@media (max-width: 640px) {
+  nav { flex-wrap: nowrap; flex-direction: column; align-items: flex-start; gap: 10px }
+  .brand { font-size: 1.9rem }
+  nav ul { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; gap: 18px; font-size: 1.05rem; padding-bottom: 6px; -webkit-overflow-scrolling: touch; scrollbar-width: none }
+  nav ul::-webkit-scrollbar { display: none }
+  nav li { flex: none }
+}
+
+.cta { display: flex; align-items: center; gap: 18px; flex-wrap: wrap }
+.download { display: inline-block; font: 1.9rem/1 var(--display); letter-spacing: .1em; text-transform: uppercase; text-decoration: none;
+  color: var(--paper); background: var(--rust); border: 1px solid var(--rust); padding: 12px 34px 10px; box-shadow: var(--glow) }
+.download:hover { filter: brightness(1.12) }
+h1.page { font-size: clamp(3rem, 7vw, 5rem); line-height: .95; text-transform: uppercase; color: var(--ink) }
+h1.page em { font-style: normal; color: var(--rust) }
+@media (max-width: 480px) { h1.page { font-size: 2.6rem } }
+h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
+</style>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="./">JOSHUA</a>
+    <ul>
+      <li><a href="./#why">Why local</a></li>
+      <li><a href="./#data">Your data</a></li>
+      <li><a href="features.html" aria-current="page">What it does</a></li>
+      <li><a href="install.html">Install</a></li>
+      <li><a href="api.html">API</a></li>
+      <li><a href="manifesto.html">Manifesto</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="https://github.com/fabiodeponte/askjoshua">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <header class="stack">
+    <span class="label">Ask Joshua</span>
+    <h1 class="page">What Joshua<br><em>does</em></h1>
+  </header>
+
+  <section class="stack" id="does">
+    <span class="label">Abilities</span>
+    <h2>What Joshua does</h2>
+    <div class="grid">
+      <div><h3>Researches first</h3><p>For facts that change, it searches, reads the pages, answers with numbered sources, then fact-checks its own answer against them.</p></div>
+      <div><h3>Reads your files</h3><p>Drop in text, Word, PDF or images. Each chat has its own folder; point a chat at a project folder and it works there.</p></div>
+      <div><h3>Writes and runs code</h3><p>Python in a sandbox that can only write in the chat's folder. Packages install on demand.</p></div>
+      <div><h3>Sees and draws</h3><p>Looks at your photos and screenshots. With images installed it creates pictures and edits your own photos, locally.</p></div>
+      <div><h3>Remembers you</h3><p>Keeps short notes on who you are and how you like answers, in files you can read and edit. Switch it off any time.</p></div>
+      <div><h3>Any model you like</h3><p>Download other local models that fit your computer from inside Joshua, keep them up to date, or pick a bigger cloud model for a chat. On macOS 26 Joshua can also use Apple Intelligence, the model built into the Mac.</p></div>
+      <div><h3>Works with your apps</h3><p>A built-in API in the common OpenAI format lets your scripts, a robot or other apps use Joshua, tools and memory included, from this computer or your home network. <a href="api.html">How to use it</a></p></div>
+      <div><h3>Keeps going</h3><p>Goal mode works until a task is done and checked. Swarm mode asks several agents and merges the best answer. Scheduled tasks run on their own at set times, while Joshua is open and the computer is on. <a href="#modes">More</a></p></div>
+    </div>
+  </section>
+
+  <section class="stack" id="modes">
+    <span class="label">Ways of working</span>
+    <h2>More than questions and answers</h2>
+    <div class="grid">
+      <div><h3>🎯 Goal mode</h3><p>Give Joshua a goal instead of a question. It plans, uses its tools, checks the result and keeps going, round after round up to the limit you set, until it marks the goal as done or tells you why it can't. <em>“Read the three PDFs in this chat and write a one-page comparison as a Word file.”</em></p></div>
+      <div><h3>🐝 Swarm mode</h3><p>Several agents work on the same request at once, each in its own way: one methodical, one sceptical, one practical. Joshua then compares their answers, checks the facts they disagree on and writes one final answer. Slower, better on hard or open questions. <em>“What are the strongest arguments for and against a four-day week?”</em></p></div>
+      <div><h3>🕒 Scheduled tasks</h3><p>Ask Joshua to do something at a set time: once, every day, every week or every few hours. Each run appears as a new ⏰ chat. <em>“Every morning at 8, summarise the news about artificial intelligence.”</em> Tasks run while Joshua is open and the computer is on.</p></div>
+      <div><h3>💭 Deep thinking</h3><p>The model reasons step by step before it answers, and you can read its reasoning. Slower, but better at maths, logic and problems with many parts. Switch it on only when a question needs it.</p></div>
+    </div>
+  </section>
+
+  <section class="stack" id="teach">
+    <h2>Fine-tuning</h2>
+    <h3 class="sub">Teach Joshua your style</h3>
+    <div class="col stack">
+      <p>Fine-tuning nudges a few of the model's billions of numbers with your examples, so it picks up a habit: a tone of voice, a format, your jargon. Joshua walks you through it in the <strong>Teach Joshua</strong> panel, explaining each step as you go. It runs on your Mac in 15 to 60 minutes, and your examples never leave it.</p>
+      <p><strong>Not the same as “customising” ChatGPT or Claude.</strong> In those apps, custom GPTs and Projects hand the model your documents and instructions to read before it answers. The model itself stays the same, and it stays on their servers. Fine-tuning changes the model. Joshua trains a LoRA adapter: a few million new numbers, next to the model's billions, learned from your examples and then merged into a new copy of the model that belongs to you.</p>
+      <p><strong>Why small models.</strong> A small model knows less and reasons less well than the giants. But it can be retrained on a laptop in an hour, copied and run anywhere, so it can become a specialist in your tone, your formats, your field's jargon. That kind of flexibility is out of reach with a model you can only rent.</p>
+      <p class="callout">It teaches style, not facts. Train it on 200 answers about your company and it will sound like it knows your company, but it will invent the details. For facts, Joshua has memory, your files and the web.</p>
+    </div>
+    <ol class="steps">
+      <li><strong>Name it</strong>Each fine-tune is a project. The result is a new model called <code>joshua-&lt;name&gt;</code>.</li>
+      <li><strong>Examples</strong>100–500 pairs of what you say and the answer you want. Upload a file, pick past chats, or write them.</li>
+      <li><strong>Train</strong>A LoRA adapter learns from them with mlx-lm. A live chart shows when it learns and when it starts memorising.</li>
+      <li><strong>Compare</strong>Ask the same new question before and after, side by side.</li>
+      <li><strong>Install</strong>Merged, converted to GGUF, added to Ollama, and listed in Joshua's model menu.</li>
+    </ol>
+  </section>
+
+  <section class="stack" id="inside">
+    <span class="label">Inside</span>
+    <h2>How Joshua thinks</h2>
+    <p class="col">The model has no memory of its own. Every time you write, Joshua sends it the whole conversation, and the model either answers or asks for a tool. Joshua runs the tool, adds the result, and asks again, up to 25 rounds.</p>
+    <div class="loop">
+      <div><b>1 · The chat</b><span>Instructions, your messages, every tool result.</span></div>
+      <div><b>2 · The model</b><span>qwen3-vl in Ollama reads all of it and replies.</span></div>
+      <div><b>3 · Tools?</b><span>No: the answer is shown. Yes: go on.</span></div>
+      <div><b>4 · Run tools</b><span>Search, read, code, files, images. Results go back to 1.</span></div>
+    </div>
+    <p class="back">Built with Ollama · qwen3-vl · FLUX.2 klein via mflux · mlx-lm · llama.cpp's converter · Gradio · anonymous search through ddgs. All open source.</p>
+  </section>
+
+  <footer>
+    <span>Ask Joshua · from the people behind <a href="https://yattaphone.org">Yattaphone</a>, the phone you build yourself.</span>
+    <span>Version 2026.11.11.3 · Own your hardware. Own your data. Own your intelligence.</span>
+  </footer>
+</div>

@@ -1,0 +1,243 @@
+<title>Install Joshua</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="How to install Joshua on a Mac or a Linux PC: one command, a few questions, about 20 minutes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column of manifesto text, broken by full-width "screens" (terminal panels) that show the real thing. */
+:root {
+  --paper: #dfdbc3; --paper-hi: #e9e5cf; --panel: #d6d1b6; --ink: #3b2322; --dim: #75604f; --rust: #9c3b1c; --line: rgba(90, 60, 40, .38);
+  --screen: #e7e3cc; --screen-ink: #3b2322; --code: #9c3b1c; --ok: #3d7a4a; --glow: none;
+  --display: "VT323", "Courier New", monospace; --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; --mono: "IBM Plex Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #000308; --paper-hi: #06101c; --panel: #050a14; --ink: #a6e6ff; --dim: #5d8ea6; --rust: #ffb347; --line: rgba(143, 233, 255, .35);
+  --screen: #02060d; --screen-ink: #a6e6ff; --code: #59f08a; --ok: #59f08a; --glow: 0 0 6px rgba(80, 200, 255, .45); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #000308; --paper-hi: #06101c; --panel: #050a14; --ink: #a6e6ff; --dim: #5d8ea6; --rust: #ffb347; --line: rgba(143, 233, 255, .35);
+  --screen: #02060d; --screen-ink: #a6e6ff; --code: #59f08a; --ok: #59f08a; --glow: 0 0 6px rgba(80, 200, 255, .45); color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: radial-gradient(ellipse at 50% 0%, var(--paper-hi) 0%, var(--paper) 70%) fixed; background-color: var(--paper); color: var(--ink);
+  font: 18px/1.6 var(--body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 88px; padding-block: 28px 64px }
+.col { max-width: 680px }
+a { color: var(--rust) }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--rust); outline-offset: 3px }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; text-wrap: balance; margin: 0; letter-spacing: .04em; text-shadow: var(--glow) }
+h2 { font-size: clamp(2.4rem, 5vw, 3.4rem); line-height: 1; color: var(--rust); text-transform: uppercase }
+h3 { font-size: 1.75rem; line-height: 1.1; text-transform: uppercase }
+p { margin: 0 }
+.stack { display: flex; flex-direction: column; gap: 18px }
+.label { font: 600 .78rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim) }
+code, .mono { font-family: var(--mono); font-size: .88em }
+:not(pre) > code { color: var(--rust); background: var(--panel); border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px }
+
+/* top bar */
+nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap }
+.brand { font: 2.4rem/1 var(--display); letter-spacing: .1em; color: var(--ink); text-decoration: none; text-shadow: var(--glow) }
+.brand::after { content: "█"; color: var(--rust); margin-left: 4px; animation: blink 1.1s steps(1) infinite }
+nav ul { list-style: none; display: flex; gap: 16px; margin: 0; padding: 0; flex-wrap: wrap; font: 1.35rem var(--display); letter-spacing: .06em; text-transform: uppercase }
+nav a { color: var(--dim); text-decoration: none } nav a:hover { color: var(--rust) }
+@keyframes blink { 50% { opacity: 0 } }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 48px; align-items: center }
+.hero h1 { font-size: clamp(3.4rem, 8.5vw, 6.4rem); line-height: .9; text-transform: uppercase; color: var(--ink) }
+.hero h1 em { font-style: normal; color: var(--rust) }
+.lede { font-size: 1.2rem; max-width: 34ch }
+.install { display: flex; align-items: stretch; border: 1px solid var(--rust); border-radius: 4px; background: var(--screen); overflow: hidden; max-width: 100% }
+.install code { flex: 1; min-width: 0; padding: 12px 14px; background: none; border: 0; color: var(--code); overflow-x: auto; white-space: nowrap; font-size: .82rem }
+.install button { border: 0; border-left: 1px solid var(--rust); background: transparent; color: var(--rust); font: 1.3rem var(--display); letter-spacing: .08em; padding: 0 16px; cursor: pointer; text-transform: uppercase }
+.install button:hover { background: color-mix(in srgb, var(--rust) 12%, transparent) }
+.fine { font: .8rem/1.5 var(--mono); color: var(--dim) }
+
+/* terminal "screens" */
+.screen { background: var(--screen); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--glow), inset 0 0 30px rgba(0, 0, 0, .08); overflow: hidden; min-width: 0 }
+.screen .bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font: .72rem var(--mono); color: var(--dim); letter-spacing: .1em; text-transform: uppercase }
+.screen .bar i { width: 14px; height: 4px; background: currentColor; display: inline-block; opacity: .7 }
+.screen .bar i:nth-child(1) { color: var(--ok) } .screen .bar i:nth-child(2) { color: var(--rust) }
+.screen pre { margin: 0; padding: 16px 18px; font: .82rem/1.55 var(--mono); color: var(--screen-ink); overflow-x: auto; white-space: pre }
+.screen pre b { color: var(--rust); font-weight: 600 } .screen pre .ok { color: var(--ok) } .screen pre .d { color: var(--dim) }
+.cursor { display: inline-block; width: .6em; height: 1.05em; background: var(--rust); vertical-align: -2px; animation: blink 1s steps(1) infinite }
+
+/* manifesto */
+.manifesto { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px }
+.manifesto .side h2 { font-size: clamp(2.4rem, 4vw, 2.9rem) }
+.manifesto .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start }
+.theses { display: flex; flex-direction: column; gap: 34px; max-width: 680px }
+.thesis h3 { color: var(--ink); margin-bottom: 8px }
+.thesis h3 span { color: var(--rust) }
+.limits { border-top: 1px dashed var(--line); padding-top: 22px; color: var(--dim) }
+.limits strong { color: var(--ink) }
+
+/* abilities */
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line) }
+.grid > div { background: var(--paper); padding: 20px 20px 22px; display: flex; flex-direction: column; gap: 6px }
+.grid h3 { font-size: 1.45rem; color: var(--rust) }
+.grid p { font-size: .95rem; color: var(--ink) }
+
+/* tiers */
+.tiers { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 460px }
+.tiers th, .tiers td { text-align: left; padding: 12px 14px; border-bottom: 1px dashed var(--line); vertical-align: top; font-size: .95rem }
+.tiers th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.tiers td:first-child { font: 1.7rem/1 var(--display); color: var(--rust); white-space: nowrap }
+.scroll { overflow-x: auto; min-width: 0 }
+
+/* steps (a real sequence) */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; counter-reset: s }
+.steps li { counter-increment: s; border-top: 3px solid var(--rust); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: .93rem }
+.steps li::before { content: counter(s); font: 2.6rem/1 var(--display); color: var(--rust) }
+.steps strong { font: 1.45rem/1 var(--display); letter-spacing: .04em; text-transform: uppercase }
+.callout { border-left: 3px solid var(--rust); padding: 4px 0 4px 18px; font-size: 1.1rem }
+
+/* loop diagram */
+.loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; position: relative }
+.loop div { border: 1px solid var(--line); background: var(--screen); padding: 14px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px; position: relative }
+.loop div:not(:last-child)::after { content: "→"; position: absolute; right: -14px; top: 50%; transform: translate(50%, -50%); color: var(--rust); font: 1.6rem var(--display) }
+.loop b { font: 1.4rem/1 var(--display); color: var(--rust); letter-spacing: .04em; font-weight: 400 }
+.loop span { font-size: .88rem }
+.back { font: .82rem var(--mono); color: var(--dim); border-top: 1px dashed var(--line); padding-top: 10px }
+
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 40px }
+footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font: .85rem var(--mono); color: var(--dim) }
+
+@media (max-width: 860px) {
+  .hero, .manifesto, .two { grid-template-columns: minmax(0, 1fr) }
+  .manifesto .side { position: static }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .loop { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .loop div:nth-child(2)::after { display: none }
+  .wrap { gap: 64px }
+}
+@media (max-width: 520px) {
+  .grid, .steps, .loop { grid-template-columns: minmax(0, 1fr) }
+  .loop div::after { display: none }
+  nav ul { gap: 14px }
+}
+@media (prefers-reduced-motion: reduce) { .brand::after, .cursor { animation: none } }
+
+/* data map */
+.data { width: 100%; border-collapse: collapse; min-width: 720px; font-size: .93rem }
+.data th, .data td { text-align: left; padding: 12px 14px; border-bottom: 1px dashed var(--line); vertical-align: top }
+.data thead th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.data tbody th { font: 1.4rem/1.05 var(--display); color: var(--rust); font-weight: 400; letter-spacing: .03em; width: 17% }
+.data code { font-size: .8rem; word-break: break-all }
+.data .no { color: var(--ok) } .data .yes { color: var(--rust) }
+.trust { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px }
+.trust > div { border-top: 3px solid var(--rust); padding-top: 12px; display: flex; flex-direction: column; gap: 8px }
+.trust > div:first-child { border-top-color: var(--ok) }
+.trust h3 { font-size: 1.6rem }
+.howto { margin: 0; padding: 0; list-style: none; counter-reset: h; display: flex; flex-direction: column; gap: 10px }
+.howto li { counter-increment: h; display: grid; grid-template-columns: 2em minmax(0, 1fr) }
+.howto li::before { content: counter(h); color: var(--rust); font: 1.6rem/1.1 var(--display) }
+@media (max-width: 860px) { .trust { grid-template-columns: minmax(0, 1fr) } }
+.shots { display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; max-width: 860px }
+.shots figure { margin: 0; display: flex; flex-direction: column; gap: 10px }
+.shots img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--paper-hi) }
+.shots figcaption { font-size: .95rem; color: var(--dim) }
+.shots figcaption b { color: var(--ink) }
+@media (max-width: 860px) { .shots { grid-template-columns: minmax(0, 1fr) } }
+
+/* small phones: long words in big headings must not push the page wider than the screen */
+@media (max-width: 380px) { h1 { font-size: 2.1rem !important } h1, h2, h3 { overflow-wrap: anywhere; hyphens: auto } }
+html { overflow-x: clip }  /* no sideways wobble on phones; tables keep their own scroll box */
+
+/* phones: the menu is one row you can swipe, in smaller type */
+@media (max-width: 640px) {
+  nav { flex-wrap: nowrap; flex-direction: column; align-items: flex-start; gap: 10px }
+  .brand { font-size: 1.9rem }
+  nav ul { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; gap: 18px; font-size: 1.05rem; padding-bottom: 6px; -webkit-overflow-scrolling: touch; scrollbar-width: none }
+  nav ul::-webkit-scrollbar { display: none }
+  nav li { flex: none }
+}
+
+.cta { display: flex; align-items: center; gap: 18px; flex-wrap: wrap }
+.download { display: inline-block; font: 1.9rem/1 var(--display); letter-spacing: .1em; text-transform: uppercase; text-decoration: none;
+  color: var(--paper); background: var(--rust); border: 1px solid var(--rust); padding: 12px 34px 10px; box-shadow: var(--glow) }
+.download:hover { filter: brightness(1.12) }
+h1.page { font-size: clamp(3rem, 7vw, 5rem); line-height: .95; text-transform: uppercase; color: var(--ink) }
+h1.page em { font-style: normal; color: var(--rust) }
+@media (max-width: 480px) { h1.page { font-size: 2.6rem } }
+h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
+</style>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="./">JOSHUA</a>
+    <ul>
+      <li><a href="./#why">Why local</a></li>
+      <li><a href="./#data">Your data</a></li>
+      <li><a href="features.html">What it does</a></li>
+      <li><a href="install.html" aria-current="page">Install</a></li>
+      <li><a href="api.html">API</a></li>
+      <li><a href="manifesto.html">Manifesto</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="https://github.com/fabiodeponte/askjoshua">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <header class="stack">
+    <span class="label">Download</span>
+    <h1 class="page">Install<br><em>Joshua</em></h1>
+      <div class="install" role="group" aria-label="Install command">
+        <code id="cmd">curl -fsSL https://ask.joshua.earth/install.sh | bash</code>
+        <button type="button" id="copy">Copy</button>
+      </div>
+      <p class="fine">Paste it in a terminal. A Mac with Apple Silicon (M1 or later) or a Linux PC, 8 GB of memory, 10–40 GB of free disk. On Linux an NVIDIA graphics card makes it much faster. Free and open.</p>
+  </header>
+
+  <section class="two" id="install">
+    <div class="stack">
+      <span class="label">Install</span>
+      <h2>One line, a few questions</h2>
+      <p>The installer looks at your computer first: chip, graphics card, memory, free disk, and estimates how fast each model would run on it. It asks whether you want deep thinking, images and fine-tuning, or cloud models only, shows the plan and the space it needs, and waits for your yes.</p>
+      <p>Then it installs <a href="https://ollama.com" rel="noopener">Ollama</a>, the engine that runs the models, a private copy of Python, Joshua and the models you chose, and offers to start Joshua when you log in, so it opens at once and scheduled tasks can run. On a Mac, Joshua is an app of its own in the Applications folder, with its own window and Dock icon; on Linux it opens in its own window from the applications menu. Everything else stays in one folder, <code>~/AskJoshua</code>, with an <code>uninstall.sh</code> that removes it.</p>
+      <p class="limits"><strong>Before you start.</strong> Installing takes about 20 minutes, most of it downloading, depending on your connection and the options you choose. On some Macs, macOS also offers to install Apple's “Command Line Developer Tools” along the way: let it finish. Its first time estimate (sometimes many hours) is wrong; it usually takes 10–20 minutes. Cloud models need an Ollama account: when the installer opens the sign-in page, <b>Continue with Google</b> with your Gmail address is enough. New Ollama accounts pay per use: add a few dollars of credit on ollama.com before using cloud models. Local models are always free. Local models need no account.</p>
+      <p class="fine">Prefer to read before you run? <a href="https://ask.joshua.earth/install.sh">Open install.sh</a>: it is plain, commented shell. All of Joshua's code is <a href="https://github.com/fabiodeponte/askjoshua">on GitHub</a>, under the AGPL licence.</p>
+    </div>
+    <div class="stack">
+      <span class="label">Which model you get (Mac memory)</span>
+      <div class="scroll">
+        <table class="tiers">
+          <thead><tr><th>Memory</th><th>Model</th><th>Options</th></tr></thead>
+          <tbody>
+            <tr><td>8 GB</td><td>qwen3-vl 4B · about 3 GB</td><td>Deep thinking. Images are not offered: they need 16 GB. On a slow chip the 4B is suggested even with 16 GB.</td></tr>
+            <tr><td>16–24 GB</td><td>qwen3-vl 8B · about 6 GB</td><td>Deep thinking, images (FLUX.2 klein), fine-tuning.</td></tr>
+            <tr><td>32 GB+</td><td>qwen3-vl 30B · about 20 GB</td><td>Everything, with a larger and smarter model if you want it.</td></tr>
+            <tr><td>Any computer</td><td>Cloud models only · about 1 GB</td><td>For computers too small or too old for local models (Intel Macs, under 8 GB of memory, little free disk), or if you prefer. Answers come from Ollama's servers; chats, files and memory stay on your computer. Needs an internet connection and an Ollama account with a few dollars of pay-as-you-go credit.</td></tr>
+            <tr><td>Mac with macOS 26</td><td>🍎 Apple Intelligence · already on the Mac</td><td>Added by itself, with any choice above, when Apple Intelligence is on (any Mac with an M1 or later). Free, private and fast, but small: no tools, short chats, more mistakes.</td></tr>
+            <tr><td>Linux</td><td>chosen by the graphics card: 4B under 7 GB, 8B from 7 GB, 30B from 22 GB</td><td>Images from 12 GB, fine-tuning from 8 GB, on NVIDIA cards. Without a card, the 4B runs on the processor, slowly.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="stack" id="steps">
+    <span class="label">What installing looks like</span>
+    <div class="shots">
+      <figure><a href="img/install-step1.png"><img src="img/install-step1.png" alt="The installer checks the computer (Apple M4, 16 GB) and asks about deep thinking, images, fine-tuning and cloud models, then shows the plan" loading="lazy"></a>
+        <figcaption><b>1. A few questions.</b> The installer checks your computer, suggests the model that fits, asks what you want, and shows the plan before it installs anything.</figcaption></figure>
+      <figure><a href="img/install-step2.png"><img src="img/install-step2.png" alt="Choosing cloud models only: about 1 GB; Ollama, Python and Joshua are installed and a cloud model is added after signing in to Ollama" loading="lazy"></a>
+        <figcaption><b>2. Or cloud models only.</b> About 1 GB. A browser page opens to sign in to Ollama: <b>Continue with Google</b> is enough.</figcaption></figure>
+      <figure><a href="img/install-step3.png"><img src="img/install-step3.png" alt="The end of the installation: Joshua starts at login and is in the Applications folder, shown with its icon" loading="lazy"></a>
+        <figcaption><b>3. Joshua is in your Applications.</b> Open it from there or from Launchpad, and drag it to the Dock to keep it at hand.</figcaption></figure>
+    </div>
+  </section>
+
+  <footer>
+    <span>Ask Joshua · from the people behind <a href="https://yattaphone.org">Yattaphone</a>, the phone you build yourself.</span>
+    <span>Version 2026.11.11.3 · Own your hardware. Own your data. Own your intelligence.</span>
+  </footer>
+</div>
+
+<script>
+document.getElementById("copy").addEventListener("click", async (e) => {
+  const b = e.currentTarget, text = document.getElementById("cmd").textContent;
+  try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; }
+  catch (err) { const r = document.createRange(); r.selectNodeContents(document.getElementById("cmd")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selected"; }
+  setTimeout(() => (b.textContent = "Copy"), 1800);
+});
+</script>

@@ -292,5 +292,16 @@
  "Write to <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. For bugs and ideas, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">open an issue on GitHub</a>.": "Écrivez à <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. Pour les bugs et les idées, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">ouvrez un ticket sur GitHub</a>.",
  "Who makes Joshua, and why.": "Qui fait Joshua, et pourquoi.",
  "Locally grown AI": "Une IA en circuit court",
- "He is doing a PhD on how language emerges among AI agents.": "Il prépare un doctorat sur la façon dont le langage émerge entre agents d'intelligence artificielle."
+ "He is doing a PhD on how language emerges among AI agents.": "Il prépare un doctorat sur la façon dont le langage émerge entre agents d'intelligence artificielle.",
+ "<a href=\"features.html\">What it does</a>": "<a href=\"features.html\">Ce qu'il fait</a>",
+ "<a href=\"install.html\">Install</a>": "<a href=\"install.html\">Installer</a>",
+ "<a class=\"download\" href=\"install.html\">Download</a> <span class=\"fine\">Free and open · Mac or Linux</span>": "<a class=\"download\" href=\"install.html\">Télécharger</a> <span class=\"fine\">Gratuit et ouvert · Mac ou Linux</span>",
+ "<a aria-current=\"page\" href=\"features.html\">What it does</a>": "<a aria-current=\"page\" href=\"features.html\">Ce qu'il fait</a>",
+ "What Joshua<br/><em>does</em>": "Ce que fait<br/><em>Joshua</em>",
+ "What Joshua can do: research, files, code, pictures, memory, goal and swarm modes, scheduled tasks, fine-tuning.": "Ce que sait faire Joshua : recherches, fichiers, code, images, mémoire, modes objectif et essaim, tâches programmées, fine-tuning.",
+ "Install Joshua": "Installer Joshua",
+ "<a aria-current=\"page\" href=\"install.html\">Install</a>": "<a aria-current=\"page\" href=\"install.html\">Installer</a>",
+ "Download": "Télécharger",
+ "Install<br/><em>Joshua</em>": "Installer<br/><em>Joshua</em>",
+ "How to install Joshua on a Mac or a Linux PC: one command, a few questions, about 20 minutes.": "Comment installer Joshua sur un Mac ou un PC Linux : une commande, quelques questions, environ 20 minutes."
 }

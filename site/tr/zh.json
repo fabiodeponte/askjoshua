@@ -292,5 +292,16 @@
  "Write to <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. For bugs and ideas, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">open an issue on GitHub</a>.": "请写信到 <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>。报告 bug 或提出想法，请<a href=\"https://github.com/fabiodeponte/askjoshua/issues\">在 GitHub 上提交 issue</a>。",
  "Who makes Joshua, and why.": "谁在做 Joshua，以及为什么。",
  "Locally grown AI": "土生土长的 AI",
- "He is doing a PhD on how language emerges among AI agents.": "他正在攻读博士，研究语言如何在人工智能智能体之间产生。"
+ "He is doing a PhD on how language emerges among AI agents.": "他正在攻读博士，研究语言如何在人工智能智能体之间产生。",
+ "<a href=\"features.html\">What it does</a>": "<a href=\"features.html\">功能</a>",
+ "<a href=\"install.html\">Install</a>": "<a href=\"install.html\">安装</a>",
+ "<a class=\"download\" href=\"install.html\">Download</a> <span class=\"fine\">Free and open · Mac or Linux</span>": "<a class=\"download\" href=\"install.html\">下载</a> <span class=\"fine\">免费、开源 · Mac 或 Linux</span>",
+ "<a aria-current=\"page\" href=\"features.html\">What it does</a>": "<a aria-current=\"page\" href=\"features.html\">功能</a>",
+ "What Joshua<br/><em>does</em>": "Joshua<br/><em>能做什么</em>",
+ "What Joshua can do: research, files, code, pictures, memory, goal and swarm modes, scheduled tasks, fine-tuning.": "Joshua 能做什么：研究、文件、代码、图片、记忆、目标模式和群体模式、定时任务、微调。",
+ "Install Joshua": "安装 Joshua",
+ "<a aria-current=\"page\" href=\"install.html\">Install</a>": "<a aria-current=\"page\" href=\"install.html\">安装</a>",
+ "Download": "下载",
+ "Install<br/><em>Joshua</em>": "安装<br/><em>Joshua</em>",
+ "How to install Joshua on a Mac or a Linux PC: one command, a few questions, about 20 minutes.": "如何在 Mac 或 Linux 电脑上安装 Joshua：一条命令，几个问题，大约 20 分钟。"
 }

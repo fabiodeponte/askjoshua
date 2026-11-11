@@ -292,5 +292,16 @@
  "Write to <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. For bugs and ideas, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">open an issue on GitHub</a>.": "Scrivi a <a href=\"mailto:info@joshua.earth\">info@joshua.earth</a>. Per bug e idee, <a href=\"https://github.com/fabiodeponte/askjoshua/issues\">apri una segnalazione su GitHub</a>.",
  "Who makes Joshua, and why.": "Chi fa Joshua, e perché.",
  "Locally grown AI": "IA a chilometro zero",
- "He is doing a PhD on how language emerges among AI agents.": "Sta facendo un dottorato su come nasce il linguaggio tra agenti di intelligenza artificiale."
+ "He is doing a PhD on how language emerges among AI agents.": "Sta facendo un dottorato su come nasce il linguaggio tra agenti di intelligenza artificiale.",
+ "<a href=\"features.html\">What it does</a>": "<a href=\"features.html\">Cosa fa</a>",
+ "<a href=\"install.html\">Install</a>": "<a href=\"install.html\">Installa</a>",
+ "<a class=\"download\" href=\"install.html\">Download</a> <span class=\"fine\">Free and open · Mac or Linux</span>": "<a class=\"download\" href=\"install.html\">Scarica</a> <span class=\"fine\">Gratuito e aperto · Mac o Linux</span>",
+ "<a aria-current=\"page\" href=\"features.html\">What it does</a>": "<a aria-current=\"page\" href=\"features.html\">Cosa fa</a>",
+ "What Joshua<br/><em>does</em>": "Cosa fa<br/><em>Joshua</em>",
+ "What Joshua can do: research, files, code, pictures, memory, goal and swarm modes, scheduled tasks, fine-tuning.": "Cosa sa fare Joshua: ricerche, file, codice, immagini, memoria, modalità obiettivo e sciame, compiti programmati, fine-tuning.",
+ "Install Joshua": "Installa Joshua",
+ "<a aria-current=\"page\" href=\"install.html\">Install</a>": "<a aria-current=\"page\" href=\"install.html\">Installa</a>",
+ "Download": "Scarica",
+ "Install<br/><em>Joshua</em>": "Installa<br/><em>Joshua</em>",
+ "How to install Joshua on a Mac or a Linux PC: one command, a few questions, about 20 minutes.": "Come installare Joshua su un Mac o un PC Linux: un comando, qualche domanda, circa 20 minuti."
 }
