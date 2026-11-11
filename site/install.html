@@ -186,6 +186,7 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
         <button type="button" id="copy">Copy</button>
       </div>
       <p class="fine">Paste it in a terminal. A Mac with Apple Silicon (M1 or later) or a Linux PC, 8 GB of memory, 10–40 GB of free disk. On Linux an NVIDIA graphics card makes it much faster. Free and open.</p>
+      <p class="fine" id="installs" hidden data-text="Installed {n} times since {date}."></p>
   </header>
 
   <section class="two" id="install">
@@ -233,6 +234,17 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
   </footer>
 </div>
 
+<script>
+// how many times Joshua has been installed: the server counts it every hour, without keeping any address
+fetch("/stats.json").then(r => r.json()).then(s => {
+  const el = document.getElementById("installs");
+  if (!s.installs || !s.since) return;
+  const lang = document.documentElement.lang || "en";  // Italian says "da novembre 2026": "dal 8 novembre" would be wrong
+  const date = new Date(s.since + "T12:00:00").toLocaleDateString(lang, lang === "it" ? {month: "long", year: "numeric"} : {day: "numeric", month: "long", year: "numeric"});
+  el.textContent = el.dataset.text.replace("{n}", s.installs.toLocaleString(document.documentElement.lang || "en")).replace("{date}", date);
+  el.hidden = false;
+}).catch(() => {});
+</script>
 <script>
 document.getElementById("copy").addEventListener("click", async (e) => {
   const b = e.currentTarget, text = document.getElementById("cmd").textContent;

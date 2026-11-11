@@ -15,7 +15,7 @@ PAGES = ["index", "features", "install", "api", "manifesto", "about"]
 LANGS = {"en": "English", "it": "Italiano", "fr": "Français", "de": "Deutsch", "pl": "Polski", "zh": "中文"}
 INLINE = {"a", "b", "strong", "em", "i", "code", "span", "br", "small", "kbd", "sup", "sub", "mark", "abbr"}
 SKIP = {"pre", "script", "style", "code", "svg", "title"}
-ATTRS = ["alt", "title", "aria-label", "placeholder"]
+ATTRS = ["alt", "title", "aria-label", "placeholder", "data-text"]
 SCRIPT_TEXTS = ["Copied", "Selected", "Copy"]
 
 
@@ -175,7 +175,8 @@ def build(out):
             body.append(BeautifulSoup(SWITCH_JS % (json.dumps(list(LANGS)), json.dumps(lang)), "html.parser"))
             dest = out / ("" if lang == "en" else lang) / f"{page}.html"
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text('<!doctype html>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n' + str(soup), encoding="utf-8")
+            opening = "" if soup.find("html") else f'<html lang="{lang}">\n'  # the page's language, for the browser, search engines and screen readers
+            dest.write_text('<!doctype html>\n' + opening + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n' + str(soup), encoding="utf-8")
     print("built", len(LANGS) * len(PAGES), "pages in", out)
 
 
