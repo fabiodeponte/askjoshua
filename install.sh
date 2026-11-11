@@ -492,6 +492,12 @@ EOF
 fi
 
 step "Done"
+# Counting installations: the first time an installation finishes on this computer, fetch one empty file from the site.
+# Nothing is sent with it. The marker file means running the installer again here (to change options or repair) isn't counted.
+if [ ! -f "$HOME_DIR/.counted" ]; then
+  curl -fs -m 5 "https://ask.joshua.earth/installed?done" >/dev/null 2>&1 || true
+  touch "$HOME_DIR/.counted"
+fi
 if [ "$OS" = Darwin ]; then
   say "  Open ${bold}Joshua${off} from your Applications folder or Launchpad; drag it to the Dock to keep it there."
   say "  ${dim}Everything lives in $HOME_DIR · stop it with stop.sh · remove it with uninstall.sh${off}"
