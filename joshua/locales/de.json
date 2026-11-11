@@ -313,5 +313,9 @@
  "Info": "Info",
  "Warning": "Achtung",
  "Error": "Fehler",
- "Clear": "Leeren"
+ "Clear": "Leeren",
+ "This is too long for Apple's model, which reads only about 4,000 tokens. Start a new chat, or pick a bigger model in the menu.": "Das ist zu lang für Apples Modell, das nur etwa 4.000 Tokens liest. Starte einen neuen Chat oder wähle im Menü ein größeres Modell.",
+ "Apple's model doesn't speak this language yet. Pick another model in the menu.": "Apples Modell spricht diese Sprache noch nicht. Wähle im Menü ein anderes Modell.",
+ "Apple's model refused to answer this: its safety filter stopped it. Pick another model in the menu.": "Apples Modell hat die Antwort verweigert: Sein Sicherheitsfilter hat es gestoppt. Wähle im Menü ein anderes Modell.",
+ "Apple's model stopped with an error:": "Apples Modell ist mit einem Fehler stehen geblieben:"
 }

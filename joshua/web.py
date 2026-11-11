@@ -2,11 +2,16 @@ import copy, html, inspect, json, os, pathlib, re, secrets, shutil, subprocess, 
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, tune_ui
+import agent, apple, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
 from agent import FAST, MODEL, tools
+
+# Every part of Joshua calls ollama.chat. Calls for Apple's model go to apple.chat instead,
+# which answers in the same shape, so nothing else needs to know which model it is talking to.
+_ollama_chat = ollama.chat
+ollama.chat = lambda model, *args, **kw: apple.chat(model, *args, **kw) if model == apple.NAME else _ollama_chat(model, *args, **kw)
 
 ROOT = (pathlib.Path(__file__).parent / "conversations").resolve()
 ROOT.mkdir(exist_ok=True)
@@ -68,6 +73,8 @@ def models(add=False):
     choices = [(label(n), n) for n in names if not (FAST in names and n in (FAST, MODEL, MODEL + ":latest"))]
     if FAST in names and (MODEL in names or MODEL + ":latest" in names):
         choices.insert(0, (agent.CONFIG.get("label", "qwen3-vl"), PAIR))
+    if not apple.why_not():  # macOS 26 with Apple Intelligence on: free, and already on this Mac
+        choices.insert(sum(not is_cloud(v) for _, v in choices), (apple.LABEL, apple.NAME))
     return (choices or [(FAST, FAST)]) + ([(t("＋ Add a model…"), ADD)] if add else [])
 
 

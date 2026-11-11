@@ -313,5 +313,9 @@
  "Info": "提示",
  "Warning": "注意",
  "Error": "错误",
- "Clear": "清除"
+ "Clear": "清除",
+ "This is too long for Apple's model, which reads only about 4,000 tokens. Start a new chat, or pick a bigger model in the menu.": "内容太长，Apple 的模型只能读取约 4,000 个 token。请新建对话，或在菜单中选择更大的模型。",
+ "Apple's model doesn't speak this language yet. Pick another model in the menu.": "Apple 的模型还不支持这种语言。请在菜单中选择其他模型。",
+ "Apple's model refused to answer this: its safety filter stopped it. Pick another model in the menu.": "Apple 的模型拒绝回答：被它的安全过滤器拦下了。请在菜单中选择其他模型。",
+ "Apple's model stopped with an error:": "Apple 的模型出错停止："
 }
