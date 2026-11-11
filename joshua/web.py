@@ -1137,7 +1137,7 @@ textarea::placeholder {color: var(--dim) !important; opacity: .85}
 #wfiles {font-size: .8rem}
 body.noside #leftcol {display: none !important}
 #chatcol {position: relative}
-#chatopts {gap: 10px; padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important}
+#chatopts, #panels {gap: 10px; padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important}
 #filebtns {gap: 6px; flex-wrap: nowrap} #filebtns button {font-size: .76rem !important; min-width: 0 !important; padding: 4px 6px !important}
 #wfiles .file-preview-holder {max-height: 40vh; overflow-y: auto}
 #wfiles tr.file {display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 2px; background: transparent !important}
@@ -1365,8 +1365,8 @@ html, body {height: 100%; overflow: hidden !important}
 .gradio-container > .main, .gradio-container > .main > .wrap, main.contain, main.contain > .column {height: 100% !important; min-height: 0 !important; padding: 0 !important; margin: 0 !important; gap: 0 !important}
 main.contain > .column > .row {height: 100%; flex-wrap: nowrap !important; align-items: stretch !important; gap: 12px !important; padding: 10px !important; box-sizing: border-box}
 #leftcol {flex: 0 0 290px !important; width: 290px !important; min-width: 0 !important; max-height: 100%; overflow-y: auto !important; overscroll-behavior: contain}
-#leftcol, #chatopts {flex-wrap: nowrap !important}
-#leftcol > *, #chatopts > * {flex-shrink: 0 !important}
+#leftcol, #chatopts, #panels {flex-wrap: nowrap !important}
+#leftcol > *, #chatopts > *, #panels > * {flex-shrink: 0 !important}
 #chatcol, #tune, #schedpanel {height: 100%; min-width: 0 !important; min-height: 0}
 #chatcol {display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important}
 #tune, #schedpanel {overflow-y: auto !important}
@@ -1410,7 +1410,7 @@ body[data-screen^="modern"]:not(#a):not(#b) .side .label-wrap .icon {transform: 
 body[data-screen^="modern"]:not(#a):not(#b) .side .label-wrap:hover .icon {opacity: .8}
 body[data-screen^="modern"]:not(#a):not(#b) #filebtns button {background: transparent !important; border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent) !important; border-radius: 10px !important; box-shadow: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #filebtns button:hover {background: color-mix(in srgb, var(--ink) 6%, transparent) !important}
-body[data-screen^="modern"]:not(#a):not(#b) #chatopts .accordion, body[data-screen^="modern"]:not(#a):not(#b) #settings {border-top: 1px solid color-mix(in srgb, var(--ink) 8%, transparent) !important; border-radius: 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #chatopts .accordion, body[data-screen^="modern"]:not(#a):not(#b) #panels .accordion, body[data-screen^="modern"]:not(#a):not(#b) #settings {border-top: 1px solid color-mix(in srgb, var(--ink) 8%, transparent) !important; border-radius: 0 !important}
 
 """
 
@@ -1792,11 +1792,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             updnote = gr.HTML("")
             updbtn = gr.Button("⬆  " + t("Update Joshua"), size="sm", visible=False, elem_id="updbtn")
             new = gr.Button("＋  " + t("New chat"), size="sm", elem_id="newchat")
-            tune = gr.Button("🧪  " + t("Teach Joshua (fine-tune)"), size="sm", elem_id="tunebtn")
-            sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
-            convs = gr.Radio(choices=conv_choices(), show_label=False, container=False, elem_id="convs")
-            dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
-            with gr.Column(elem_id="chatopts") as rightcol:  # options for the chat; hidden while Teach or Scheduled tasks is open
+            with gr.Column(elem_id="chatopts") as rightcol:  # the options for this chat; hidden while Teach or Scheduled tasks is open
                 with gr.Accordion(t("This chat"), open=True, elem_id="thischat"):
                     thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", info=t("Slower, better on hard questions"))
                     goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", info=t("Give a goal; it keeps working until done"))
@@ -1808,6 +1804,11 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     with gr.Row(elem_id="filebtns"):
                         openf = gr.Button("📂 " + t("Open folder"), size="sm")
                         dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
+            convs = gr.Radio(choices=conv_choices(), show_label=False, container=False, elem_id="convs")
+            dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
+            tune = gr.Button("🧪  " + t("Teach Joshua (fine-tune)"), size="sm", elem_id="tunebtn")
+            sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
+            with gr.Column(elem_id="panels"):
                 with gr.Accordion("🧠 " + t("Memory"), open=False) as mem_box:
                     mem = gr.Checkbox(True, label=t("Use memory"), info=t("Joshua learns lasting facts about you and uses them in every chat"))
                     mem_topic = gr.Dropdown(choices=["profile"], value="profile", label=t("Notes"), elem_id="memtopic")
