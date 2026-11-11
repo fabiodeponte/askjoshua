@@ -160,6 +160,11 @@ html { overflow-x: clip }  /* no sideways wobble on phones; tables keep their ow
 h1.page { font-size: clamp(3rem, 7vw, 5rem); line-height: .95; text-transform: uppercase; color: var(--ink) }
 h1.page em { font-style: normal; color: var(--rust) }
 @media (max-width: 480px) { h1.page { font-size: 2.6rem } }
+.opennote { max-width: 62ch; font-size: .95rem }
+.opennote summary { cursor: pointer; color: var(--dim) }
+.opennote ol { margin: .6em 0 0 1.2em; padding: 0 }
+.opennote li { margin: .35em 0 }
+.or { margin-top: 1.4em !important; color: var(--dim) }
 h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
 </style>
 
@@ -181,6 +186,20 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
   <header class="stack">
     <span class="label">Download</span>
     <h1 class="page">Install<br><em>Joshua</em></h1>
+      <div class="cta">
+        <a class="download" href="/Install-Joshua.dmg" download>Download for Mac</a>
+        <span class="fine">Install Joshua.dmg · a window that asks a few questions and installs everything</span>
+      </div>
+      <details class="opennote">
+        <summary>The first time, macOS says it can't verify the app</summary>
+        <p>The installer isn't signed with an Apple certificate yet, so macOS stops it the first time. Its code is public <a href="https://github.com/fabiodeponte/askjoshua">on GitHub</a>. To open it:</p>
+        <ol>
+          <li>Double-click <b>Install Joshua</b>. When macOS says it can't verify it, click <b>Done</b>.</li>
+          <li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to <b>Security</b> and click <b>Open Anyway</b>, then enter your password. The button stays there for about an hour.</li>
+          <li>Install Joshua opens. From then on it opens with a double-click.</li>
+        </ol>
+      </details>
+      <p class="or">Or, on a Mac or a Linux PC, paste this in Terminal:</p>
       <div class="install" role="group" aria-label="Install command">
         <code id="cmd">curl -fsSL https://ask.joshua.earth/install.sh | bash</code>
         <button type="button" id="copy">Copy</button>

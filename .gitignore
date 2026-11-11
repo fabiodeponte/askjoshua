@@ -11,3 +11,4 @@ joshua/workspace/
 joshua/finetune/
 joshua/providers.json
 joshua/api.json
+installer/build/

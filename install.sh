@@ -20,6 +20,8 @@ APP="$HOME_DIR/joshua"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
 
 bold=$'\e[1m'; dim=$'\e[2m'; green=$'\e[32m'; amber=$'\e[33m'; red=$'\e[31m'; off=$'\e[0m'
+# JOSHUA_GUI is set by the "Install Joshua" app, which shows this script's output in a window and answers its questions
+[ -n "${JOSHUA_GUI:-}" ] && { bold=""; dim=""; green=""; amber=""; red=""; off=""; }
 say()  { printf "%s\n" "$*"; }
 step() { printf "\n${bold}▸ %s${off}\n" "$*"; }
 ok()   { printf "  ${green}✓${off} %s\n" "$*"; }
@@ -27,8 +29,12 @@ warn() { printf "  ${amber}!${off} %s\n" "$*"; }
 die()  { printf "\n${red}✗ %s${off}\n" "$*"; exit 1; }
 ask()  {  # ask "question" default(y/n) -> returns 0 for yes
   local q="$1" d="$2" a
-  printf "  %s %s " "$q" "$([ "$d" = y ] && echo "[Y/n]" || echo "[y/N]")"
-  { read -r a </dev/tty; } 2>/dev/null || read -r a || a=""
+  if [ -n "${JOSHUA_GUI:-}" ]; then  # the app shows the question with Yes and No buttons, and writes back y or n
+    printf "\n@@ASK|%s|%s\n" "$d" "$q"; read -r a || a=""
+  else
+    printf "  %s %s " "$q" "$([ "$d" = y ] && echo "[Y/n]" || echo "[y/N]")"
+    { read -r a </dev/tty; } 2>/dev/null || read -r a || a=""
+  fi
   a="${a:-$d}"; [[ "$a" =~ ^[YySs] ]]
 }
 
