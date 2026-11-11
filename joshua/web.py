@@ -1,4 +1,4 @@
-import copy, html, inspect, json, os, pathlib, re, secrets, shutil, subprocess, sys, threading, time
+import copy, html, inspect, json, os, pathlib, re, secrets, shutil, subprocess, sys, threading, time, zipfile
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
@@ -869,6 +869,45 @@ def upload_files(paths, cid):
     return file_list(cid), cid, gr.Radio(choices=conv_choices(), value=cid)
 
 
+def open_folder(cid):
+    """Shows the chat's files folder (or its project folder) in Finder, or the file manager on Linux."""
+    if cid:
+        wdir(cid).mkdir(parents=True, exist_ok=True)
+        subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(wdir(cid))])
+
+
+def zip_files(cid):
+    """All the chat's files in one .zip, ready on the "Download all" button."""
+    names = file_list(cid)
+    if not names or sum(os.path.getsize(n) for n in names) > 500_000_000:  # nothing to zip, or too big to zip every time
+        return gr.DownloadButton(visible=False)
+    for old in (ROOT / cid).glob("*.zip"):
+        old.unlink()
+    title = re.sub(r"[^\w\- ]+", "", load(cid)["title"]).strip()[:40] or "files"
+    out = ROOT / cid / (title + ".zip")  # beside the files folder, not inside it
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for name in names:
+            z.write(name, pathlib.Path(name).name)
+    return gr.DownloadButton(value=str(out), visible=True)
+
+
+def retry(cid, *settings):
+    """↻ under the last answer: forget that answer and ask the same question again, with the model chosen now."""
+    if not cid or busy(cid):
+        return gr.skip(), *SKIP
+    conv = load(cid)
+    llm, shown = conv["llm"], conv["display"]
+    asked = [k for k, m in enumerate(llm) if m["role"] == "user" and m["content"] != NUDGE]
+    typed = [k for k, m in enumerate(shown) if m["role"] == "user" and isinstance(m["content"], str)]
+    if not asked or not typed:
+        return gr.skip(), *SKIP
+    text = llm[asked[-1]]["content"].split("\n\n---\nSources found on the web just now")[0]  # take off what Joshua added to the question
+    text = re.sub(r"(\n\n\((Files saved in the workspace|Web sources consulted): [^\n]*\))+$", "", text).removeprefix("GOAL: ")
+    del llm[asked[-1]:], shown[typed[-1]:]
+    save(cid, conv)
+    return send({"text": text}, cid, *settings)
+
+
 def delete_file(cid, ev: gr.DeletedFileData):
     if cid:
         name = pathlib.Path(ev.file.orig_name or ev.file.path).name
@@ -1052,6 +1091,7 @@ textarea::placeholder {color: var(--dim) !important; opacity: .85}
 .prose code, .prose pre {background: #02050a !important; color: var(--green) !important; border: 1px solid #12324a}
 /* files panel */
 #wfiles {font-size: .8rem}
+#filebtns {gap: 6px; flex-wrap: nowrap} #filebtns button {font-size: .76rem !important; min-width: 0 !important; padding: 4px 6px !important}
 #wfiles .file-preview-holder {max-height: 40vh; overflow-y: auto}
 #wfiles tr.file {display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 2px; background: transparent !important}
 #wfiles tr.file:hover {background: color-mix(in srgb, var(--cyan) 10%, transparent) !important}
@@ -1709,6 +1749,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             agents = gr.Slider(2, 6, value=5, step=1, label=t("Agents"), visible=False)
             offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", info=t("Joshua doesn't search or read the web, and code can't go online"))
             files = gr.File(file_count="multiple", label=t("Files in this chat"), elem_id="wfiles", height=None)
+            with gr.Row(elem_id="filebtns"):
+                openf = gr.Button("📂 " + t("Open folder"), size="sm")
+                dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
             with gr.Accordion("🧠 " + t("Memory"), open=False) as mem_box:
                 mem = gr.Checkbox(True, label=t("Use memory"), info=t("Joshua learns lasting facts about you and uses them in every chat"))
                 mem_topic = gr.Dropdown(choices=["profile"], value="profile", label=t("Notes"), elem_id="memtopic")
@@ -1791,6 +1834,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     convs.input(open_conv, convs, [chatbot, cid, files, project, model]).then(badge, model, cloudbadge)
     project.submit(set_project, [project, cid], [files, cid, convs, project])
     files.upload(upload_files, [files, cid], [files, cid, convs])
+    files.change(zip_files, cid, dlall, show_progress="hidden")
+    openf.click(open_folder, cid)
+    chatbot.retry(retry, [cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem], [chatbot, box, cid, convs, files])
     files.delete(delete_file, cid, files)
     gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
     dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")

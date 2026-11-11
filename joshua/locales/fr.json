@@ -317,5 +317,7 @@
  "This is too long for Apple's model, which reads only about 4,000 tokens. Start a new chat, or pick a bigger model in the menu.": "C'est trop long pour le modèle d'Apple, qui ne lit qu'environ 4 000 tokens. Ouvrez une nouvelle discussion ou choisissez un modèle plus grand dans le menu.",
  "Apple's model doesn't speak this language yet. Pick another model in the menu.": "Le modèle d'Apple ne parle pas encore cette langue. Choisissez un autre modèle dans le menu.",
  "Apple's model refused to answer this: its safety filter stopped it. Pick another model in the menu.": "Le modèle d'Apple a refusé de répondre : son filtre de sécurité l'a arrêté. Choisissez un autre modèle dans le menu.",
- "Apple's model stopped with an error:": "Le modèle d'Apple s'est arrêté sur une erreur :"
+ "Apple's model stopped with an error:": "Le modèle d'Apple s'est arrêté sur une erreur :",
+ "Open folder": "Ouvrir le dossier",
+ "Download all (.zip)": "Tout télécharger (.zip)"
 }
