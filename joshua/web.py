@@ -1579,6 +1579,7 @@ main.contain > .column > .row {height: 100%; flex-wrap: nowrap !important; align
 #modelspage h2.msec {margin: 26px 0 2px; font-size: 1.5rem; color: var(--cyan); letter-spacing: .04em}
 #modelspage h3.msub2 {margin: 14px 0 4px; font-size: 1.1rem; color: var(--ink)}
 #modelspage .msub {color: var(--dim); font-size: 1rem; max-width: 70ch}
+#ftbase .wrap:not(.default), #ftbase input {background: var(--panel) !important; color: var(--ink) !important}
 table.mrank {width: 100%; border-collapse: collapse; font-size: .95rem; margin: 4px 0 8px}
 table.mrank th {text-align: left; font-weight: 500; color: var(--dim); border-bottom: 1px solid var(--line); padding: 4px 8px}
 table.mrank td {padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); vertical-align: middle; color: var(--ink)}

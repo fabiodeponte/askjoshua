@@ -165,5 +165,137 @@
   "gpt-6-luna": 23,
   "gemini-3.5-flash-lite": 12
  },
- "apple": 1
+ "apple": 1,
+ "tune": [
+  {
+   "id": "qwen3-4b",
+   "label": "Qwen3 4B Instruct (the original)",
+   "mac": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+   "linux": "Qwen/Qwen3-4B-Instruct-2507",
+   "ollama": "qwen3:4b-instruct-2507-q4_K_M",
+   "params": 4,
+   "gb": 2.3,
+   "chatml": true
+  },
+  {
+   "id": "llama3.2-1b",
+   "label": "Llama 3.2 1B",
+   "mac": "mlx-community/Llama-3.2-1B-Instruct-4bit",
+   "linux": "meta-llama/Llama-3.2-1B-Instruct",
+   "ollama": "llama3.2:1b",
+   "params": 1.2,
+   "gb": 0.7,
+   "chatml": false
+  },
+  {
+   "id": "llama3.2-3b",
+   "label": "Llama 3.2 3B",
+   "mac": "mlx-community/Llama-3.2-3B-Instruct-4bit",
+   "linux": "meta-llama/Llama-3.2-3B-Instruct",
+   "ollama": "llama3.2:3b",
+   "params": 3.2,
+   "gb": 1.8,
+   "chatml": false
+  },
+  {
+   "id": "qwen3.5-4b",
+   "label": "Qwen3.5 4B",
+   "mac": "mlx-community/Qwen3.5-4B-4bit",
+   "linux": "Qwen/Qwen3.5-4B",
+   "ollama": "qwen3.5:4b",
+   "params": 4,
+   "gb": 3.0,
+   "chatml": true
+  },
+  {
+   "id": "llama3.1-8b",
+   "label": "Llama 3.1 8B",
+   "mac": "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
+   "linux": "meta-llama/Llama-3.1-8B-Instruct",
+   "ollama": "llama3.1:8b",
+   "params": 8,
+   "gb": 4.5,
+   "chatml": false
+  },
+  {
+   "id": "gemma4-e4b",
+   "label": "Gemma 4 E4B",
+   "mac": "mlx-community/gemma-4-e4b-it-4bit",
+   "linux": "google/gemma-4-E4B-it",
+   "ollama": "gemma4:e4b",
+   "params": 8,
+   "gb": 5.1,
+   "chatml": false
+  },
+  {
+   "id": "granite4.1-8b",
+   "label": "Granite 4.1 8B",
+   "mac": "mlx-community/granite-4.1-8b-4bit",
+   "linux": "ibm-granite/granite-4.1-8b",
+   "ollama": "granite4.1:8b",
+   "params": 8,
+   "gb": 5.2,
+   "chatml": false
+  },
+  {
+   "id": "qwen3.5-9b",
+   "label": "Qwen3.5 9B",
+   "mac": "mlx-community/Qwen3.5-9B-4bit",
+   "linux": "Qwen/Qwen3.5-9B",
+   "ollama": "qwen3.5:9b",
+   "params": 9,
+   "gb": 6.0,
+   "chatml": true
+  },
+  {
+   "id": "gemma4-12b",
+   "label": "Gemma 4 12B",
+   "mac": "lmstudio-community/gemma-4-12B-it-MLX-4bit",
+   "linux": "google/gemma-4-12B-it",
+   "ollama": "gemma4:12b",
+   "params": 12,
+   "gb": 6.7,
+   "chatml": false
+  },
+  {
+   "id": "gemma3-12b",
+   "label": "Gemma 3 12B",
+   "mac": "mlx-community/gemma-3-12b-it-qat-4bit",
+   "linux": "google/gemma-3-12b-it",
+   "ollama": "gemma3:12b",
+   "params": 12,
+   "gb": 8.0,
+   "chatml": false
+  },
+  {
+   "id": "phi4-14b",
+   "label": "Phi-4 14B",
+   "mac": "mlx-community/phi-4-4bit",
+   "linux": "microsoft/phi-4",
+   "ollama": "phi4:14b",
+   "params": 14.7,
+   "gb": 8.2,
+   "chatml": false
+  },
+  {
+   "id": "mistral-small3.2-24b",
+   "label": "Mistral Small 3.2 24B",
+   "mac": "mlx-community/Mistral-Small-3.2-24B-Instruct-2506-4bit",
+   "linux": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+   "ollama": "mistral-small3.2:24b",
+   "params": 24,
+   "gb": 13.3,
+   "chatml": false
+  },
+  {
+   "id": "qwen3.8-27b",
+   "label": "Qwen3.8 27B",
+   "mac": "mlx-community/Qwen3.8-27B-4bit",
+   "linux": "Qwen/Qwen3.8-27B",
+   "ollama": "qwen3.8:27b",
+   "params": 27,
+   "gb": 16.1,
+   "chatml": true
+  }
+ ]
 }

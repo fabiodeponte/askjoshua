@@ -16,8 +16,9 @@ but it will invent the details. For facts, Joshua already has better tools: memo
 (an *adapter*, a few tens of MB) on top of it. It takes 15–60 minutes, entirely on your computer.
 Your examples never leave it.
 
-**What you get.** A new model in Joshua's menu, named `joshua-<your name>`. It's a small text model (4 billion parameters):
-it can't see images, and it is less capable than the main one, but it will answer the way you taught it.
+**What you get.** A new model in Joshua's menu, named `joshua-<your name>`, that answers the way you taught it.
+**You choose which model to teach** in step ①: any open model your computer has room for. Bigger ones learn better and keep
+more of their skills, but take longer. The result works with text only, even if the original could also see images.
 
 **The five steps:** ① name it · ② give examples · ③ train · ④ compare before and after · ⑤ install it into Joshua.
 """)
@@ -62,7 +63,8 @@ STEP5 = t("""Installing makes your trained model a normal Ollama model that Josh
 2. **Convert**: that copy is turned into **GGUF**, the file format Ollama runs.
 3. **Add to Ollama**: it gets Joshua's chat template, so it can still use tools, and a name: `joshua-<name>`.
 
-It needs about **18 GB of free disk** while it works; temporary files are deleted at the end and the model takes about 4.3 GB.
+While it works it needs a lot of free disk, about three times the model's full size (step ① says how much);
+temporary files are deleted at the end.
 Then pick it from the model menu under the prompt.""")
 
 PRESETS = {"Light touch": (2, "2e-5", 8), "Normal": (3, "5e-5", 16), "Strong": (5, "1e-4", 16)}  # shown translated; the keys stay English
@@ -70,14 +72,37 @@ PRESETS = {"Light touch": (2, "2e-5", 8), "Normal": (3, "5e-5", 16), "Strong": (
 
 def res_html():
     r, missing = ft.resources(), ft.ready()
-    ok = r["ram"] >= 8 and r["free"] >= ft.BASE_GB + 2
+    fitting = [b for b in ft.bases() if ft.fits(b, r)[0]]
     r["chip"] = r["chip"].replace("·", "<br>" + t("Graphics") + " ·") if not ft.MAC else r["chip"]
-    rows = [t("Chip") + f" · {html.escape(r['chip'])}", t("Memory (RAM)") + f" · {r['ram']} GB " + ("✓" if r["ram"] >= 8 else "✗ " + t("needs 8 GB or more")),
-            t("Free disk") + f" · {r['free']} GB " + ("✓ " + t("enough to train") if r["free"] >= ft.BASE_GB + 2 else "✗ " + t("training needs about {n} GB", n=f"{ft.BASE_GB + 2:.0f}"))
-            + ("" if r["free"] >= 18 else " · " + t("installing the result needs about 18 GB"))]
+    rows = [t("Chip") + f" · {html.escape(r['chip'])}", t("Memory (RAM)") + f" · {r['ram']} GB", t("Free disk") + f" · {r['free']} GB",
+            (("✓ " + t("{n} of {total} models fit; the biggest: {name}", n=len(fitting), total=len(ft.bases()), name=html.escape(fitting[-1]["label"])))
+             if fitting else "✗ " + t("No model fits: free some disk, or use a computer with more memory."))]
     rows += [f"✗ {html.escape(m)}" for m in missing]
-    verdict = t("READY TO TRAIN") if ok and not missing else t("NOT READY YET")
+    verdict = t("READY TO TRAIN") if fitting and not missing else t("NOT READY YET")
     return f"<div class='ftres'><b>{verdict}</b><br>" + "<br>".join(rows) + "</div>"
+
+
+def why(short):
+    kind, gb = short
+    return t("needs about {n} GB of memory", n=gb) if kind == "ram" else t("needs {n} GB of free disk", n=gb)
+
+
+def base_choices():
+    """Every model you can teach, smallest first, saying whether it fits this computer and if not, why."""
+    r, out = ft.resources(), []
+    for b in sorted(ft.bases(), key=lambda b: b["params"]):
+        ok, short = ft.fits(b, r)
+        out.append((("✓ " if ok else "✗ ") + b["label"] + f" · {b['gb']:g} GB" + ("" if ok else " · " + why(short)), b["id"]))
+    return out + [("＋ " + t("Another model from Hugging Face…"), "custom")]
+
+
+def base_info(entry):
+    n = ft.needs(entry)
+    ok, short = ft.fits(entry)
+    return ("<div class='ftres'>" + ("✓ " if ok else "✗ ") + html.escape(entry["label"]) + " · "
+            + t("training needs about {ram} GB of memory and {disk} GB of free disk; installing the result needs {inst} GB of free disk for a while, and it then takes {final} GB.",
+                ram=n["ram"], disk=n["train_disk"], inst=n["install_disk"], final=n["final"])
+            + ("" if ok else "<br>✗ " + why(short)) + "</div>")
 
 
 def table(rows):
@@ -109,6 +134,11 @@ def build(conv_root, conv_choices):
             with gr.Row():
                 name = gr.Dropdown(choices=ft.projects(), value=None, allow_custom_value=True, label=t("Project name"), scale=3)
                 openp = gr.Button(t("Create / open"), scale=1)
+            basepick = gr.Dropdown(base_choices(), value=ft.DEFAULT, label=t("Model to teach"), elem_id="ftbase", info=t("✓ fits this computer · ✗ doesn't, and why. Bigger learns better but trains more slowly."))
+            with gr.Row(visible=False) as hfrow:
+                hfrepo = gr.Textbox(show_label=False, placeholder=t("its name on Hugging Face, like mlx-community/Llama-3.2-3B-Instruct-4bit") if ft.MAC else t("its name on Hugging Face, like meta-llama/Llama-3.2-3B-Instruct"), scale=4)
+                usehf = gr.Button(t("Use it"), scale=1)
+            baseinfo = gr.HTML("")
         with gr.Accordion("②  " + t("Give examples"), open=False, elem_classes="ftstep") as acc2:
             gr.Markdown(STEP2)
             with gr.Row():
@@ -157,11 +187,45 @@ def build(conv_root, conv_choices):
         n = (n or "").strip().lower()
         if not ft.NAME_RE.match(n):
             gr.Warning(t("Use 2–31 lowercase letters, digits or dashes, like 'newsroom-style'."))
-            return (gr.skip(),) * 7
+            return (gr.skip(),) * 11
         rows = ft.load_examples(n) or ft.save_examples(n, [])
         meta = ft.pdir(n) / "training.json"
         df = plot_df(json.loads(meta.read_text())) if meta.exists() else gr.skip()
-        return gr.Dropdown(choices=ft.projects(), value=n), table(rows), count_html(rows), gr.Accordion(open=True), gr.Accordion(open=bool(rows)), gr.Dropdown(choices=conv_choices()), df
+        b = ft.base(n)
+        return (gr.Dropdown(choices=ft.projects(), value=n), table(rows), count_html(rows), gr.Accordion(open=True), gr.Accordion(open=bool(rows)), gr.Dropdown(choices=conv_choices()), df,
+                gr.Dropdown(choices=base_choices(), value=b["id"]), gr.Row(visible=b["id"] == "custom"), b["mac" if ft.MAC else "linux"] if b["id"] == "custom" else "", base_info(b))
+
+    def choose(n, entry):
+        """Saves the model this project teaches. A training made for another model can't be used with this one."""
+        old = ft.base(n)
+        ft.set_base(n, entry)
+        if ft.trained(n) and repo_of(old) != repo_of(entry):
+            import shutil
+            shutil.rmtree(ft.pdir(n) / "adapters", ignore_errors=True)
+            gr.Info(t("The previous training was for {model}: train again for this one (your examples are kept).", model=old["label"]))
+        return base_info(entry)
+
+    def pick_base(n, choice):
+        if choice == "custom":
+            return gr.Row(visible=True), gr.skip()
+        entry = next((b for b in ft.bases() if b["id"] == choice), None)
+        if not entry:
+            return gr.skip(), gr.skip()
+        if not n or not (ft.pdir(n) / "examples.json").exists():
+            return gr.Row(visible=False), base_info(entry)
+        return gr.Row(visible=False), choose(n, entry)
+
+    def use_custom(n, name_on_hf):
+        if not need(n):
+            return gr.skip()
+        try:
+            entry = ft.custom(name_on_hf.strip())
+        except Exception as e:
+            gr.Warning(str(e))
+            return gr.skip()
+        return choose(n, entry)
+
+    repo_of = lambda b: b["mac"] if ft.MAC else b["linux"]
 
     def need(n):
         if not n or not (ft.pdir(n) / "examples.json").exists():
@@ -281,8 +345,12 @@ def build(conv_root, conv_choices):
             b, a_ = run.result.get("BEFORE", "…"), run.result.get("AFTER", "…")
         return st, "\n".join(run.log[-200:]), df, b, a_, sig
 
-    openp.click(open_project, name, [name, grid, count, acc2, acc3, chats, plot])
-    name.select(open_project, name, [name, grid, count, acc2, acc3, chats, plot])
+    opened = [name, grid, count, acc2, acc3, chats, plot, basepick, hfrow, hfrepo, baseinfo]
+    openp.click(open_project, name, opened)
+    name.select(open_project, name, opened)
+    basepick.input(pick_base, [name, basepick], [hfrow, baseinfo])
+    usehf.click(use_custom, [name, hfrepo], baseinfo)
+    hfrepo.submit(use_custom, [name, hfrepo], baseinfo)
     upload.upload(from_file, [upload, grid], [grid, count])
     addchats.click(from_chat_list, [chats, grid], [grid, count])
     add.click(add_one, [q, a, grid], [grid, count, q, a])

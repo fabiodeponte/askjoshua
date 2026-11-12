@@ -330,16 +330,14 @@ if [ "$TUNE" = y ]; then
   else
     "$UV" pip install -q --python "$PY" torch transformers peft bitsandbytes accelerate huggingface_hub
   fi
-  if [ ! -f "$HOME_DIR/llama.cpp/convert_hf_to_gguf.py" ]; then
-    TMP=$(mktemp -d)
-    curl -fsSL https://github.com/ggml-org/llama.cpp/archive/refs/heads/master.tar.gz | tar -xz -C "$TMP"
+  TMP=$(mktemp -d)   # always the newest converter: it learns new model families every week
+  if curl -fsSL https://github.com/ggml-org/llama.cpp/archive/refs/heads/master.tar.gz | tar -xz -C "$TMP"; then
     rm -rf "$HOME_DIR/llama.cpp"
     mv "$TMP"/llama.cpp-master "$HOME_DIR/llama.cpp"   # we only use its Python converter; nothing is compiled
-    rm -rf "$TMP"
   fi
-  (cd "$HOME_DIR/llama.cpp/requirements" && "$UV" pip install -q --python "$PY" -r requirements-convert_hf_to_gguf.txt) \
-    || "$UV" pip install -q --python "$PY" torch transformers sentencepiece protobuf numpy
-  "$UV" pip install -q --python "$PY" "$HOME_DIR/llama.cpp/gguf-py"
+  rm -rf "$TMP"
+  "$UV" pip install -q --python "$PY" torch sentencepiece protobuf numpy "$HOME_DIR/llama.cpp/gguf-py"
+  "$UV" pip install -q --python "$PY" "transformers>=5"   # what mlx-lm and today's Hugging Face library need (the converter's own list asks for an older one, but works with it)
   say "  ${dim}Downloading the model you will teach…${off}"
   "$PY" -c "from huggingface_hub import snapshot_download; snapshot_download('$TUNE_BASE')" >/dev/null 2>&1 \
     || warn "couldn't download it now; Joshua will download it when you first train"

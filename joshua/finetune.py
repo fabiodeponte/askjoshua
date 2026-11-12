@@ -6,6 +6,7 @@ is freed when it ends). The state of the running step lives in RUN, which the pa
 """
 import csv, io, json, os, pathlib, platform, random, re, shutil, subprocess, sys, threading, time
 import ollama, requests
+import ranking
 
 HERE = pathlib.Path(__file__).parent
 ROOT = HERE / "finetune"
@@ -13,12 +14,70 @@ ROOT.mkdir(exist_ok=True)
 LLAMA = HERE.parent / "llama.cpp"  # the installer puts llama.cpp's converter here
 PY = sys.executable
 CONFIG = json.loads((HERE / "config.json").read_text()) if (HERE / "config.json").exists() else {}
-# The model we teach: a small text model (no vision) that runs well on 8-16 GB Macs.
 MAC = sys.platform == "darwin"
-BASE = CONFIG.get("tune_base", "mlx-community/Qwen3-4B-Instruct-2507-4bit" if MAC else "Qwen/Qwen3-4B-Instruct-2507")
 CUDA = [PY, HERE / "tune_cuda.py"]
-TEMPLATE_FROM = CONFIG.get("tune_template", "qwen3:4b-instruct-2507-q4_K_M")  # same model in Ollama's library: we borrow its chat template
-BASE_GB, FUSED_GB, GGUF_GB = (2.3 if MAC else 8.1), 8.1, 4.3  # sizes on disk for the 4B base, unpacked copy, final model
+DEFAULT = "qwen3-4b"  # the model Joshua taught before you could choose: a small text model that runs on 8 GB Macs
+
+
+# ---------- which model to teach ----------
+
+def bases():
+    """The models you can teach, from models.json on ask.joshua.earth (updated without a new Joshua). Each has a
+    version for Apple's MLX (mac), the original for PyTorch on Linux (linux), and its twin in Ollama's library (ollama),
+    from which we borrow the chat template so the result can still use tools."""
+    return ranking.data().get("tune") or json.loads((HERE / "models.json").read_text())["tune"]
+
+
+def custom(repo):
+    """Any model on Hugging Face: you give its name (on a Mac, an MLX version, like mlx-community/…-4bit)."""
+    info = requests.get(f"https://huggingface.co/api/models/{repo}?blobs=true", timeout=15)
+    if not info.ok:
+        raise RuntimeError(f"Hugging Face doesn't know '{repo}'. Copy the name from the model's page, like mlx-community/Llama-3.2-3B-Instruct-4bit.")
+    gb = sum((f.get("size") or 0) for f in info.json().get("siblings", []) if f["rfilename"].endswith(".safetensors")) / 1e9
+    quant = re.search(r"(\d)[-_]?bit", repo, re.I)
+    bits = int(quant[1]) if quant else 16
+    return {"id": "custom", "label": repo, "mac": repo, "linux": repo, "ollama": None, "gb": round(gb, 1),
+            "params": round(gb * 8 / bits, 1), "chatml": "qwen" in repo.lower()}
+
+
+def base(name):
+    """The model this project teaches (projects made before you could choose teach the original Qwen3 4B)."""
+    f = pdir(name) / "base.json"
+    chosen = json.loads(f.read_text()) if f.exists() else {"id": DEFAULT}
+    if chosen.get("id") == "custom":
+        return chosen
+    return next((b for b in bases() if b["id"] == chosen["id"]), next(b for b in bases() if b["id"] == DEFAULT))
+
+
+def set_base(name, entry):
+    pdir(name).mkdir(parents=True, exist_ok=True)
+    (pdir(name) / "base.json").write_text(json.dumps(entry if entry.get("id") == "custom" else {"id": entry["id"]}))
+
+
+def repo(entry):
+    return entry["mac"] if MAC else entry["linux"]
+
+
+def needs(entry):
+    """GB of memory and of free disk this model needs: to train, and to install the result (which unpacks it for a while)."""
+    p, gb = entry["params"], entry["gb"]
+    if MAC:  # MLX trains the 4-bit model; memory for it, its gradients and long examples
+        ram, download = gb * 1.3 + 3, gb
+    else:  # PyTorch loads the original and squeezes it to 4 bits on the card
+        ram, download = p * 0.7 + 3, p * 2
+    return {"ram": round(ram), "train_disk": round(download + 1), "install_disk": round(p * 3.2 + 1), "final": round(p * 1.1, 1)}
+
+
+def fits(entry, res=None):
+    """Whether this computer can teach the model, and if not, what is short: ("ram" or "disk", GB needed)."""
+    res = res or resources()
+    n = needs(entry)
+    have = res["ram"] - (4 if MAC else 0) if MAC else (gpus()[0][1] if gpus() else 0)  # on a Mac the system keeps about 4 GB
+    if have < n["ram"]:
+        return False, ("ram", n["ram"])
+    if res["free"] < n["train_disk"]:
+        return False, ("disk", n["train_disk"])
+    return True, None
 SYSTEM = "You are Joshua, an AI assistant running on the user's computer."
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,30}$")
 
@@ -29,10 +88,13 @@ def ready():
     if MAC and platform.machine() != "arm64":
         missing.append("Fine-tuning needs a Mac with Apple Silicon (M1 or later).")
     if MAC:
-        try:
-            import mlx_lm  # noqa: F401
-        except Exception:
+        import importlib.util
+        if not importlib.util.find_spec("mlx_lm"):
             missing.append("The training tools (mlx-lm) are not installed: run the installer again and answer yes to fine-tuning.")
+        elif subprocess.run([PY, "-c", "import mlx_lm"], capture_output=True).returncode:
+            repair()  # a newer Hugging Face library can break the training tools: bring transformers up to date
+            if subprocess.run([PY, "-c", "import mlx_lm"], capture_output=True).returncode:
+                missing.append("The training tools (mlx-lm) don't start: run the installer again and answer yes to fine-tuning.")
     else:
         gpu = gpus()
         if not gpu:
@@ -45,6 +107,27 @@ def ready():
     if not (LLAMA / "convert_hf_to_gguf.py").exists():
         missing.append("The converter (llama.cpp) is missing: run the installer again and answer yes to fine-tuning.")
     return missing
+
+
+def repair():
+    subprocess.run([PY, "-m", "pip", "install", "-q", "-U", "transformers>=5"], capture_output=True, timeout=600)
+
+
+def refresh_converter(run=None):
+    """Downloads the newest llama.cpp converter (only its Python part): new model families need a recent one."""
+    import tarfile, tempfile
+    if run:
+        run.status = "updating the converter (llama.cpp), which learns new model families every week"
+    with tempfile.TemporaryDirectory() as tmp:
+        data = requests.get("https://github.com/ggml-org/llama.cpp/archive/refs/heads/master.tar.gz", timeout=300).content
+        with tarfile.open(fileobj=io.BytesIO(data)) as tar:
+            tar.extractall(tmp, filter="data")
+        shutil.rmtree(LLAMA, ignore_errors=True)
+        shutil.move(pathlib.Path(tmp) / "llama.cpp-master", LLAMA)
+    r = subprocess.run([PY, "-m", "pip", "install", "-q", "-U", str(LLAMA / "gguf-py")], capture_output=True, text=True, timeout=600)
+    if run:
+        run.say("Converter updated." if r.returncode == 0 else "Couldn't update the converter: " + r.stderr[-300:])
+    return r.returncode == 0
 
 
 def gpus():
@@ -151,6 +234,40 @@ def chatml(question, answer=None):
     return text if answer is None else text + answer + "<|im_end|>\n"
 
 
+RENDER = """
+import sys, json
+from transformers import AutoTokenizer
+repo, system, src, dst = sys.argv[1:5]
+tok = AutoTokenizer.from_pretrained(repo)
+def chat(q, a=None):
+    msgs = [{"role": "system", "content": system}, {"role": "user", "content": q}] + ([{"role": "assistant", "content": a}] if a is not None else [])
+    try:
+        return tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=a is None)
+    except Exception:  # some templates (Gemma's older ones) refuse a system message: put it in the first user message
+        msgs = [{"role": "user", "content": system + "\\n\\n" + q}] + msgs[2:]
+        return tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=a is None)
+def plain(text):  # the trainer adds the start-of-text token itself: don't have it twice
+    bos = tok.bos_token or ""
+    return text[len(bos):] if bos and text.startswith(bos) else text
+rows = json.load(open(src))
+json.dump([plain(chat(q, a)) for q, a in rows], open(dst, "w"), ensure_ascii=False)
+"""
+
+
+def layout(entry, rows):
+    """The exact text the model sees for each (question, answer); answer None = only the question, for a test."""
+    if entry.get("chatml"):
+        return [chatml(q, a) for q, a in rows]
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        src, dst = pathlib.Path(tmp) / "in.json", pathlib.Path(tmp) / "out.json"
+        src.write_text(json.dumps(rows, ensure_ascii=False))
+        r = subprocess.run([PY, "-c", RENDER, repo(entry), SYSTEM, src, dst], capture_output=True, text=True, timeout=600)
+        if r.returncode:
+            raise RuntimeError("Couldn't read this model's chat format: " + r.stderr.strip().splitlines()[-1][-300:])
+        return json.loads(dst.read_text())
+
+
 def write_dataset(name, rows):
     """mlx-lm wants a folder with train.jsonl and valid.jsonl, one chat per line. About 1 in 10 examples is held out
     for validation: the model never trains on them, so their loss shows whether it learned or just memorised."""
@@ -159,10 +276,11 @@ def write_dataset(name, rows):
     n_val = max(2, len(rows) // 10)
     data = pdir(name) / "data"
     data.mkdir(parents=True, exist_ok=True)
-    for fname, part in (("valid.jsonl", rows[:n_val]), ("train.jsonl", rows[n_val:])):
+    texts = layout(base(name), rows)  # the base model's own chat format (ChatML for Qwen)
+    for fname, part in (("valid.jsonl", texts[:n_val]), ("train.jsonl", texts[n_val:])):
         with open(data / fname, "w") as f:
-            for q, a in part:
-                f.write(json.dumps({"text": chatml(q, a)}, ensure_ascii=False) + "\n")
+            for text in part:
+                f.write(json.dumps({"text": text}, ensure_ascii=False) + "\n")
     return len(rows) - n_val, n_val
 
 
@@ -266,11 +384,12 @@ def train(name, iters, lr, layers, ram):
         free_memory()
         adapters = pdir(name) / "adapters"
         shutil.rmtree(adapters, ignore_errors=True)
-        run.status = f"loading the base model (the first time it downloads about {BASE_GB:.0f} GB)"
+        b = base(name)
+        run.status = f"loading {b['label']} (the first time it downloads about {needs(b)['train_disk'] - 1} GB)"
         if not MAC:
-            code = _stream(run, CUDA + ["train", BASE, pdir(name) / "data", adapters, iters, lr, layers, batch_size(ram), max(20, iters // 10)])
+            code = _stream(run, CUDA + ["train", repo(b), pdir(name) / "data", adapters, iters, lr, layers, batch_size(ram), max(20, iters // 10)])
         else:
-            code = _stream(run, [PY, "-m", "mlx_lm", "lora", "--model", BASE, "--train", "--data", pdir(name) / "data", "--adapter-path", adapters,
+            code = _stream(run, [PY, "-m", "mlx_lm", "lora", "--model", repo(b), "--train", "--data", pdir(name) / "data", "--adapter-path", adapters,
                                  "--iters", iters, "--learning-rate", lr, "--num-layers", layers, "--batch-size", batch_size(ram),
                                  "--steps-per-report", 10, "--steps-per-eval", max(20, iters // 10), "--val-batches", -1, "--max-seq-length", 2048,
                                  "--grad-checkpoint", "--save-every", max(50, iters // 4)])
@@ -308,7 +427,8 @@ def try_out(name, prompt):
             else:
                 orig(line)
         run.say = catch
-        code = _stream(run, ([PY, "-c", TRY] if MAC else CUDA + ["try"]) + [BASE, pdir(name) / "adapters", chatml(prompt)])
+        b = base(name)
+        code = _stream(run, ([PY, "-c", TRY] if MAC else CUDA + ["try"]) + [repo(b), pdir(name) / "adapters", layout(b, [[prompt, None]])[0]])
         return code == 0 and len(out) == 2
     return _start("test", name, target)
 
@@ -365,16 +485,21 @@ For each function call, return a json object with function name and arguments wi
 {{ end }}{{ .Response }}{{ if .Response }}<|im_end|>{{ end }}"""
 
 
-def chat_template():
-    """The chat template tells Ollama how to lay out messages and tool calls for this model family.
-    We borrow it from the same model in Ollama's library (a few KB, no model download)."""
+def borrowed(entry):
+    """The chat template (how Ollama lays out messages and tool calls) and settings (stop words, temperature) of the
+    same model in Ollama's library: a few KB, no model download. None when the model has no twin there:
+    Ollama then reads the template stored in the file itself, which usually works but may not handle tools."""
+    tag = entry.get("ollama")
+    if not tag:
+        return (FALLBACK_TEMPLATE, {"stop": ["<|im_end|>"]}) if entry.get("chatml") else (None, {})
     try:
-        repo, tag = TEMPLATE_FROM.split(":")
-        man = requests.get(f"https://registry.ollama.ai/v2/library/{repo}/manifests/{tag}", headers={"Accept": "application/vnd.docker.distribution.manifest.v2+json"}, timeout=15).json()
-        layer = next(l for l in man["layers"] if l["mediaType"].endswith(".template"))
-        return requests.get(f"https://registry.ollama.ai/v2/library/{repo}/blobs/{layer['digest']}", timeout=15).text
+        name, version = tag.split(":")
+        man = requests.get(f"https://registry.ollama.ai/v2/library/{name}/manifests/{version}", headers={"Accept": "application/vnd.docker.distribution.manifest.v2+json"}, timeout=15).json()
+        blob = lambda kind: next((requests.get(f"https://registry.ollama.ai/v2/library/{name}/blobs/{l['digest']}", timeout=15).text for l in man["layers"] if l["mediaType"].endswith(kind)), None)
+        params = blob(".params")
+        return blob(".template"), (json.loads(params) if params else {})
     except Exception:
-        return FALLBACK_TEMPLATE
+        return (FALLBACK_TEMPLATE, {"stop": ["<|im_end|>"]}) if entry.get("chatml") else (None, {})
 
 
 def ollama_bin():
@@ -383,26 +508,34 @@ def ollama_bin():
 
 def install(name):
     def target(run):
-        work = pdir(name)
+        work, b = pdir(name), base(name)
         fused, gguf = work / "fused", work / f"{name}.gguf"
-        need = FUSED_GB + 2 * GGUF_GB + 1
+        need = needs(b)["install_disk"]
         free = shutil.disk_usage(work).free / 2**30
         if free < need:
-            run.say(f"Not enough free disk: this step needs about {need:.0f} GB for a while and you have {free:.1f} GB. Free some space and try again.")
+            run.say(f"Not enough free disk: this step needs about {need} GB for a while and you have {free:.1f} GB. Free some space and try again.")
             return False
         free_memory()
         run.status = "1/3 merging what it learned into the model"
-        fuse = [PY, "-m", "mlx_lm", "fuse", "--model", BASE, "--adapter-path", work / "adapters", "--save-path", fused, "--dequantize"] if MAC else CUDA + ["fuse", BASE, work / "adapters", fused]
+        fuse = [PY, "-m", "mlx_lm", "fuse", "--model", repo(b), "--adapter-path", work / "adapters", "--save-path", fused, "--dequantize"] if MAC else CUDA + ["fuse", repo(b), work / "adapters", fused]
         if _stream(run, fuse) != 0:
             return False
         run.status = "2/3 converting it to the format Ollama uses (GGUF)"
-        code = _stream(run, [PY, LLAMA / "convert_hf_to_gguf.py", fused, "--outfile", gguf, "--outtype", "q8_0"])
+        convert = [PY, LLAMA / "convert_hf_to_gguf.py", fused, "--outfile", gguf, "--outtype", "q8_0"]
+        code = _stream(run, convert)
+        if code != 0 and refresh_converter(run):  # most often a model family newer than our copy of the converter
+            run.status = "2/3 converting it, with the updated converter"
+            code = _stream(run, convert)
         shutil.rmtree(fused, ignore_errors=True)
         if code != 0:
             return False
         run.status = "3/3 adding it to Ollama"
-        tpl = chat_template()
-        (work / "Modelfile").write_text(f'FROM ./{gguf.name}\nTEMPLATE """{tpl}"""\nPARAMETER stop "<|im_end|>"\nPARAMETER temperature 0.7\nPARAMETER top_p 0.8\nPARAMETER top_k 20\n')
+        tpl, params = borrowed(b)
+        lines = [f"FROM ./{gguf.name}"] + ([f'TEMPLATE """{tpl}"""'] if tpl else [])
+        for key, value in params.items():
+            for v in (value if isinstance(value, list) else [value]):
+                lines.append(f"PARAMETER {key} {json.dumps(v) if isinstance(v, str) else v}")
+        (work / "Modelfile").write_text("\n".join(lines) + "\n")
         code = _stream(run, [ollama_bin(), "create", f"joshua-{name}", "-f", "Modelfile"], cwd=work)
         gguf.unlink(missing_ok=True)
         if code == 0:
