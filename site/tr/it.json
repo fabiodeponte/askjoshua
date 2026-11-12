@@ -348,5 +348,8 @@
  "For example: qwen3-vl 8b": "Per esempio: qwen3-vl 8b",
  "For example: ChatGPT, Claude, Gemini": "Per esempio: ChatGPT, Claude, Gemini",
  "The more concrete, the more useful: what you asked, what you got.": "Più è concreto, più è utile: che cosa hai chiesto, che cosa hai ottenuto.",
- "Tell us how Joshua worked for you: could it replace the AI you use now?": "Dicci come ha funzionato Joshua per te: potrebbe sostituire l'IA che usi adesso?"
+ "Tell us how Joshua worked for you: could it replace the AI you use now?": "Dicci come ha funzionato Joshua per te: potrebbe sostituire l'IA che usi adesso?",
+ "<img alt=\"J\" class=\"logo\" src=\"img/logo.svg\"/>OSHUA": "<img alt=\"J\" class=\"logo\" src=\"img/logo.svg\"/>OSHUA",
+ "Ask Joshua · your AI, on your computer": "Ask Joshua · la tua AI, sul tuo computer",
+ "Locally<br/><em>grown</em><br/>AI.": "IA a<br/><em>chilometro</em><br/>zero."
 }
