@@ -41,8 +41,8 @@ nav { display: flex; justify-content: space-between; align-items: center; gap: 1
 nav ul { list-style: none; display: flex; gap: 16px; margin: 0; padding: 0; flex-wrap: wrap; font: 1.35rem var(--display); letter-spacing: .06em; text-transform: uppercase }
 nav ul { gap: 4px 10px; font-size: 1.25rem; margin-left: -22px; clip-path: inset(-10px -10px -10px 22px) }  /* a | before every item; the ones that begin a line fall in the hidden strip on the left */
 nav li::before { content: "|"; display: inline-block; width: 12px; margin-right: 10px; text-align: center; color: var(--dim); opacity: .5 }
-nav { flex-direction: column; align-items: flex-start; gap: 10px }  /* menu and languages on top, then the logo, so the title sits right under it */
-nav ul { order: 1 } nav .langs { order: 2; margin: 0 } nav .brand { order: 3; margin-top: 36px }
+nav { flex-direction: column; align-items: flex-start; gap: 10px }  
+nav .langs { margin: 0 }
 nav { margin-bottom: -56px }
 nav a { color: var(--dim); text-decoration: none } nav a:hover { color: var(--rust) }
 @keyframes blink { 50% { opacity: 0 } }
@@ -171,11 +171,20 @@ h1.page em { font-style: normal; color: var(--rust) }
 h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
 .brand { display: inline-block; white-space: nowrap; color: var(--brand); text-shadow: none }
 .brand .logo { width: 1.9em; height: 1.9em; vertical-align: -.26em; margin: -.35em -.62em 0 -.29em }
+.masthead { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-bottom: -48px }  /* logo, claim, subtitle; the menu comes after */
+.masthead h1 { margin: 6px 0 0; font: clamp(2rem, 5vw, 3.9rem)/1 var(--display); letter-spacing: .04em; text-transform: uppercase; color: var(--ink) }
+.masthead h1 em { font-style: normal; color: var(--rust) }
+.masthead .label { font-size: .95rem }
 </style>
 
 <div class="wrap">
-  <nav>
+  <header class="masthead">
     <a class="brand" href="#top" id="top" aria-label="Joshua"><img src="img/logo.svg" alt="J" class="logo">OSHUA</a>
+    <h1>Locally <em>grown</em> AI.</h1>
+    <p class="label">Your AI, on your computer</p>
+  </header>
+
+  <nav>
     <ul>
       <li><a href="./#why">Why local</a></li>
       <li><a href="./#data">Your data</a></li>
@@ -190,8 +199,6 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
 
   <header class="hero">
     <div class="stack">
-      <span class="label">Ask Joshua · your AI, on your computer</span>
-      <h1>Locally<br><em>grown</em><br>AI.</h1>
       <p class="lede">Joshua is an assistant that runs entirely on your own computer, a Mac or a Linux PC. It searches the web, reads your files, writes code, makes pictures and learns how you like answers, without sending your life to anyone's servers.</p>
       <div class="cta">
         <a class="download" href="install.html">Download</a>

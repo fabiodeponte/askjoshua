@@ -351,5 +351,7 @@
  "Tell us how Joshua worked for you: could it replace the AI you use now?": "Dicci come ha funzionato Joshua per te: potrebbe sostituire l'IA che usi adesso?",
  "<img alt=\"J\" class=\"logo\" src=\"img/logo.svg\"/>OSHUA": "<img alt=\"J\" class=\"logo\" src=\"img/logo.svg\"/>OSHUA",
  "Ask Joshua · your AI, on your computer": "Ask Joshua · la tua AI, sul tuo computer",
- "Locally<br/><em>grown</em><br/>AI.": "IA a<br/><em>chilometro</em><br/>zero."
+ "Locally<br/><em>grown</em><br/>AI.": "IA a<br/><em>chilometro</em><br/>zero.",
+ "Locally <em>grown</em> AI.": "IA a <em>chilometro</em> zero.",
+ "Your AI, on your computer": "La tua AI, sul tuo computer"
 }

@@ -351,5 +351,7 @@
  "Tell us how Joshua worked for you: could it replace the AI you use now?": "Sag uns, wie Joshua für dich funktioniert hat: Könnte er die KI ersetzen, die du jetzt nutzt?",
  "<img alt=\"J\" class=\"logo\" src=\"img/logo.svg\"/>OSHUA": "<img alt=\"J\" class=\"logo\" src=\"img/logo.svg\"/>OSHUA",
  "Ask Joshua · your AI, on your computer": "Ask Joshua · deine KI, auf deinem Computer",
- "Locally<br/><em>grown</em><br/>AI.": "KI<br/><em>aus der</em><br/>Region."
+ "Locally<br/><em>grown</em><br/>AI.": "KI<br/><em>aus der</em><br/>Region.",
+ "Locally <em>grown</em> AI.": "KI <em>aus der</em> Region.",
+ "Your AI, on your computer": "Deine KI, auf deinem Computer"
 }

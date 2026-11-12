@@ -41,8 +41,8 @@ nav { display: flex; justify-content: space-between; align-items: center; gap: 1
 nav ul { list-style: none; display: flex; gap: 16px; margin: 0; padding: 0; flex-wrap: wrap; font: 1.35rem var(--display); letter-spacing: .06em; text-transform: uppercase }
 nav ul { gap: 4px 10px; font-size: 1.25rem; margin-left: -22px; clip-path: inset(-10px -10px -10px 22px) }  /* a | before every item; the ones that begin a line fall in the hidden strip on the left */
 nav li::before { content: "|"; display: inline-block; width: 12px; margin-right: 10px; text-align: center; color: var(--dim); opacity: .5 }
-nav { flex-direction: column; align-items: flex-start; gap: 10px }  /* menu and languages on top, then the logo, so the title sits right under it */
-nav ul { order: 1 } nav .langs { order: 2; margin: 0 } nav .brand { order: 3; margin-top: 36px }
+nav { flex-direction: column; align-items: flex-start; gap: 10px }  
+nav .langs { margin: 0 }
 nav { margin-bottom: -56px }
 nav a { color: var(--dim); text-decoration: none } nav a:hover { color: var(--rust) }
 @keyframes blink { 50% { opacity: 0 } }

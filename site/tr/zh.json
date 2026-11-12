@@ -351,5 +351,7 @@
  "Tell us how Joshua worked for you: could it replace the AI you use now?": "告诉我们 Joshua 对你来说效果如何：它能取代你现在使用的 AI 吗？",
  "<img alt=\"J\" class=\"logo\" src=\"img/logo.svg\"/>OSHUA": "<img alt=\"J\" class=\"logo\" src=\"img/logo.svg\"/>OSHUA",
  "Ask Joshua · your AI, on your computer": "Ask Joshua · 你的 AI，在你自己的电脑上",
- "Locally<br/><em>grown</em><br/>AI.": "<em>土生土长</em><br/>的 AI。"
+ "Locally<br/><em>grown</em><br/>AI.": "<em>土生土长</em><br/>的 AI。",
+ "Locally <em>grown</em> AI.": "<em>土生土长</em>的 AI。",
+ "Your AI, on your computer": "你的 AI，在你自己的电脑上"
 }
