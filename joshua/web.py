@@ -73,8 +73,9 @@ def models(add=False):
     CLOUD.update(m.model for m in listed if getattr(m, "remote_host", None) or m.model.split(":")[-1].endswith("cloud"))
     names = [n for n in (m.model for m in listed) if "tools" in caps(n)]
     label = lambda n: "☁ " + n.removesuffix(":cloud").removesuffix("-cloud") if is_cloud(n) else "★ " + n.removeprefix("joshua-").removesuffix(":latest") if n.startswith("joshua-") else n.removesuffix(":latest")
-    choices = [(label(n), n) for n in names if not (FAST in names and n in (FAST, MODEL, MODEL + ":latest"))]
-    if FAST in names and (MODEL in names or MODEL + ":latest" in names):
+    pair = FAST in names and (MODEL in names or MODEL + ":latest" in names)  # both halves of Joshua's model are here
+    choices = [(label(n), n) for n in names if not (pair and n in (FAST, MODEL, MODEL + ":latest"))]
+    if pair:
         choices.insert(0, (agent.CONFIG.get("label", "qwen3-vl"), PAIR))
     if not apple.why_not():  # macOS 26 with Apple Intelligence on: free, and already on this Mac
         choices.append((apple.LABEL, apple.NAME))
@@ -90,6 +91,7 @@ def default_model():
     local = [v for _, v in models() if not is_cloud(v)]
     if PAIR in local:  # Joshua's own model stays the starting one, wherever the alphabet puts it
         return PAIR
+    local.sort(key=lambda v: v == apple.NAME)  # Apple Intelligence only if there's nothing else here
     return (local or [models()[0][1]])[0]  # start on a local model; cloud is always a choice you make
 
 
