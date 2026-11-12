@@ -16,6 +16,7 @@ ollama.chat = lambda model, *args, **kw: (apple.chat if model == apple.NAME else
 ROOT = (pathlib.Path(__file__).parent / "conversations").resolve()
 ROOT.mkdir(exist_ok=True)
 IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+LOGO = "<g transform='translate(-4 3)'><path d='M54 44 V64 A15 15 0 0 1 24 64' stroke='#3f8a49' stroke-width='9' fill='none' stroke-linecap='round'/><path d='M54 44 C47 22 64 3 94 3 C96 28 78 49 54 44 Z' fill='#7fb86a'/><path d='M58 40 L86 11 M65 33 V20 M72 26 H84' stroke='#f3efdc' stroke-width='2.2' fill='none' stroke-linecap='round'/><circle cx='86' cy='11' r='2.8' fill='#f3efdc'/><circle cx='65' cy='20' r='2.8' fill='#f3efdc'/><circle cx='84' cy='26' r='2.8' fill='#f3efdc'/><circle cx='39' cy='64' r='8.5' fill='#2a6bb5'/><path d='M34.5 59.5 C37.5 57.5 41.5 58.5 41.5 61.5 C41.5 64.5 37.5 64.5 35.5 66.5 C33.5 64.5 32.5 61.5 34.5 59.5 Z' fill='#7fb86a'/></g>"  # the sprout J, the same drawing as the website's img/logo.svg
 ICONS = {"web_search": "🔎", "read_page": "📄", "run_python": "🐍", "read_file": "📂", "write_file": "💾", "get_datetime": "🕒", "look_at_image": "🖼️", "generate_image": "🎨", "edit_image": "🖌️", "goal_done": "✅", "give_up": "🛑", "install_package": "📦", "list_files": "🗂️", "remember": "🧠", "forget": "🧹", "read_memory": "📒"}
 SKIP = (gr.skip(),) * 4
 
@@ -1139,9 +1140,11 @@ textarea::placeholder {color: var(--dim) !important; opacity: .85}
 #screen label.selected, #textsize label.selected, #kprov label.selected {color: var(--bg) !important; background: var(--cyan) !important}
 #screen input, #textsize input, #kprov input {display: none}
 .side {padding: 12px !important}
-#brand {font-size: 3rem !important; letter-spacing: .1em; color: var(--ink); padding: 2px 4px 0; text-shadow: var(--shadow); line-height: 1}
-#brand::after {color: var(--cyan)}
-#brand::after {content: "█"; margin-left: 4px; animation: blink 1.1s steps(1) infinite}
+body {--brand: #3f8a49}  /* the logo's green; lighter on the dark screens */
+body[data-screen="black"], body[data-screen="green"], body[data-screen="amber"], body[data-screen="blue"], body[data-screen="modern-night"] {--brand: #7fb86a}
+#brand, body:not(#a):not(#b) #brand {font-family: 'VT323', monospace !important; font-size: 3.2rem !important; font-weight: 400 !important; letter-spacing: .1em; text-transform: uppercase !important; color: var(--brand) !important; padding: 26px 4px 0 18px !important; text-shadow: none; line-height: 1; white-space: nowrap}
+body:not(#a):not(#b) #brand svg {display: inline-block !important; width: 5.3rem !important; height: 5.3rem !important; max-width: none !important; vertical-align: -.73rem !important; margin: -1.96rem -1.74rem 0 -.81rem !important}  /* the logo is the J, as tall as the letters */
+#brand::after, body:not(#a):not(#b) #brand::after {content: "" !important; display: inline-block; width: .5em; height: .95em; margin-left: 6px !important; vertical-align: -.13em; background: repeating-linear-gradient(to bottom, var(--brand) 0 2px, color-mix(in srgb, var(--brand) 55%, #b8f0a0) 2px 3px); box-shadow: 0 0 6px color-mix(in srgb, var(--brand) 45%, transparent); animation: blink 1.1s steps(1) infinite !important}
 @keyframes blink {50% {opacity: 0}}
 .lights {display: flex; gap: 5px; padding: 2px 6px 10px}
 .lights span {width: 14px; height: 5px; border-radius: 1px; box-shadow: 0 0 3px currentColor; background: currentColor; opacity: .85; animation: var(--flick)}
@@ -1321,11 +1324,7 @@ body[data-screen^="modern"]:not(#a):not(#b) .message.bot :not(pre) > code, body[
 /* panels and brand */
 body[data-screen^="modern"]:not(#a):not(#b) .side, body[data-screen^="modern"]:not(#a):not(#b) #chat, body[data-screen^="modern"]:not(#a):not(#b) #tune {background: var(--panel) !important; border: 1px solid var(--line) !important; border-radius: 16px !important; box-shadow: var(--panel-shadow) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #chat {background: transparent !important; border: none !important; box-shadow: none !important}
-body[data-screen^="modern"]:not(#a):not(#b) #brand {font-family: 'Newsreader', Georgia, serif !important; font-size: 2rem !important; font-weight: 500 !important; color: var(--ink) !important; padding: 4px 6px 0 !important}
-body[data-screen^="modern"]:not(#a):not(#b) #brand::after {content: "." !important; color: var(--cyan) !important; animation: none !important; margin-left: 0 !important}
 body[data-screen^="modern"]:not(#a):not(#b) .lights {display: none !important}
-body[data-screen^="modern"]:not(#a):not(#b) #brand {text-transform: lowercase !important}
-body[data-screen^="modern"]:not(#a):not(#b) #brand::first-letter {text-transform: uppercase !important}
 body[data-screen^="modern"]:not(#a):not(#b) #chat .placeholder {display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; height: 100% !important}
 body[data-screen^="modern"]:not(#a):not(#b) .side .prose .status, body[data-screen^="modern"]:not(#a):not(#b) .status {font-size: .78rem !important; color: var(--dim) !important; padding: 2px 6px 12px !important}
 body[data-screen^="modern"]:not(#a):not(#b) .side label > span, body[data-screen^="modern"]:not(#a):not(#b) .side .label-wrap span, body[data-screen^="modern"]:not(#a):not(#b) .side button, body[data-screen^="modern"]:not(#a):not(#b) #convs label {font-size: .93rem !important; text-transform: none !important}
@@ -1444,7 +1443,6 @@ body[data-screen^="modern"]:not(#a):not(#b) #newchat, body[data-screen^="modern"
 body[data-screen^="modern"]:not(#a):not(#b) #convs label {padding: .42rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
-body[data-screen^="modern"]:not(#a):not(#b) #brand {font-size: 1.6rem !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) .side .label-wrap .icon {transform: scale(.65); opacity: .4}
@@ -1829,7 +1827,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     cid = gr.State(None)
     with gr.Row(equal_height=False):
         with gr.Column(scale=1, min_width=270, elem_classes="side", elem_id="leftcol"):
-            gr.HTML("<div id='brand'>JOSHUA</div><div class='lights'><span></span><span></span><span></span><span></span><span></span></div><div class='status'>" + t("LOCAL SYSTEM · ONLINE") + "<br>" + t("VERSION") + " " + VERSION + "</div>")
+            gr.HTML("<div id='brand' role='img' aria-label='Joshua'><svg viewBox='0 0 100 100' aria-hidden='true'>" + LOGO + "</svg>OSHUA</div><div class='lights'><span></span><span></span><span></span><span></span><span></span></div><div class='status'>" + t("LOCAL SYSTEM · ONLINE") + "<br>" + t("VERSION") + " " + VERSION + "</div>")
             updnote = gr.HTML("")
             updbtn = gr.Button("⬆  " + t("Update Joshua"), size="sm", visible=False, elem_id="updbtn")
             new = gr.Button("＋  " + t("New chat"), size="sm", elem_id="newchat")
