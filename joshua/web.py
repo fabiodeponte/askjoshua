@@ -79,14 +79,17 @@ def models(add=False):
     if not apple.why_not():  # macOS 26 with Apple Intelligence on: free, and already on this Mac
         choices.append((apple.LABEL, apple.NAME))
     # the order: on this computer, then open-weight models in the cloud, then closed ones (Claude, ChatGPT, Gemini)
-    local = [c for c in choices if not is_cloud(c[1])]
-    cloud_open = [c for c in choices if is_cloud(c[1])] + providers.menu(open_weights=True)
-    choices = local + cloud_open + providers.menu(open_weights=False)
+    abc = lambda group: sorted(group, key=lambda c: re.sub(r"^\W+", "", c[0]).lower())  # alphabetical, ignoring ☁ ★ 🔑 🍎
+    local = abc(c for c in choices if not is_cloud(c[1]))
+    cloud_open = abc([c for c in choices if is_cloud(c[1])] + providers.menu(open_weights=True))
+    choices = local + cloud_open + abc(providers.menu(open_weights=False))
     return (choices or [(FAST, FAST)]) + ([(t("＋ Add a model…"), ADD)] if add else [])
 
 
 def default_model():
     local = [v for _, v in models() if not is_cloud(v)]
+    if PAIR in local:  # Joshua's own model stays the starting one, wherever the alphabet puts it
+        return PAIR
     return (local or [models()[0][1]])[0]  # start on a local model; cloud is always a choice you make
 
 
@@ -248,11 +251,15 @@ def local_download(tag):
     if not tag:
         yield gr.skip(), "<div class='cloudstat'>" + t("Pick a model first.") + "</div>"
         return
-    done = 0
+    done, shown, last = 0, None, 0.0
     try:
         for p in ollama.pull(tag, stream=True):
             if p.total:
                 done = int(100 * (p.completed or 0) / p.total)
+            line = (done, p.status)
+            if line == shown or time.time() - last < 0.5:  # Ollama reports hundreds of times a second: sending each one froze the page
+                continue
+            shown, last = line, time.time()
             yield gr.skip(), "<div class='cloudstat'>" + t("Downloading {model}: {percent}%", model=html.escape(tag), percent=done) + f" · {html.escape(p.status or '')}</div>"
     except Exception as e:
         yield gr.skip(), "<div class='cloudstat'>" + t("The download didn't finish ({error}). Check your connection and try again.", error=html.escape(str(e))) + "</div>"
