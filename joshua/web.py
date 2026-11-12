@@ -2,7 +2,7 @@ import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, su
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, providers, tune_ui
+import agent, apple, providers, ranking, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -118,6 +118,43 @@ def ollama_bin():
     return shutil.which("ollama") or "/Applications/Ollama.app/Contents/Resources/ollama"
 
 
+def media(vision, audio=False):
+    """What a model can take in, said plainly."""
+    return t("text + images + audio") if vision and audio else t("text + images") if vision else t("text + audio") if audio else t("text only")
+
+
+def rank_table(rows, empty):
+    """A ranked list: (name, size, can read, score or None, note). Best first; the bar shows the score."""
+    if not rows:
+        return f"<div class='cloudstat'>{empty}</div>"
+    top = max([r[3] or 0 for r in rows] + [1])
+    out = ["<table class='mrank'><tr><th>" + t("Model") + "</th><th>" + t("Size") + "</th><th>" + t("Reads") + "</th><th>" + t("Capability") + "</th><th></th></tr>"]
+    for name, size, reads, score, note in rows:
+        bar = f"<span class='mbar'><i style='width:{100 * (score or 0) / top:.0f}%'></i></span> {score:g}" if score is not None else "<span class='mdim'>" + t("not rated") + "</span>"
+        out.append(f"<tr><td class='mname'>{html.escape(name)}</td><td>{html.escape(size)}</td><td>{html.escape(reads)}</td><td>{bar}</td><td class='mnote'>{note}</td></tr>")
+    return "".join(out) + "</table>"
+
+
+def installed_html():
+    """The models on this computer that Joshua can use, best first."""
+    try:
+        listed = {m.model: m for m in ollama.list().models if not is_cloud(m.model)}
+    except Exception:
+        listed = {}
+    rows = []
+    for n, m in listed.items():
+        c = caps(n)
+        if "tools" not in c:
+            continue
+        gb = (getattr(m, "size", 0) or 0) / 1e9
+        name = ("★ " + n.removeprefix("joshua-") + " · " + t("taught by you")) if n.startswith("joshua-") else n.removesuffix(":latest")
+        rows.append((name, f"{gb:.1f} GB", media("vision" in c, "audio" in c), ranking.local_score(n, gb), ""))
+    if not apple.why_not():
+        rows.append((apple.LABEL, t("built into macOS"), media(False), ranking.data().get("apple", 1), ""))
+    rows.sort(key=lambda r: -(r[3] or 0))
+    return rank_table(rows, t("No local models yet: download one below."))
+
+
 def cloud_catalog():
     """The cloud models Ollama offers today that can use tools, read from ollama.com (only model names, nothing of yours is sent)."""
     import requests
@@ -125,11 +162,16 @@ def cloud_catalog():
         names = [m["name"] for m in requests.get("https://ollama.com/api/tags", timeout=15).json()["models"]]
         info = {n: requests.post("https://ollama.com/api/show", json={"model": n}, timeout=15).json().get("capabilities", []) for n in names}
     except Exception:
-        return gr.Dropdown(choices=[]), "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com. Check your internet connection, then close and reopen this panel to try again.") + "</div>"
+        return gr.Dropdown(choices=[]), "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com. Check your internet connection, then close and reopen this panel to try again.") + "</div>", ""
     free = {"gemma4:31b"}  # free for older accounts on Ollama's legacy free plan, and among the cheapest per message (November 2026)
-    choices = [(("👁 " if "vision" in c else "") + n + (" · " + t("cheapest") if n in free else ""), n) for n, c in info.items() if "tools" in c]
-    choices.sort(key=lambda c: c[1] not in free)
-    return gr.Dropdown(choices=choices, value=None), ""
+    usable = sorted(((n, c) for n, c in info.items() if "tools" in c), key=lambda x: -(ranking.cloud_score(x[0]) or 0))
+    have = set(CLOUD)
+    added = lambda n: (n + ("-cloud" if ":" in n else ":cloud")) in have
+    choices = [(n + (" · " + t("cheapest") if n in free else "") + (" ✓" if added(n) else ""), n) for n, c in usable]
+    rows = [(n, "☁", media("vision" in c, "audio" in c), ranking.cloud_score(n), ("✓ " + t("in your menu") if added(n) else "") + (" · " + t("cheapest") if n in free else "")) for n, c in usable]
+    rows += [(providers.label(v).removeprefix("🔑 "), "☁ " + providers.company(v), media(providers.sees_images(v)), ranking.closed_score(providers.split(v)[1]), "✓ " + t("in your menu") + " · " + t("with your API key")) for _, v in providers.menu(True)]
+    rows.sort(key=lambda r: -(r[3] or 0))
+    return gr.Dropdown(choices=choices, value=None), "", rank_table(rows, "")
 
 
 def ollama_credit(key=None):
@@ -210,8 +252,8 @@ def _model_tags(name):
         size = re.search(r"([\d.]+)\s*GB", info)
         size_tag = re.fullmatch(r"(e?\d+(\.\d+)?[bm](-a\d+(\.\d+)?b)?|latest)", tag.split(":")[1])  # 8b, 0.6b, e4b, 30b-a3b: one entry per size
         if size and size_tag and "cloud" not in tag and tag not in found:
-            found[tag] = (float(size[1]), "Image" in info)
-    return [(t, gb, vision) for t, (gb, vision) in found.items()]
+            found[tag] = (float(size[1]), "Image" in info, "Audio" in info)
+    return [(t, gb, vision, audio) for t, (gb, vision, audio) in found.items()]
 
 
 def _tool_models(order, limit):
@@ -224,21 +266,22 @@ def _tool_models(order, limit):
 
 
 def local_catalog():
-    """Models on ollama.com that can use tools, in the versions that fit this computer's memory, biggest first."""
+    """Models on ollama.com that can use tools, in the versions that fit this computer's memory, most capable first."""
     try:
         names = list(dict.fromkeys(_tool_models("popular", 30) + _tool_models("newest", 12)))
         with ThreadPoolExecutor(8) as pool:
             tags = [t for ts in pool.map(lambda n: _try(_model_tags, n), names) for t in ts]
     except Exception:
-        return gr.Dropdown(choices=[]), "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com. Check your internet connection, then close and reopen this panel to try again.") + "</div>"
-    sized = {(t.split(":")[0], gb) for t, gb, _ in tags if not t.endswith(":latest")}
+        return gr.Dropdown(choices=[]), "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com. Check your internet connection, then close and reopen this panel to try again.") + "</div>", ""
+    sized = {(x[0].split(":")[0], x[1]) for x in tags if not x[0].endswith(":latest")}
     tags = [x for x in tags if not (x[0].endswith(":latest") and (x[0].split(":")[0], x[1]) in sized)]  # 'latest' is usually a copy of another size
     budget, free = memory_budget(), shutil.disk_usage(pathlib.Path.home()).free / 2**30
     have = {m.model for m in _try(lambda: ollama.list().models)}
-    fits = sorted({(gb, t, v) for t, gb, v in tags if gb * 1.2 + 2 <= budget}, reverse=True)
-    choices = [(("✓ " if t in have else "") + ("👁 " if v else "") + f"{t} · {gb:g} GB", t) for gb, t, v in fits]
-    note = t("{n} versions fit this computer ({memory} GB of memory for models, {disk} GB free disk). Biggest first; 👁 = also sees images, ✓ = already here.", n=len(choices), memory=f"{budget:.0f}", disk=f"{free:.0f}")
-    return gr.Dropdown(choices=choices, value=None), f"<div class='cloudstat'>{note}</div>"
+    fits = sorted({x for x in tags if x[1] * 1.2 + 2 <= budget}, key=lambda x: (-ranking.local_score(x[0], x[1]), x[1]))
+    choices = [(("✓ " if tg in have else "") + f"{tg} · {gb:g} GB · {media(v, a)}", tg) for tg, gb, v, a in fits]
+    rows = [(tg, f"{gb:g} GB", media(v, a), ranking.local_score(tg, gb), "✓ " + t("installed") if tg in have else "") for tg, gb, v, a in fits[:30]]
+    note = t("{n} versions fit this computer ({memory} GB of memory for models, {disk} GB free disk). Most capable first.", n=len(choices), memory=f"{budget:.0f}", disk=f"{free:.0f}")
+    return gr.Dropdown(choices=choices, value=None), f"<div class='cloudstat'>{note}</div>", rank_table(rows, "")
 
 
 def _try(f, *a):
@@ -375,7 +418,8 @@ def keys_status(provider):
         names = providers.catalog(provider)
     except Exception as e:
         return gr.Dropdown(choices=[], value=None), "<div class='cloudstat'>" + html.escape(str(e)) + " " + link + "</div>"
-    return gr.Dropdown(choices=names, value=names[0] if names else None), "<div class='cloudstat'>" + t("Key works: {n} models available.", n=len(names)) + "</div>"
+    names.sort(key=lambda n: -(ranking.closed_score(n) or 0))
+    return gr.Dropdown(choices=[(n + (f" · {ranking.closed_score(n):g}" if ranking.closed_score(n) else ""), n) for n in names], value=names[0] if names else None), "<div class='cloudstat'>" + t("Key works: {n} models available, most capable first.", n=len(names)) + "</div>"
 
 
 def keys_save(provider, key):
@@ -384,6 +428,13 @@ def keys_save(provider, key):
     providers.set_key(provider, key)
     pick, status = keys_status(provider)
     return pick, status, ""  # empty the box: the key is not shown again
+
+
+def closed_html():
+    """The Claude, ChatGPT, Gemini and DeepSeek models in your menu, best first."""
+    rows = [(providers.label(v).removeprefix("🔑 "), "☁", media(providers.sees_images(v)), ranking.closed_score(providers.split(v)[1]), "") for _, v in providers.menu(False)]
+    rows.sort(key=lambda r: -(r[3] or 0))
+    return rank_table(rows, t("None yet: add a key below, then pick a model."))
 
 
 def keys_add(provider, name):
@@ -1292,7 +1343,9 @@ body.noside #leftcol {display: none !important}
 #model input {font-size: 1.1rem !important; text-align: right; padding-right: 20px !important; color: var(--dim); cursor: pointer; text-transform: uppercase; letter-spacing: .08em}
 #model .wrap {background: transparent !important; border: none !important; box-shadow: none !important}
 #tunebtn {justify-content: flex-start; border: 1px solid var(--cyan) !important; background: color-mix(in srgb, var(--cyan) 8%, transparent) !important; color: var(--cyan) !important; font-size: 1.2rem !important; text-transform: uppercase; letter-spacing: .06em; margin-top: 6px}
+#modelsbtn {justify-content: flex-start; border: 1px solid var(--cyan) !important; background: color-mix(in srgb, var(--cyan) 8%, transparent) !important; color: var(--cyan) !important; font-size: 1.2rem !important; text-transform: uppercase; letter-spacing: .06em; margin-top: 6px}
 #tunebtn:hover {background: color-mix(in srgb, var(--cyan) 10%, transparent) !important}
+#modelsbtn:hover {background: color-mix(in srgb, var(--cyan) 10%, transparent) !important}
 #tune {background: color-mix(in srgb, var(--panel) 88%, transparent) !important; border: var(--bw) solid var(--line) !important; border-radius: 4px !important; box-shadow: var(--panel-shadow) !important; padding: 14px 18px !important; gap: 10px}
 #tunetitle {font-size: 2rem; letter-spacing: .08em; color: var(--cyan); text-shadow: var(--shadow)}
 #tuneback {border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important}
@@ -1328,15 +1381,22 @@ body.noside #leftcol {display: none !important}
 .taskp {color: var(--dim); font-size: 1rem; margin-top: 3px}
 #schedbtn {justify-content: flex-start; border: 1px solid var(--cyan) !important; background: color-mix(in srgb, var(--cyan) 8%, transparent) !important; color: var(--cyan) !important; font-size: 1.2rem !important; text-transform: uppercase; letter-spacing: .06em}
 #schedpanel {background: color-mix(in srgb, var(--panel) 88%, transparent) !important; border: var(--bw) solid var(--line) !important; border-radius: 4px !important; box-shadow: var(--panel-shadow) !important; padding: 14px 18px !important; gap: 12px}
+#modelspage {background: color-mix(in srgb, var(--panel) 88%, transparent) !important; border: var(--bw) solid var(--line) !important; border-radius: 4px !important; box-shadow: var(--panel-shadow) !important; padding: 14px 18px !important; gap: 12px}
 #schedtitle {font-size: 2rem; letter-spacing: .08em; color: var(--cyan); text-shadow: var(--shadow)}
 #schedback {border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important}
+#modelsback {border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important}
 .schedsub {font-size: 1.2rem; letter-spacing: .08em; color: var(--cyan); padding-bottom: 4px; border-bottom: 1px dashed var(--line)}
 #schedpanel .prose, #schedpanel .prose * {font-size: 1.25rem !important; line-height: 1.3 !important}
+#modelspage .prose, #modelspage .prose * {font-size: 1.25rem !important; line-height: 1.3 !important}
 #schedpanel .prose strong {color: var(--amber)}
+#modelspage .prose strong {color: var(--amber)}
 #schedel {border: 1px solid var(--red) !important; background: transparent !important; color: var(--red) !important}
 #schedpanel label span, #schedpanel [data-testid="block-info"] {font-size: 1.15rem !important}
+#modelspage label span, #modelspage [data-testid="block-info"] {font-size: 1.15rem !important}
 #schedpanel input, #schedpanel textarea {font-size: 1.2rem !important; color: var(--ink) !important}
+#modelspage input, #modelspage textarea {font-size: 1.2rem !important; color: var(--ink) !important}
 #schedpanel button {font-size: 1.15rem !important}
+#modelspage button {font-size: 1.15rem !important}
 #language {margin: 2px 0 10px !important; max-width: 220px}
 #stop, #stop * {white-space: nowrap !important}
 #chatcol:not(:has(#working .working)) #stop {display: none !important}
@@ -1354,28 +1414,47 @@ body.noside #leftcol {display: none !important}
 .cloudlinks a {color: var(--red) !important; text-decoration: underline; font-size: .95rem}
 .cloudnote {font-size: .85rem; color: var(--dim); margin-bottom: 6px}
 #schedpanel button.primary {background: var(--red) !important; color: var(--bg) !important; border: none !important; padding: 10px 28px !important}
+#modelspage button.primary {background: var(--red) !important; color: var(--bg) !important; border: none !important; padding: 10px 28px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button.primary {background: var(--ink) !important; border-radius: 10px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage button.primary {background: var(--ink) !important; border-radius: 10px !important}
 #schedpanel button:not(#schedel):not(.primary) {border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important}
+#modelspage button:not(#schedel):not(.primary) {border: 1px solid var(--cyan) !important; background: transparent !important; color: var(--cyan) !important}
 #schedpanel fieldset label {background: transparent !important; border: 1px solid var(--line) !important; color: var(--ink) !important; box-shadow: none !important}
+#modelspage fieldset label {background: transparent !important; border: 1px solid var(--line) !important; color: var(--ink) !important; box-shadow: none !important}
 #schedpanel fieldset label.selected {background: var(--cyan) !important; color: var(--bg) !important}
+#modelspage fieldset label.selected {background: var(--cyan) !important; color: var(--bg) !important}
 #schedpanel fieldset label.selected * {color: var(--bg) !important}
+#modelspage fieldset label.selected * {color: var(--bg) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel label span, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel [data-testid="block-info"] {font-size: .85rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage label span, body[data-screen^="modern"]:not(#a):not(#b) #modelspage [data-testid="block-info"] {font-size: .85rem !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel input, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel textarea, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button {font-size: .92rem !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage input, body[data-screen^="modern"]:not(#a):not(#b) #modelspage textarea, body[data-screen^="modern"]:not(#a):not(#b) #modelspage button {font-size: .92rem !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button:not(#schedel):not(.primary) {border: none !important; background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage button:not(#schedel):not(.primary) {border: none !important; background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel fieldset label {border-radius: 999px !important; border-color: var(--line) !important; padding: 4px 12px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage fieldset label {border-radius: 999px !important; border-color: var(--line) !important; padding: 4px 12px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel fieldset label.selected {background: var(--ink) !important; border-color: var(--ink) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage fieldset label.selected {background: var(--ink) !important; border-color: var(--ink) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel fieldset label.selected * {color: var(--bg) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage fieldset label.selected * {color: var(--bg) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel {background: var(--panel) !important; border: none !important; border-radius: 16px !important; box-shadow: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage {background: var(--panel) !important; border: none !important; border-radius: 16px !important; box-shadow: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedtitle {font-family: 'Newsreader', Georgia, serif !important; font-size: 1.7rem !important; color: var(--ink) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .prose, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .prose *, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .task, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .task * {font-size: .95rem !important; line-height: 1.5 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage .prose, body[data-screen^="modern"]:not(#a):not(#b) #modelspage .prose *, body[data-screen^="modern"]:not(#a):not(#b) #modelspage .task, body[data-screen^="modern"]:not(#a):not(#b) #modelspage .task * {font-size: .95rem !important; line-height: 1.5 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .prose strong {color: var(--ink) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage .prose strong {color: var(--ink) !important}
 body[data-screen^="modern"]:not(#a):not(#b) .schedsub {font-size: .78rem !important; letter-spacing: .1em !important; color: var(--dim) !important; border-bottom: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedbtn {border: none !important; background: transparent !important; text-transform: none !important; font-size: .9rem !important; border-radius: 10px !important; letter-spacing: normal !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedbtn:hover {background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedback {border-radius: 10px !important; border: none !important; background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelsback {border-radius: 10px !important; border: none !important; background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button {border-radius: 10px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage button {border-radius: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel button.primary {background: var(--cyan) !important; color: var(--panel) !important; border-color: var(--cyan) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage button.primary {background: var(--cyan) !important; color: var(--panel) !important; border-color: var(--cyan) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .block, body[data-screen^="modern"]:not(#a):not(#b) #schedpanel .form {border: none !important; box-shadow: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelspage .block, body[data-screen^="modern"]:not(#a):not(#b) #modelspage .form {border: none !important; box-shadow: none !important}
 .task span {color: var(--dim)}
 body[data-screen^="modern"]:not(#a):not(#b) #chatopts .task, body[data-screen^="modern"]:not(#a):not(#b) #chatopts .task * {font-size: .85rem !important; line-height: 1.45 !important}
 body[data-screen^="modern"]:not(#a):not(#b) .task {border-bottom: none}
@@ -1423,11 +1502,13 @@ body[data-screen^="modern"]:not(#a):not(#b) #convs label:hover {background: var(
 body[data-screen^="modern"]:not(#a):not(#b) #convs label.selected {background: var(--soft) !important; font-weight: 500 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs label.selected::before {content: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat, body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border-radius: 10px !important; text-transform: none !important; border-style: solid !important; font-size: .9rem !important; background: transparent !important}
+body[data-screen^="modern"]:not(#a):not(#b) #delchat, body[data-screen^="modern"]:not(#a):not(#b) #modelsbtn {border-radius: 10px !important; text-transform: none !important; border-style: solid !important; font-size: .9rem !important; background: transparent !important}
 body[data-screen^="modern"]:not(#a):not(#b) #fbbtn {justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #renchat {border-color: transparent !important; color: var(--dim) !important; justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important; background: transparent !important; box-shadow: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat {border-color: transparent !important; color: var(--dim) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat:hover {color: var(--red) !important; background: transparent !important}
 body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border-color: var(--line) !important; color: var(--cyan) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelsbtn {border-color: var(--line) !important; color: var(--cyan) !important}
 /* conversation: your messages in soft bubbles on the right, Joshua's as plain text */
 body[data-screen^="modern"]:not(#a):not(#b) #chat .message-row + .message-row {border-top: none !important; padding-top: 0 !important}
 body[data-screen^="modern"]:not(#a):not(#b) .message.bot {background: transparent !important; border: none !important; padding: 4px 6px !important}
@@ -1469,7 +1550,9 @@ body[data-screen^="modern"]:not(#a):not(#b) #wfiles .label-wrap, body[data-scree
 body[data-screen^="modern"]:not(#a):not(#b) #newchat {border: none !important; background: transparent !important}
 body[data-screen^="modern"]:not(#a):not(#b) #newchat:hover {background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border: none !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelsbtn {border: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #tunebtn:hover {background: var(--soft) !important}
+body[data-screen^="modern"]:not(#a):not(#b) #modelsbtn:hover {background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #screen label, body[data-screen^="modern"]:not(#a):not(#b) #textsize label, body[data-screen^="modern"]:not(#a):not(#b) #kprov label {border-color: transparent !important; background: transparent !important}
 body[data-screen^="modern"]:not(#a):not(#b) #screen label:not(.selected):hover, body[data-screen^="modern"]:not(#a):not(#b) #textsize label:not(.selected):hover, body[data-screen^="modern"]:not(#a):not(#b) #kprov label:not(.selected):hover {background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #chat .message.bot, body[data-screen^="modern"]:not(#a):not(#b) #chat .bot, body[data-screen^="modern"]:not(#a):not(#b) #chat .message-row.bot-row .message {border: none !important; box-shadow: none !important; outline: none !important}
@@ -1489,9 +1572,24 @@ main.contain > .column > .row {height: 100%; flex-wrap: nowrap !important; align
 #leftcol {flex: 0 0 290px !important; width: 290px !important; min-width: 0 !important; max-height: 100%; overflow-y: auto !important; overscroll-behavior: contain}
 #leftcol, #chatopts, #panels {flex-wrap: nowrap !important}
 #leftcol > *, #chatopts > *, #panels > * {flex-shrink: 0 !important}
-#chatcol, #tune, #schedpanel {height: 100%; min-width: 0 !important; min-height: 0}
+#chatcol, #tune, #schedpanel, #modelspage {height: 100%; min-width: 0 !important; min-height: 0}
+#chatcol, #tune, #modelspage {height: 100%; min-width: 0 !important; min-height: 0}
 #chatcol {display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important}
-#tune, #schedpanel {overflow-y: auto !important}
+#tune, #schedpanel, #modelspage {overflow-y: auto !important}
+#modelspage h2.msec {margin: 26px 0 2px; font-size: 1.5rem; color: var(--cyan); letter-spacing: .04em}
+#modelspage h3.msub2 {margin: 14px 0 4px; font-size: 1.1rem; color: var(--ink)}
+#modelspage .msub {color: var(--dim); font-size: 1rem; max-width: 70ch}
+table.mrank {width: 100%; border-collapse: collapse; font-size: .95rem; margin: 4px 0 8px}
+table.mrank th {text-align: left; font-weight: 500; color: var(--dim); border-bottom: 1px solid var(--line); padding: 4px 8px}
+table.mrank td {padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); vertical-align: middle; color: var(--ink)}
+table.mrank td.mname {font-weight: 600; word-break: break-word}
+table.mrank td.mnote, table.mrank .mdim {color: var(--dim); font-size: .85rem}
+.mbar {display: inline-block; width: 90px; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--line) 60%, transparent); vertical-align: middle; margin-right: 6px; overflow: hidden}
+.mbar i {display: block; height: 100%; background: var(--brand)}
+#modelspage table.mrank, #modelspage table.mrank th, #modelspage table.mrank td {border-left: none !important; border-right: none !important; border-top: none !important; background: transparent !important}
+#modelspage table.mrank {border: none !important; margin-bottom: 0 !important}
+
+#tune, #modelspage {overflow-y: auto !important}
 #chat {flex: 1 1 auto !important; height: auto !important; min-height: 0 !important; max-height: none !important}
 #chat > .wrapper {height: 100% !important}
 #promptrow, #modelrow {flex: 0 0 auto !important}
@@ -1522,6 +1620,7 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {padding: 14px 10px !import
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol .lights {display: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol .status {padding: 0 6px 6px !important; letter-spacing: 0 !important; text-transform: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #newchat, body[data-screen^="modern"]:not(#a):not(#b) #tunebtn, body[data-screen^="modern"]:not(#a):not(#b) #schedbtn, body[data-screen^="modern"]:not(#a):not(#b) #delchat {justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #newchat, body[data-screen^="modern"]:not(#a):not(#b) #modelsbtn, body[data-screen^="modern"]:not(#a):not(#b) #schedbtn, body[data-screen^="modern"]:not(#a):not(#b) #delchat {justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs label {padding: .42rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
@@ -1939,33 +2038,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     mem_btn = gr.Button(t("Save notes"), size="sm")
                     cloudmem = gr.Checkbox(share_memory_setting(), label=t("Share notes with cloud models"), info=t("Off: cloud models never see your memory notes (Joshua still learns, on this computer)"))
                 tune = gr.Button("🧪  " + t("Teach Joshua (fine-tune)"), size="sm", elem_id="tunebtn")
-                with gr.Accordion("☁ " + t("Cloud models"), open=False, elem_id="cloudbox") as cloud_box:
-                    gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
-                    cloud_status = gr.HTML("")
-                    connect = gr.Button(t("Connect this computer to Ollama"), size="sm")
-                    gr.HTML("<div class='cloudlinks'><a href='https://ollama.com/dashboard' target='_blank' rel='noopener'>💳 " + t("Add credit on ollama.com") + "</a>"
-                            "<a href='https://ollama.com/settings' target='_blank' rel='noopener'>" + t("See what you've used") + "</a></div>"
-                            "<div class='cloudnote'>" + t("Credit is paid to Ollama for the computing power of its servers, which run the cloud models. Joshua itself is free: none of this money goes to Joshua, and local models never need credit.") + "</div>")
-                    credit = gr.HTML("")
-                    with gr.Row():
-                        o_key = gr.Textbox(type="password", show_label=False, placeholder=t("Ollama API key, only to show your credit"), max_lines=1, scale=3)
-                        o_save = gr.Button(t("Save"), size="sm", scale=1)
-                    cloud_pick = gr.Dropdown([], label=t("Add a cloud model"), info=t("All of these can use Joshua's tools; 👁 ones can also see images"))
-                    cloud_add = gr.Button(t("Add to the model menu"), size="sm")
-                with gr.Accordion(providers.PANEL, open=False, elem_id="keysbox") as keys_box:
-                    gr.Markdown(KEYS_HELP, elem_id="keyshelp")
-                    k_provider = gr.Radio([(v["name"], k) for k, v in providers.PROVIDERS.items()], value="anthropic", show_label=False, elem_id="kprov")
-                    k_key = gr.Textbox(type="password", label=t("API key"), placeholder=t("Paste the key here"), max_lines=1)
-                    k_save = gr.Button(t("Save the key"), size="sm")
-                    k_status = gr.HTML("")
-                    k_pick = gr.Dropdown([], label=t("Add a model"))
-                    k_add = gr.Button(t("Add to the model menu"), size="sm")
-                with gr.Accordion("⬇ " + t("Local models"), open=False) as local_box:
-                    gr.Markdown(t("Models that run on this computer: private and free, as fast as your hardware allows. The list comes from ollama.com and shows only versions that fit this computer's memory."), elem_id="localhelp")
-                    local_status = gr.HTML("")
-                    local_pick = gr.Dropdown([], label=t("Download a model"))
-                    local_get = gr.Button(t("Download"), size="sm")
-                    local_upd = gr.Button(t("Update my models"), size="sm")
+                models_btn = gr.Button("🧩  " + t("Models"), size="sm", elem_id="modelsbtn")
                 with gr.Accordion("🔌 API", open=False) as api_box:
                     gr.Markdown(API_HELP, elem_id="apihelp")
                     api_info = gr.HTML("")
@@ -1983,6 +2056,42 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 textsize = gr.Radio([("90%", "0.9"), ("100%", "1"), ("110%", "1.1"), ("125%", "1.25"), ("140%", "1.4")], value="1", label=t("Text size"), elem_id="textsize")
                 language = gr.Dropdown([(t("Language: automatic"), "auto")] + [(name, code) for code, name in LANGS.items()], value=i18n.chosen() if i18n.chosen() in LANGS else "auto", label=t("Language"), elem_id="language")
         tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
+        with gr.Column(visible=False, scale=5, elem_id="modelspage") as models_panel:
+            with gr.Row():
+                gr.HTML("<div id='schedtitle'>" + t("MODELS") + "</div>")
+                models_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="modelsback")
+            gr.Markdown(t("Most capable first, in each group. The scores are rough: they come from public tests ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026), and for small models they are Joshua's estimate. A higher score means better reasoning, writing and use of tools; for everyday questions, smaller models are often enough."), elem_id="mintro")
+            gr.HTML("<h2 class='msec'>" + t("Open models · on this computer") + "</h2><div class='msub'>" + t("Private and free: nothing leaves your computer. As fast and as capable as your hardware allows.") + "</div><h3 class='msub2'>" + t("Installed") + "</h3>")
+            installed = gr.HTML("")
+            gr.HTML("<h3 class='msub2'>" + t("Available for this computer") + "</h3>")
+            local_list = gr.HTML("<div class='cloudstat'>" + t("Reading the list from ollama.com…") + "</div>")
+            local_status = gr.HTML("")
+            local_pick = gr.Dropdown([], label=t("Download a model"))
+            local_get = gr.Button(t("Download"), size="sm")
+            local_upd = gr.Button(t("Update my models"), size="sm")
+            gr.HTML("<h2 class='msec'>" + t("Open models · in the cloud") + "</h2><div class='msub'>" + t("Run on Ollama's servers: much more capable than what fits a computer, paid with Ollama credit. Open models from many makers.") + "</div>")
+            cloud_list = gr.HTML("")
+            gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
+            cloud_status = gr.HTML("")
+            connect = gr.Button(t("Connect this computer to Ollama"), size="sm")
+            gr.HTML("<div class='cloudlinks'><a href='https://ollama.com/dashboard' target='_blank' rel='noopener'>💳 " + t("Add credit on ollama.com") + "</a>"
+                    "<a href='https://ollama.com/settings' target='_blank' rel='noopener'>" + t("See what you've used") + "</a></div>"
+                    "<div class='cloudnote'>" + t("Credit is paid to Ollama for the computing power of its servers, which run the cloud models. Joshua itself is free: none of this money goes to Joshua, and local models never need credit.") + "</div>")
+            credit = gr.HTML("")
+            with gr.Row():
+                o_key = gr.Textbox(type="password", show_label=False, placeholder=t("Ollama API key, only to show your credit"), max_lines=1, scale=3)
+                o_save = gr.Button(t("Save"), size="sm", scale=1)
+            cloud_pick = gr.Dropdown([], label=t("Add a cloud model"), info=t("All of these can use Joshua's tools. Most capable first."))
+            cloud_add = gr.Button(t("Add to the model menu"), size="sm")
+            gr.HTML("<h2 class='msec'>" + t("Closed models · in the cloud") + "</h2><div class='msub'>" + t("Claude, ChatGPT, Gemini: the most capable, run by their companies, paid through your own API key.") + "</div>")
+            closed_list = gr.HTML("")
+            gr.Markdown(KEYS_HELP, elem_id="keyshelp")
+            k_provider = gr.Radio([(v["name"], k) for k, v in providers.PROVIDERS.items()], value="anthropic", show_label=False, elem_id="kprov")
+            k_key = gr.Textbox(type="password", label=t("API key"), placeholder=t("Paste the key here"), max_lines=1)
+            k_save = gr.Button(t("Save the key"), size="sm")
+            k_status = gr.HTML("")
+            k_pick = gr.Dropdown([], label=t("Add a model"))
+            k_add = gr.Button(t("Add to the model menu"), size="sm")
         with gr.Column(visible=False, scale=5, elem_id="schedpanel") as sched_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("SCHEDULED TASKS") + "</div>")
@@ -2031,24 +2140,37 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     # "＋ Add a model…" in the menu: open the two panels on the right, fill their lists, then put the menu back on the model you had
     last_model, adding = gr.State(default_model()), gr.State(False)
 
+    PAGES = [models_panel, chatcol, rightcol, sched_panel, tune_panel]
+    show_models = lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False))
+
+    def open_models(e, gate=None):
+        """The page fills in step by step: what's here first, then what ollama.com and the companies offer.
+        gate: a State that must be True for this to run (the model menu's '＋ Add a model…')."""
+        def step(f, n):
+            if gate is None:
+                return f, []
+            return (lambda a, *x: f(*x) if a else ((gr.skip(),) * n if n > 1 else gr.skip())), [gate]
+        for f, ins, outs in [(lambda: (installed_html(), closed_html(), ollama_credit()), [], [installed, closed_list, credit]),
+                             (keys_status, [k_provider], [k_pick, k_status]),
+                             (cloud_catalog, [], [cloud_pick, cloud_status, cloud_list]),
+                             (local_catalog, [], [local_pick, local_status, local_list])]:
+            fn, gates = step(f, len(outs))
+            e = e.then(fn, gates + ins, outs, show_progress="hidden")
+        return e
+
     def pick_model(choice, last):
         if choice != ADD:
-            return gr.skip(), gr.skip(), choice, False
-        gr.Info(t("Pick a model in ☁ Cloud models or ⬇ Local models, on the right."))
-        return gr.Accordion(open=True), gr.Accordion(open=True), last, True
+            return (gr.skip(),) * 5 + (choice, False)
+        return show_models() + (last, True)
 
-    scroll_js = "(c, l) => { if (c === '+add') setTimeout(() => document.getElementById('cloudbox')?.scrollIntoView({behavior: 'smooth', block: 'start'}), 300); return [c, l]; }"
-    (model.change(pick_model, [model, last_model], [cloud_box, local_box, last_model, adding], js=scroll_js)
-     .then(lambda a: cloud_catalog() if a else (gr.skip(), gr.skip()), adding, [cloud_pick, cloud_status])
-     .then(lambda a: local_catalog() if a else (gr.skip(), gr.skip()), adding, [local_pick, local_status])
-     .then(lambda a, last: (gr.Dropdown(value=last), False) if a else (gr.skip(), False), [adding, last_model], [model, adding]))
+    picked = open_models(model.change(pick_model, [model, last_model], PAGES + [last_model, adding]), gate=adding)
+    picked.then(lambda a, last: (gr.Dropdown(value=last), False) if a else (gr.skip(), False), [adding, last_model], [model, adding])  # the menu goes back to the model you had
+    open_models(models_btn.click(show_models, outputs=PAGES))
+    models_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models(True))), outputs=[models_panel, chatcol, rightcol, model])
     cloudmem.change(share_memory_setting, cloudmem)
-    cloud_box.expand(cloud_catalog, outputs=[cloud_pick, cloud_status])
-    cloud_box.expand(ollama_credit, outputs=credit)
     o_save.click(save_ollama_key, o_key, [o_key, credit])
     o_key.submit(save_ollama_key, o_key, [o_key, credit])
-    local_box.expand(local_catalog, outputs=[local_pick, local_status])
-    sched.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), gr.Dropdown(choices=models())), outputs=[sched_panel, chatcol, rightcol, tune_panel, t_model]).then(tasks_view, outputs=[task_list, t_pick, t_controls])
+    sched.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), gr.Dropdown(choices=models())), outputs=[sched_panel, chatcol, rightcol, tune_panel, t_model]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tasks_view, outputs=[task_list, t_pick, t_controls])
     sched_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Radio(choices=conv_choices())), outputs=[sched_panel, chatcol, rightcol, convs])
     t_pick.input(task_fill, t_pick, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model]).then(pause_label, t_pick, t_pause)
     t_when.change(lambda w: (gr.Textbox(visible=w == "once"), gr.Textbox(visible=w != "hours"), gr.CheckboxGroup(visible=w == "weekly"), gr.Slider(visible=w == "hours")), t_when, [t_date, t_time, t_days, t_every])
@@ -2059,16 +2181,15 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     api_box.expand(api_panel, outputs=[api_info, api_example])
     api_lan_box.input(api_lan, api_lan_box, [api_info, api_example])
     api_key_btn.click(api_new_key, outputs=[api_info, api_example])
-    local_get.click(local_download, local_pick, [model, local_status])
+    local_get.click(local_download, local_pick, [model, local_status]).then(installed_html, outputs=installed, show_progress="hidden")
     local_upd.click(local_update, outputs=local_status)
     demo.load(check_update, outputs=[updnote, updbtn])
     updbtn.click(do_update, outputs=updnote)
     connect.click(cloud_connect, outputs=cloud_status)
-    cloud_add.click(cloud_add_model, cloud_pick, [model, cloud_status])
-    keys_box.expand(keys_status, k_provider, [k_pick, k_status])
+    cloud_add.click(cloud_add_model, cloud_pick, [model, cloud_status]).then(cloud_catalog, outputs=[cloud_pick, cloud_status, cloud_list], show_progress="hidden")
     k_provider.change(keys_status, k_provider, [k_pick, k_status])
     k_save.click(keys_save, [k_provider, k_key], [k_pick, k_status, k_key])
-    k_add.click(keys_add, [k_provider, k_pick], [model, k_status])
+    k_add.click(keys_add, [k_provider, k_pick], [model, k_status]).then(lambda: (closed_html(), cloud_catalog()[2]), outputs=[closed_list, cloud_list], show_progress="hidden")
     mem_box.expand(mem_view, mem_topic, [mem_topic, mem_text])
     mem_topic.input(mem_view, mem_topic, [mem_topic, mem_text])
     mem_btn.click(mem_save, [mem_topic, mem_text], [mem_topic, mem_text],
@@ -2090,7 +2211,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     renbox.submit(rename_save, [cid, renbox], [renbox, convs])
     dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
-    tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
+    tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
     tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models(True))), outputs=[tune_panel, chatcol, rightcol, model])
     reloading = gr.State(False)
     language.input(set_language, language, reloading).then(None, reloading, None, js="(r) => { if (r) setTimeout(() => location.reload(), 8000) }")

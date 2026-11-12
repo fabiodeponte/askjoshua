@@ -1,0 +1,169 @@
+{
+ "updated": "2026-11-12",
+ "source": "Artificial Analysis Intelligence Index v5 (November 2026); for sizes and models it doesn't test, Joshua's estimate",
+ "note": "score = how capable the model is, roughly (higher is better). 'families' are local models: score at 'size' billion parameters, scaled for other sizes.",
+ "families": {
+  "qwen3.8": {
+   "score": 15,
+   "size": 27
+  },
+  "qwen3.6": {
+   "score": 12,
+   "size": 27
+  },
+  "qwen3.5": {
+   "score": 10,
+   "size": 27
+  },
+  "nemotron-3-super": {
+   "score": 12,
+   "size": 120
+  },
+  "qwen3-vl": {
+   "score": 7,
+   "size": 32
+  },
+  "qwen3-coder": {
+   "score": 6,
+   "size": 30
+  },
+  "qwen3": {
+   "score": 6,
+   "size": 32
+  },
+  "devstral-small-2": {
+   "score": 4,
+   "size": 24
+  },
+  "gemma4": {
+   "score": 4,
+   "size": 31
+  },
+  "gpt-oss": {
+   "score": 4,
+   "size": 120
+  },
+  "mistral-small3.2": {
+   "score": 3,
+   "size": 24
+  },
+  "mistral-small": {
+   "score": 3,
+   "size": 24
+  },
+  "deepseek-r1": {
+   "score": 3,
+   "size": 70
+  },
+  "glm-ocr": {
+   "score": 1,
+   "size": 1
+  },
+  "qwen2.5vl": {
+   "score": 2,
+   "size": 72
+  },
+  "qwen2.5-coder": {
+   "score": 2,
+   "size": 32
+  },
+  "qwen2.5": {
+   "score": 2,
+   "size": 72
+  },
+  "gemma3n": {
+   "score": 1,
+   "size": 4
+  },
+  "gemma3": {
+   "score": 2,
+   "size": 27
+  },
+  "llama3.3": {
+   "score": 1.5,
+   "size": 70
+  },
+  "llama3.2-vision": {
+   "score": 1,
+   "size": 90
+  },
+  "llama3.2": {
+   "score": 0.5,
+   "size": 3
+  },
+  "llama3.1": {
+   "score": 1.2,
+   "size": 70
+  },
+  "phi4": {
+   "score": 1.5,
+   "size": 14
+  },
+  "mistral-nemo": {
+   "score": 0.8,
+   "size": 12
+  },
+  "mistral": {
+   "score": 0.5,
+   "size": 7
+  },
+  "granite3.1-moe": {
+   "score": 0.4,
+   "size": 3
+  },
+  "falcon3": {
+   "score": 0.6,
+   "size": 10
+  },
+  "olmo2": {
+   "score": 0.8,
+   "size": 13
+  },
+  "smollm2": {
+   "score": 0.2,
+   "size": 1.7
+  }
+ },
+ "cloud": {
+  "kimi-k3.1-pro": 46,
+  "kimi-k3": 38,
+  "deepseek-v4.1-flash": 33,
+  "glm-5.3-flash": 28,
+  "glm-5.3": 32,
+  "kimi-k2.7-code": 30,
+  "mimo-v2.6-pro": 30,
+  "minimax-m3.1-flash": 29,
+  "mimo-v2.6-flash": 27,
+  "mistral-large-4": 26,
+  "kimi-k2.6": 25,
+  "muse-spark-open": 25,
+  "glm-5.2": 24,
+  "deepseek-v4-pro": 23,
+  "minimax-m3": 19,
+  "beam": 18,
+  "nemotron-3-super": 14,
+  "clef": 12,
+  "nemotron-3-ultra": 12,
+  "gemma4": 4,
+  "gpt-oss:120b": 4,
+  "gpt-oss:20b": 2
+ },
+ "closed": {
+  "claude-fable-5-2": 62,
+  "claude-fable-5-1": 58,
+  "gemini-4-carbon": 58,
+  "claude-opus-5-5": 57,
+  "gpt-6-astra": 55,
+  "gpt-6.1-sol": 52,
+  "claude-sonnet-5-5": 50,
+  "gemini-4-argon": 50,
+  "gpt-6.1-terra": 45,
+  "claude-haiku-5-5": 35,
+  "deepseek-v4.1-flash": 33,
+  "gemini-3.8-flash": 30,
+  "deepseek-v4-pro": 23,
+  "gpt-6-luna": 23,
+  "gemini-3.5-flash-lite": 12
+ },
+ "apple": 1
+}
