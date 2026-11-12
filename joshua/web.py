@@ -411,7 +411,7 @@ def file_list(cid):
 class Job:
     def __init__(self, view):
         self.view, self.version, self.running, self.stop = list(view), 0, True, threading.Event()
-        self.started = time.time()
+        self.started, self.ended = time.time(), None
 
     def publish(self, view):
         self.view = list(view)
@@ -419,6 +419,7 @@ class Job:
 
 
 JOBS = {}
+QUEUE = {}  # chat id -> messages sent while Joshua was still working, sent in order when it finishes
 
 
 def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
@@ -792,8 +793,16 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
         shown.append({"role": "assistant", "content": text, "metadata": {"title": "⚠️ " + t("Something went wrong"), "status": "done"}})
     finally:
         save(cid, conv)
+        job.ended = time.time()
         job.running = False
         job.publish(shown)
+    if job.stop.is_set():
+        QUEUE.pop(cid, None)  # Stop also cancels the messages waiting in line
+    elif QUEUE.get(cid):
+        try:
+            send(*QUEUE[cid].pop(0))  # the next message in line, with the settings it was sent with
+        except Exception as e:
+            print("queued message failed:", e)
     if mem and user_text and not job.stop.is_set():
         answer = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant" and m.get("content")), "")
         # memory notes are always written by a model on this computer, even after a cloud answer
@@ -812,9 +821,10 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     files = message.get("files") or []
     if not text and not files:
         return gr.skip(), *SKIP
-    if busy(cid):
-        gr.Warning(t("Joshua is still answering here. You can wait, press Stop, or start a new chat."))
-        return gr.skip(), *SKIP
+    if busy(cid):  # like Claude: the message waits in line and goes when Joshua has finished
+        QUEUE.setdefault(cid, []).append((message, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem))
+        gr.Info(t("Queued: Joshua will send it when it has finished."))
+        return gr.skip(), None, gr.skip(), gr.skip(), gr.skip()
     if model == ADD:  # the menu is still on "＋ Add a model…"
         model = default_model()
     choice, model = model, resolve(model, thinking)
@@ -868,6 +878,7 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
 
 
 def stop_chat(cid):
+    QUEUE.pop(cid, None)
     if busy(cid):
         JOBS[cid].stop.set()
 
@@ -991,8 +1002,12 @@ STEPS = {"web_search": t("searching the web"), "read_page": t("reading a web pag
 
 def status_html(cid):
     job = JOBS.get(cid)
-    if not job or not job.running:
+    if not job:
         return ""
+    if not job.running:  # finished: say so, with the time it took, until the next message
+        secs = int((job.ended or time.time()) - job.started)
+        label = "⏹ " + t("STOPPED") if job.stop.is_set() else "✓ " + t("DONE")
+        return f"<div class='done'>{label} · {secs // 60}:{secs % 60:02d}</div>"
     step, last = t("starting"), job.view[-1] if job.view else {}
     meta = last.get("metadata") or {} if isinstance(last, dict) else {}
     if meta.get("title"):
@@ -1001,7 +1016,9 @@ def status_html(cid):
     elif isinstance(last, dict) and last.get("role") == "assistant":
         step = t("writing the answer")
     secs = int(time.time() - job.started)
-    return f"<div class='working'><span class='wdot'></span>{t('JOSHUA IS WORKING')} · {html.escape(step)} · {secs // 60}:{secs % 60:02d}</div>"
+    waiting = QUEUE.get(cid) or []
+    queued = f" · <span class='queued'>{t('{n} queued', n=len(waiting))}</span>" if waiting else ""
+    return f"<div class='working'><span class='wdot'></span>{t('JOSHUA IS WORKING')} · <b class='clock'>{secs // 60}:{secs % 60:02d}</b> · {html.escape(step)}{queued}</div>"
 
 
 def machine():
@@ -1144,7 +1161,7 @@ body {--brand: #3f8a49}  /* the logo's green; lighter on the dark screens */
 body[data-screen="black"], body[data-screen="green"], body[data-screen="amber"], body[data-screen="blue"], body[data-screen="modern-night"] {--brand: #7fb86a}
 #brand, body:not(#a):not(#b) #brand {font-family: 'VT323', monospace !important; font-size: 3.2rem !important; font-weight: 400 !important; letter-spacing: .1em; text-transform: uppercase !important; color: var(--brand) !important; padding: 26px 4px 0 18px !important; text-shadow: none; line-height: 1; white-space: nowrap}
 body:not(#a):not(#b) #brand svg {display: inline-block !important; width: 5.3rem !important; height: 5.3rem !important; max-width: none !important; vertical-align: -.73rem !important; margin: -1.96rem -1.74rem 0 -.81rem !important}  /* the logo is the J, as tall as the letters */
-#brand::after, body:not(#a):not(#b) #brand::after {content: "" !important; display: inline-block; width: .5em; height: .95em; margin-left: 6px !important; vertical-align: -.13em; background: repeating-linear-gradient(to bottom, var(--brand) 0 2px, color-mix(in srgb, var(--brand) 55%, #b8f0a0) 2px 3px); box-shadow: 0 0 6px color-mix(in srgb, var(--brand) 45%, transparent); animation: blink 1.1s steps(1) infinite !important}
+#brand::after, body:not(#a):not(#b) #brand::after {content: none !important}  /* the cursor now shows when Joshua is working */
 @keyframes blink {50% {opacity: 0}}
 .lights {display: flex; gap: 5px; padding: 2px 6px 10px}
 .lights span {width: 14px; height: 5px; border-radius: 1px; box-shadow: 0 0 3px currentColor; background: currentColor; opacity: .85; animation: var(--flick)}
@@ -1202,7 +1219,11 @@ body.noside #leftcol {display: none !important}
 #working {flex: 1 1 auto !important; min-width: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 0 0 4px !important}
 #working .working {display: flex; align-items: center; gap: 8px; color: var(--cyan); font-size: 1.15rem; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
 #working .progress-text, #working .eta-bar, #working .timer, #working .meta-text, #working .meta-text-center, #working .progress-level {display: none !important}
-#working .wdot {flex: 0 0 auto; width: 9px; height: 15px; background: var(--cyan); animation: blink 1s steps(1) infinite}
+#working .wdot {flex: 0 0 auto; width: 11px; height: 19px; background: repeating-linear-gradient(to bottom, var(--brand) 0 2px, color-mix(in srgb, var(--brand) 55%, #b8f0a0) 2px 3px); box-shadow: 0 0 6px color-mix(in srgb, var(--brand) 45%, transparent); animation: blink 1.1s steps(1) infinite}  /* the logo's cursor: blinking while Joshua works */
+#working .done {display: flex; align-items: center; gap: 8px; color: var(--brand); font-size: 1.15rem; letter-spacing: .05em; white-space: nowrap}
+#working .working b.clock, #working .done {font-variant-numeric: tabular-nums}
+#working .working b.clock {display: inline; font-weight: 600; color: var(--ink)}
+#working .queued {color: var(--brand)}
 #renchat {justify-content: flex-start}
 #delchat {justify-content: flex-start; border: 1px dashed color-mix(in srgb, var(--red) 60%, transparent) !important; background: transparent !important; color: var(--red) !important; font-size: 1rem !important; margin-top: 6px}
 #delchat:hover {background: color-mix(in srgb, var(--red) 10%, transparent) !important}
@@ -1363,7 +1384,7 @@ body[data-screen^="modern"]:not(#a):not(#b) #stop {border-radius: 14px !importan
 body[data-screen^="modern"]:not(#a):not(#b) #stop:hover {color: var(--red) !important; border-color: var(--red) !important; background: transparent !important}
 body[data-screen^="modern"]:not(#a):not(#b) #model input {text-transform: none !important; letter-spacing: normal !important; font-size: .85rem !important}
 body[data-screen^="modern"]:not(#a):not(#b) #working .working {font-size: .88rem !important; color: var(--dim) !important}
-body[data-screen^="modern"]:not(#a):not(#b) #working .wdot {width: 8px !important; height: 8px !important; border-radius: 50% !important; background: var(--cyan) !important; animation: pulse 1.4s ease-in-out infinite !important}
+body[data-screen^="modern"]:not(#a):not(#b) #working .done {font-size: .88rem !important}
 @keyframes pulse {0%, 100% {opacity: .25; transform: scale(.8)} 50% {opacity: 1; transform: scale(1)}}
 /* teach panel */
 body[data-screen^="modern"]:not(#a):not(#b) #tunetitle {font-family: 'Newsreader', Georgia, serif !important; font-size: 1.7rem !important; color: var(--ink) !important; text-transform: none !important}

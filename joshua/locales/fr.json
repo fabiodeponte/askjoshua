@@ -348,5 +348,9 @@
  "Rename this chat": "Renommer cette discussion",
  "New name, then press Enter": "Nouveau nom, puis Entrée",
  "Use Claude, ChatGPT, Gemini or DeepSeek inside Joshua, with all of Joshua's tools. Your chats, files and memory stay on this computer; the conversation goes to the company's servers, like any cloud model.\n\n**You need an API key**, a password for programs, from the company's developer site. It is paid per use and separately from any chat subscription. The key is kept in providers.json on this computer, readable only by you.": "Utilisez Claude, ChatGPT, Gemini ou DeepSeek dans Joshua, avec tous les outils de Joshua. Vos discussions, fichiers et mémoire restent sur cet ordinateur ; la conversation va aux serveurs de l'entreprise, comme pour tout modèle cloud.\n\n**Il vous faut une clé API**, un mot de passe pour les programmes, depuis le site développeurs de l'entreprise. Elle se paie à l'usage, à part de tout abonnement de chat. La clé est gardée dans providers.json sur cet ordinateur, lisible par vous seul.",
- "Send feedback": "Donner votre avis"
+ "Send feedback": "Donner votre avis",
+ "Queued: Joshua will send it when it has finished.": "En attente : Joshua l'enverra dès qu'il aura fini.",
+ "DONE": "TERMINÉ",
+ "STOPPED": "ARRÊTÉ",
+ "{n} queued": "{n} en attente"
 }
