@@ -127,6 +127,40 @@ def cloud_catalog():
     return gr.Dropdown(choices=choices, value=None), ""
 
 
+def ollama_credit(key=None):
+    """The credit left on the Ollama account, read with the API key you made on ollama.com (it stays on this computer)."""
+    import requests
+    key = (key or providers.settings()["keys"].get("ollama") or "").strip()
+    if not key:
+        return "<div class='cloudstat'>" + t("To see your credit here, make an API key on [ollama.com/settings/keys](https://ollama.com/settings/keys) and paste it below.").replace("[ollama.com/settings/keys](https://ollama.com/settings/keys)", "<a href='https://ollama.com/settings/keys' target='_blank' rel='noopener'>ollama.com/settings/keys</a>") + "</div>"
+    try:
+        r = requests.get("https://ollama.com/api/balance", headers={"Authorization": f"Bearer {key}"}, timeout=15)
+    except Exception:
+        return "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com to read your credit.") + "</div>"
+    if r.status_code in (401, 403):
+        return "<div class='cloudstat'>" + t("Ollama refused this API key. Make a new one on ollama.com and paste it again.") + "</div>"
+    if not r.ok:
+        return "<div class='cloudstat'>" + t("Ollama didn't say how much credit is left (error {code}).", code=r.status_code) + "</div>"
+    data = r.json()
+    inc, bought = data.get("included") or {}, (data.get("purchased") or {}).get("balance_usd")
+    parts = []
+    if "balance_usd" in inc:
+        until = (inc.get("period") or {}).get("until", "")[:10]
+        parts.append(t("${left:.2f} of ${total:.2f} included in your plan, until {date}", left=inc["balance_usd"], total=inc.get("allowance_usd", 0), date=until))
+    for name, label in (("session", t("this session")), ("weekly", t("this week"))):  # older plans count in percent
+        if name in inc:
+            parts.append(t("{n}% left {when}", n=inc[name].get("remaining_percent", 0), when=label))
+    if bought is not None:
+        parts.append(t("${n:.2f} of credit you bought", n=bought))
+    return "<div class='cloudstat'>💳 <b>" + t("Ollama credit") + "</b><br>" + "<br>".join(html.escape(p) for p in parts) + "</div>"
+
+
+def save_ollama_key(key):
+    if key and key.strip():
+        providers.set_key("ollama", key)
+    return "", ollama_credit()
+
+
 def cloud_connect():
     """'ollama signin' links this computer to an Ollama account by registering its key; it prints a page to open."""
     import tempfile
@@ -422,13 +456,26 @@ JOBS = {}
 QUEUE = {}  # chat id -> messages sent while Joshua was still working, sent in order when it finishes
 
 
+def split_think(raw):
+    """The answer and the reasoning, when a model puts its reasoning in the text: <think>…</think> answer, or just … </think> answer."""
+    if "</think>" in raw:
+        inline, answer = raw.split("</think>", 1)
+        return answer.lstrip(), inline.replace("<think>", "").strip()
+    if raw.lstrip().startswith("<think>"):  # still reasoning
+        return "", raw.lstrip()[len("<think>"):].strip()
+    return raw, ""
+
+
 def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
     for _ in range(25):
         content, thought, calls, live = "", "", [], []
-        mode = {"model": model, "think": thinking} if "thinking" in caps(model) else {"model": model}
+        raw, reasoned = "", ""
+        mode = {"model": model, **think_mode(model, thinking)}
         for chunk in ollama.chat(**mode, messages=msgs, tools=list(toolset.values()), stream=True, options={"num_ctx": 16384}):
-            thought += chunk.message.thinking or ""
-            content += chunk.message.content or ""
+            reasoned += chunk.message.thinking or ""
+            raw += chunk.message.content or ""
+            content, inline = split_think(raw)  # some models (glm) write their reasoning in the text, ending it with </think>
+            thought = reasoned + ("\n\n" if reasoned and inline else "") + inline
             calls += chunk.message.tool_calls or []
             live = [{"role": "assistant", "content": thought, "metadata": {"title": "💭 " + t("Thinking"), "status": "done" if content or calls else "pending"}}] if thought else []
             live += [{"role": "assistant", "content": content}] if content else []
@@ -499,10 +546,16 @@ def fast_of(model):
     return FAST if model == MODEL else model
 
 
+def think_mode(model, thinking):
+    """How to ask for deep thinking. Cloud models are never told think=False: some (glm) then write their reasoning into the answer."""
+    if "thinking" not in caps(model) or (not thinking and is_cloud(model)):
+        return {}
+    return {"think": bool(thinking)}
+
+
 def ask_json(model, prompt, schema):
-    think = {"think": False} if "thinking" in caps(model) else {}
-    r = ollama.chat(model, messages=[{"role": "user", "content": prompt}], format=schema, options={"temperature": 0, "num_ctx": 16384}, **think)
-    return json.loads(r.message.content)
+    r = ollama.chat(model, messages=[{"role": "user", "content": prompt}], format=schema, options={"temperature": 0, "num_ctx": 16384}, **think_mode(model, False))
+    return json.loads(split_think(r.message.content)[0])
 
 
 def relevant(text, words, limit=2500):
@@ -636,7 +689,7 @@ def swarm_agent(k, n, model, thinking, base, box, answers, stop, work, net, time
     msgs = base
     msgs[0] = {"role": "system", "content": msgs[0]["content"] + f" You are agent {k + 1} of {n} in a team answering the same request independently; a reviewer will compare your answers. {STYLES[k % len(STYLES)]} Back every fact with a tool result and say where it comes from. Only create files if the user asked for them. End with your complete answer, addressed to the user."}
     opts = {"num_ctx": 16384, "temperature": TEMPS[k % len(TEMPS)]}
-    think = {"think": thinking} if "thinking" in caps(model) else {}
+    think = think_mode(model, thinking)
     log = []
     try:
         for _ in range(15):
@@ -709,9 +762,8 @@ def extract_memory(model, user, answer):
     try:
         notes = "\n\n".join(f"## {t}\n{agent.read_memory(t)}" for t in agent.memory_topics()) or "(empty)"
         prompt = EXTRACT.format(notes=notes[:6000], user=user[:3000], answer=answer[:2000])
-        think = {"think": False} if "thinking" in caps(model) else {}
-        r = ollama.chat(model, messages=[{"role": "user", "content": prompt}], format="json", options={"temperature": 0}, **think)
-        for item in json.loads(r.message.content).get("save", [])[:5]:
+        r = ollama.chat(model, messages=[{"role": "user", "content": prompt}], format="json", options={"temperature": 0}, **think_mode(model, False))
+        for item in json.loads(split_think(r.message.content)[0]).get("save", [])[:5]:
             if isinstance(item, dict) and str(item.get("fact", "")).strip():
                 agent.remember(str(item["fact"]), str(item.get("topic") or "profile"))
     except Exception:
@@ -1885,6 +1937,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     gr.HTML("<div class='cloudlinks'><a href='https://ollama.com/dashboard' target='_blank' rel='noopener'>💳 " + t("Add credit on ollama.com") + "</a>"
                             "<a href='https://ollama.com/settings' target='_blank' rel='noopener'>" + t("See what you've used") + "</a></div>"
                             "<div class='cloudnote'>" + t("Credit is paid to Ollama for the computing power of its servers, which run the cloud models. Joshua itself is free: none of this money goes to Joshua, and local models never need credit.") + "</div>")
+                    credit = gr.HTML("")
+                    with gr.Row():
+                        o_key = gr.Textbox(type="password", show_label=False, placeholder=t("Ollama API key, only to show your credit"), max_lines=1, scale=3)
+                        o_save = gr.Button(t("Save"), size="sm", scale=1)
                     cloud_pick = gr.Dropdown([], label=t("Add a cloud model"), info=t("All of these can use Joshua's tools; 👁 ones can also see images"))
                     cloud_add = gr.Button(t("Add to the model menu"), size="sm")
                 with gr.Accordion(providers.PANEL, open=False, elem_id="keysbox") as keys_box:
@@ -1979,6 +2035,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
      .then(lambda a, last: (gr.Dropdown(value=last), False) if a else (gr.skip(), False), [adding, last_model], [model, adding]))
     cloudmem.change(share_memory_setting, cloudmem)
     cloud_box.expand(cloud_catalog, outputs=[cloud_pick, cloud_status])
+    cloud_box.expand(ollama_credit, outputs=credit)
+    o_save.click(save_ollama_key, o_key, [o_key, credit])
+    o_key.submit(save_ollama_key, o_key, [o_key, credit])
     local_box.expand(local_catalog, outputs=[local_pick, local_status])
     sched.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), gr.Dropdown(choices=models())), outputs=[sched_panel, chatcol, rightcol, tune_panel, t_model]).then(tasks_view, outputs=[task_list, t_pick, t_controls])
     sched_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Radio(choices=conv_choices())), outputs=[sched_panel, chatcol, rightcol, convs])
@@ -2036,6 +2095,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
               if (k in M && M[k] !== k) n.nodeValue = n.nodeValue.replace(k, M[k]); } };
           fix(document.body); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(x => x.nodeType === 1 ? fix(x) : x.nodeType === 3 && fix(x.parentNode || document.body)))).observe(document.body, {childList: true, subtree: true}); }""")
     screen.change(None, screen, None, js="(v) => { document.body.dataset.screen = v; try { localStorage.setItem('joshua-screen2', v) } catch (e) {} }")
+    demo.load(None, None, None, js="""() => { document.addEventListener('copy', (e) => {  // text selected in the chat is copied without the extra blank lines and spaces around it
+        const s = getSelection(); if (!s.rangeCount || !s.anchorNode || !s.anchorNode.parentElement || !s.anchorNode.parentElement.closest('#chat')) return;
+        e.clipboardData.setData('text/plain', s.toString().replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim()); e.preventDefault(); }) }""")
     demo.load(None, None, screen, js="() => { let v = 'modern'; try { v = localStorage.getItem('joshua-screen2') || 'modern' } catch (e) {} document.body.dataset.screen = v; return v }")
     textsize.change(None, textsize, None, js="(v) => { document.documentElement.style.fontSize = (16 * v) + 'px'; try { localStorage.setItem('joshua-zoom', v) } catch (e) {} }")
     demo.load(None, None, textsize, js="() => { let v = '1'; try { v = localStorage.getItem('joshua-zoom') || '1' } catch (e) {} document.documentElement.style.fontSize = (16 * v) + 'px'; return v }")

@@ -352,5 +352,17 @@
  "Queued: Joshua will send it when it has finished.": "In der Warteschlange: Joshua sendet es, sobald es fertig ist.",
  "DONE": "FERTIG",
  "STOPPED": "GESTOPPT",
- "{n} queued": "{n} in der Warteschlange"
+ "{n} queued": "{n} in der Warteschlange",
+ "To see your credit here, make an API key on [ollama.com/settings/keys](https://ollama.com/settings/keys) and paste it below.": "Um dein Guthaben hier zu sehen, erstelle einen API-Schlüssel auf [ollama.com/settings/keys](https://ollama.com/settings/keys) und füge ihn unten ein.",
+ "Joshua couldn't reach ollama.com to read your credit.": "Joshua konnte ollama.com nicht erreichen, um dein Guthaben zu lesen.",
+ "Ollama refused this API key. Make a new one on ollama.com and paste it again.": "Ollama hat diesen API-Schlüssel abgelehnt. Erstelle einen neuen auf ollama.com und füge ihn erneut ein.",
+ "Ollama didn't say how much credit is left (error {code}).": "Ollama hat nicht gesagt, wie viel Guthaben übrig ist (Fehler {code}).",
+ "${left:.2f} of ${total:.2f} included in your plan, until {date}": "${left:.2f} von ${total:.2f} in deinem Tarif enthalten, bis {date}",
+ "this session": "in dieser Sitzung",
+ "this week": "diese Woche",
+ "{n}% left {when}": "{n} % übrig {when}",
+ "${n:.2f} of credit you bought": "${n:.2f} gekauftes Guthaben",
+ "Ollama credit": "Ollama-Guthaben",
+ "Ollama API key, only to show your credit": "Ollama-API-Schlüssel, nur um dein Guthaben anzuzeigen",
+ "Save": "Speichern"
 }

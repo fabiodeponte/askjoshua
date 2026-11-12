@@ -352,5 +352,17 @@
  "Queued: Joshua will send it when it has finished.": "In coda: Joshua lo invierà appena ha finito.",
  "DONE": "FATTO",
  "STOPPED": "FERMATO",
- "{n} queued": "{n} in coda"
+ "{n} queued": "{n} in coda",
+ "To see your credit here, make an API key on [ollama.com/settings/keys](https://ollama.com/settings/keys) and paste it below.": "Per vedere qui il tuo credito, crea una chiave API su [ollama.com/settings/keys](https://ollama.com/settings/keys) e incollala qui sotto.",
+ "Joshua couldn't reach ollama.com to read your credit.": "Joshua non è riuscito a raggiungere ollama.com per leggere il tuo credito.",
+ "Ollama refused this API key. Make a new one on ollama.com and paste it again.": "Ollama ha rifiutato questa chiave API. Creane una nuova su ollama.com e incollala di nuovo.",
+ "Ollama didn't say how much credit is left (error {code}).": "Ollama non ha detto quanto credito resta (errore {code}).",
+ "${left:.2f} of ${total:.2f} included in your plan, until {date}": "${left:.2f} su ${total:.2f} inclusi nel tuo piano, fino al {date}",
+ "this session": "in questa sessione",
+ "this week": "questa settimana",
+ "{n}% left {when}": "{n}% rimasto {when}",
+ "${n:.2f} of credit you bought": "${n:.2f} di credito acquistato",
+ "Ollama credit": "Credito Ollama",
+ "Ollama API key, only to show your credit": "Chiave API di Ollama, solo per mostrare il credito",
+ "Save": "Salva"
 }

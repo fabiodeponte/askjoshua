@@ -352,5 +352,17 @@
  "Queued: Joshua will send it when it has finished.": "已排队：Joshua 完成后会发送。",
  "DONE": "完成",
  "STOPPED": "已停止",
- "{n} queued": "{n} 条排队中"
+ "{n} queued": "{n} 条排队中",
+ "To see your credit here, make an API key on [ollama.com/settings/keys](https://ollama.com/settings/keys) and paste it below.": "要在这里查看余额，请在 [ollama.com/settings/keys](https://ollama.com/settings/keys) 创建一个 API 密钥并粘贴到下方。",
+ "Joshua couldn't reach ollama.com to read your credit.": "Joshua 无法连接 ollama.com 读取你的余额。",
+ "Ollama refused this API key. Make a new one on ollama.com and paste it again.": "Ollama 拒绝了这个 API 密钥。请在 ollama.com 新建一个并重新粘贴。",
+ "Ollama didn't say how much credit is left (error {code}).": "Ollama 没有返回剩余余额（错误 {code}）。",
+ "${left:.2f} of ${total:.2f} included in your plan, until {date}": "套餐内含 ${total:.2f}，剩余 ${left:.2f}，截至 {date}",
+ "this session": "本次会话",
+ "this week": "本周",
+ "{n}% left {when}": "{when}剩余 {n}%",
+ "${n:.2f} of credit you bought": "已购余额 ${n:.2f}",
+ "Ollama credit": "Ollama 余额",
+ "Ollama API key, only to show your credit": "Ollama API 密钥，仅用于显示余额",
+ "Save": "保存"
 }
