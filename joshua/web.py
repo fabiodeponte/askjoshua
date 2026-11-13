@@ -1670,6 +1670,7 @@ main.contain > .column > .row {height: 100%; flex-wrap: nowrap !important; align
 #chatcol, #tune, #schedpanel, #modelspage {height: 100%; min-width: 0 !important; min-height: 0}
 #chatcol, #tune, #modelspage {height: 100%; min-width: 0 !important; min-height: 0}
 #chatcol {display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important}
+#chatcol textarea {min-height: calc(1lh + 8px) !important}  /* Gradio measures the box by shrinking it to 1px for an instant: in Safari the chat jumps; this keeps it from shrinking */
 #tune, #schedpanel, #modelspage {overflow-y: auto !important}
 #modelspage {flex-wrap: nowrap !important}  /* a tall column must scroll, not wrap into new columns to the right */
 #modelspage > * {flex-shrink: 0 !important}
