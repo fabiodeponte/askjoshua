@@ -2340,6 +2340,34 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     PAGES = [models_panel, chatcol, rightcol, sched_panel, tune_panel]
     show_models = lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False))
 
+    SHOWN = [installed, closed_list, credit, cloud_status, cloud_list, local_status, local_list]  # what the page showed last time, kept in cache/models.json
+    MCACHE = pathlib.Path(__file__).parent / "cache" / "models.json"
+
+    def last_shown():
+        try:
+            old = json.loads(MCACHE.read_text())
+            return tuple(old.get(str(i), gr.skip()) for i in range(len(SHOWN)))
+        except Exception:
+            return (gr.skip(),) * len(SHOWN)
+
+    def keep(f, outs):
+        """Run a step of the page and remember what it showed, for next time."""
+        def run(*a):
+            got = f(*a)
+            vals = got if isinstance(got, tuple) else (got,)
+            try:
+                old = json.loads(MCACHE.read_text()) if MCACHE.exists() else {}
+                for o, v in zip(outs, vals):
+                    i = next((i for i, c in enumerate(SHOWN) if c is o), None)
+                    if i is not None and isinstance(v, str):
+                        old[str(i)] = v
+                MCACHE.parent.mkdir(exist_ok=True)
+                MCACHE.write_text(json.dumps(old, ensure_ascii=False))
+            except Exception:
+                pass
+            return got
+        return run
+
     def open_models(e, gate=None):
         """The page fills in step by step: what's here first, then what ollama.com and the companies offer.
         gate: a State that must be True for this to run (the model menu's '＋ Add a model…')."""
@@ -2347,10 +2375,12 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             if gate is None:
                 return f, []
             return (lambda a, *x: f(*x) if a else ((gr.skip(),) * n if n > 1 else gr.skip())), [gate]
-        for f, ins, outs in [(lambda: (installed_html(), closed_html(), ollama_credit()), [], [installed, closed_list, credit]),
+        # first what the page showed last time, at once; then each part is brought up to date
+        for f, ins, outs in [(last_shown, [], SHOWN),
+                             (keep(lambda: (installed_html(), closed_html(), ollama_credit()), [installed, closed_list, credit]), [], [installed, closed_list, credit]),
                              (keys_status, [k_provider], [k_pick, k_status]),
-                             (cloud_catalog, [], [cloud_status, cloud_list]),
-                             (local_catalog, [], [local_status, local_list])]:
+                             (keep(cloud_catalog, [cloud_status, cloud_list]), [], [cloud_status, cloud_list]),
+                             (keep(local_catalog, [local_status, local_list]), [], [local_status, local_list])]:
             fn, gates = step(f, len(outs))
             e = e.then(fn, gates + ins, outs, show_progress="hidden")
         return e
