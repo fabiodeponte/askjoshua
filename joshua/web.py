@@ -125,7 +125,8 @@ def media(vision, audio=False):
 
 def act_button(action, tag, label):
     """A button in a table row; the page script hands its action to row_action."""
-    return f"<button class='mact' data-act='{html.escape(action + ':' + tag, quote=True)}'>{html.escape(label)}</button>"
+    act = html.escape(action + ":" + tag, quote=True)
+    return f"<span class='mslot' data-slot='{act}'><button class='mact' data-act='{act}'>{html.escape(label)}</button></span>"
 
 
 def rank_table(rows, empty):
@@ -173,7 +174,6 @@ def cloud_catalog():
     have = set(CLOUD)
     added = lambda n: (n + ("-cloud" if ":" in n else ":cloud")) in have
     rows = [(n, "☁", media("vision" in c, "audio" in c), ranking.cloud_score(n), ("✓ " + t("in your menu") if added(n) else act_button("add", n, t("Add"))) + (" · " + t("cheapest") if n in free else "")) for n, c in usable]
-    rows += [(providers.label(v).removeprefix("🔑 "), "☁ " + providers.company(v), media(providers.sees_images(v)), ranking.closed_score(providers.split(v)[1]), "✓ " + t("in your menu") + " · " + t("with your API key")) for _, v in providers.menu(True)]
     rows.sort(key=lambda r: -(r[3] or 0))
     return "", rank_table(rows, "")
 
@@ -326,7 +326,8 @@ def local_download(tag):
             if line == shown or time.time() - last < 0.5:  # Ollama reports hundreds of times a second: sending each one froze the page
                 continue
             shown, last = line, time.time()
-            yield gr.skip(), "<div class='cloudstat'>" + t("Downloading {model}: {percent}%", model=html.escape(tag), percent=done) + f" · {html.escape(p.status or '')}</div>"
+            # the page script draws this as a progress bar in the model's own row
+            yield gr.skip(), f"<span class='dlp' data-slot='{html.escape('dl:' + tag, quote=True)}' data-pct='{done}' data-label='{html.escape(t('Downloading {model}: {percent}%', model=tag, percent=done), quote=True)}'></span>"
     except Exception as e:
         yield gr.skip(), "<div class='cloudstat'>" + t("The download didn't finish ({error}). Check your connection and try again.", error=html.escape(str(e))) + "</div>"
         return
@@ -476,6 +477,34 @@ def share_memory_setting(value=None):
     return data.get("share_with_cloud", False)
 
 
+def _settings(key, default, value=None):
+    """A setting kept in memory/settings.json."""
+    f = agent.MEM / "settings.json"
+    data = json.loads(f.read_text()) if f.exists() else {}
+    if value is not None:
+        data[key] = value
+        f.write_text(json.dumps(data))
+    return data.get(key, default)
+
+
+def learn_setting(value=None):
+    """Whether Joshua adds memory notes from your chats by itself."""
+    return _settings("learn", True, None if value is None else bool(value))
+
+
+def tools_off(value=None):
+    """The tools you switched off in Settings."""
+    return _settings("tools_off", [], value)
+
+
+TOOL_GROUPS = {"web_search": ("🔎 " + t("Web search"), ["web_search"]), "read_page": ("📄 " + t("Read web pages"), ["read_page"]),
+               "run_python": ("🐍 " + t("Run Python (sandboxed)"), ["run_python"]), "install_package": ("📦 " + t("Install packages"), ["install_package"]),
+               "list_files": ("🗂️ " + t("Browse folders"), ["list_files"]), "files": ("📂 " + t("Read & 💾 write files (text, Word, PDF)"), ["read_file", "write_file"]),
+               "get_datetime": ("🕒 " + t("Date and time"), ["get_datetime"]), "look_at_image": ("🖼️ " + t("Look at images"), ["look_at_image"]),
+               **({"generate_image": ("🎨 " + t("Generate images"), ["generate_image"]), "edit_image": ("🖌️ " + t("Edit your photos"), ["edit_image"])} if "edit_image" in tools else {}),
+               "memory": ("🧠 " + t("Remember & forget"), sorted(agent.MEMORY_TOOLS))}
+
+
 def resolve(choice, thinking):
     if choice == PAIR:
         return MODEL if thinking else FAST
@@ -512,7 +541,32 @@ def new_conv():
 
 def conv_choices():
     convs = [(load(p.name), p.name) for p in ROOT.iterdir() if (p / "chat.json").exists()]
-    return [(("⏳ " if busy(cid) else "") + (c["title"] or t("New chat")), cid) for c, cid in sorted(convs, key=lambda x: -x[0]["updated"])]
+    order = sorted(convs, key=lambda x: (not x[0].get("pinned"), -x[0]["updated"]))  # pinned chats first, then the most recent
+    return [(("⏳ " if busy(cid) else "") + ("📌 " if c.get("pinned") else "") + (c["title"] or t("New chat")), cid) for c, cid in order]
+
+
+OPTS = ("thinking", "goal", "swarm", "offline")
+
+
+def chat_opts(cid):
+    """This chat's own settings: deep thinking, goal mode, swarm, no internet."""
+    o = load(cid).get("opts", {}) if cid else {}
+    return tuple(gr.Checkbox(value=bool(o.get(k))) for k in OPTS)
+
+
+def save_opts(cid, *values):
+    if cid and (ROOT / cid).exists():
+        conv = load(cid)
+        conv["opts"] = dict(zip(OPTS, map(bool, values)))
+        (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))  # not save(): a setting doesn't move the chat to the top
+
+
+def toggle_pin(cid):
+    if cid and (ROOT / cid).exists():
+        conv = load(cid)
+        conv["pinned"] = not conv.get("pinned")
+        (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))
+    return gr.Radio(choices=conv_choices(), value=cid)
 
 
 def file_list(cid):
@@ -836,7 +890,7 @@ ASSISTANT: {answer}
 
 Does the USER message reveal lasting facts worth knowing in future chats: who they are, their work, ongoing projects, stable preferences about how they want answers? Rules: save only what the user explicitly stated, never guesses or things the assistant said; skip anything temporary, trivial, or already in the notes; never save passwords, ID or card numbers, or health details. Most exchanges contain nothing to save.
 
-Reply with JSON only, like {{"save": [{{"topic": "profile", "fact": "Works as a journalist"}}]}}. Use topic "profile" for personal facts and preferences, or a short lowercase topic name for a specific project. Reply {{"save": []}} if there is nothing to save."""
+Reply with JSON only, like {{"save": [{{"topic": "profile", "fact": "<one short fact, in the user's language>"}}]}}. Use topic "profile" for personal facts and preferences, or a short lowercase topic name for a specific project. Reply {{"save": []}} if there is nothing to save."""
 
 
 def extract_memory(model, user, answer):
@@ -856,13 +910,14 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     agent.set_workspace(conv.get("project") or fdir(cid), net, int(timeout), conv.get("region", "wt-wt"))
     agent.CTX.vision = model if "vision" in caps(model) else FAST
     shown, msgs = conv["display"], conv["llm"]
-    base = {k: v for k, v in tools.items() if (mem and not private or k not in agent.MEMORY_TOOLS) and not (offline and k in ("web_search", "read_page"))}
+    off = {n for g in tools_off() for n in TOOL_GROUPS.get(g, ("", []))[1]}
+    base = {k: v for k, v in tools.items() if k not in off and (mem and not private or k not in agent.MEMORY_TOOLS) and not (offline and k in ("web_search", "read_page"))}
     toolset = dict(base, goal_done=goal_done, give_up=give_up) if goal else base
     rounds = 0 if swarm else int(rounds) if goal else 1
     language = agent.LANGUAGES.get(conv.get("lang"))
     evidence = None
     try:
-        if not offline and user_text:
+        if not offline and user_text and "web_search" not in off:
             box = {"role": "assistant", "content": "", "metadata": {"title": "🔎 " + t("Looking online…"), "status": "pending"}}
 
             def show():  # the box appears only once Joshua has decided to search
@@ -936,7 +991,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
             send(*QUEUE[cid].pop(0))  # the next message in line, with the settings it was sent with
         except Exception as e:
             print("queued message failed:", e)
-    if mem and user_text and not job.stop.is_set():
+    if mem and learn_setting() and user_text and not job.stop.is_set():
         answer = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant" and m.get("content")), "")
         # memory notes are always written by a model on this computer, even after a cloud answer
         local = FAST if is_cloud(model) else resolve(conv.get("model") or model, False) if conv.get("model") == PAIR else model
@@ -970,6 +1025,7 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     cid = cid or new_conv()
     conv = load(cid)
     conv["model"] = choice
+    conv["opts"] = dict(zip(OPTS, map(bool, (thinking, goal, swarm, offline))))
     if cloud and conv.get("cloud_notice") != model:  # say it once in the chat, each time a new cloud model is picked
         conv["cloud_notice"] = model
         where = (t("From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model, company=providers.company(model))
@@ -1027,11 +1083,11 @@ def open_conv(cid):
     conv = load(cid)
     view = JOBS[cid].view if busy(cid) else conv["display"]
     used = conv.get("model")
-    return view, cid, files_label(cid), conv.get("project", ""), used if used in [v for _, v in models()] else gr.skip()
+    return (view, cid, files_label(cid), conv.get("project", ""), used if used in [v for _, v in models()] else gr.skip()) + chat_opts(cid)
 
 
 def new_chat():
-    return [], None, gr.Radio(choices=conv_choices(), value=None), files_label(None), ""
+    return [], None, gr.Radio(choices=conv_choices(), value=None), files_label(None), "", *chat_opts(None)
 
 
 def set_project(path, cid):
@@ -1314,6 +1370,19 @@ body:not(#a):not(#b) #brand svg {display: inline-block !important; width: 5.3rem
 #convs label.selected {background: color-mix(in srgb, var(--cyan) 18%, transparent); color: var(--ink)}
 #convs label.selected::before {content: "> "; color: var(--amber)}
 #convs input {display: none}
+#convs label {position: relative; padding-right: 30px !important}
+#convs .cmore {position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 0 6px; border-radius: 6px; opacity: 0; color: var(--dim); font-weight: 700; line-height: 1.4}
+#convs label:hover .cmore, #convs label.selected .cmore {opacity: 1}
+#convs .cmore:hover {background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink)}
+button.cmore.cur {background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; color: var(--ink); cursor: pointer; font: inherit; font-size: .9rem; width: 100%; text-align: left}
+#renchat, #delchat {display: none !important}
+#thischat .opt:not(:has(input:checked)) {display: none !important}  /* the menu sets them; only the ones that are on show here */
+#cmenu {position: fixed; z-index: 1000; min-width: 210px; padding: 6px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); display: flex; flex-direction: column}
+#cmenu button {all: unset; padding: 7px 10px; border-radius: 6px; cursor: pointer; color: var(--ink); font-size: .92rem}
+#cmenu button:hover {background: color-mix(in srgb, var(--cyan) 14%, transparent)}
+#cmenu button b {color: var(--brand); float: right}
+#cmenu button.danger {color: var(--red)}
+#cmenu hr {border: none; border-top: 1px solid var(--line); margin: 4px 2px}
 #convs, #convs * {outline: none !important}
 #convs label.selected, #convs label:focus-within {border: none !important; box-shadow: none !important; outline: none !important}
 /* chat: computer in cyan, you in amber */
@@ -1599,7 +1668,20 @@ main.contain > .column > .row {height: 100%; flex-wrap: nowrap !important; align
 #tune, #schedpanel, #modelspage {overflow-y: auto !important}
 #modelspage {flex-wrap: nowrap !important}  /* a tall column must scroll, not wrap into new columns to the right */
 #modelspage > * {flex-shrink: 0 !important}
-#modelspage h2.msec {margin: 26px 0 2px; font-size: 1.5rem; color: var(--cyan); letter-spacing: .04em}
+#modelspage h2.msec {margin: 0; font-size: 1.5rem; color: var(--cyan); letter-spacing: .04em}
+#modelspage .mzone {border-radius: 14px !important; padding: 18px 20px 14px !important; margin: 14px 0 6px !important; border: none !important; flex-wrap: nowrap !important}
+#modelspage .mzone > * {flex-shrink: 0 !important}
+#modelspage .mz1 {background: color-mix(in srgb, #3f8a49 9%, var(--bg)) !important}
+#modelspage .mz2 {background: color-mix(in srgb, #2a6bb5 9%, var(--bg)) !important}
+#modelspage .mz3 {background: color-mix(in srgb, #9c6b3c 10%, var(--bg)) !important}
+#modelspage .mzone .block, #modelspage .mzone .form, #modelspage .mzone .html-container {background: transparent !important; border: none !important; box-shadow: none !important}
+#modelspage .mzhead {display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap}
+#modelspage .mzscale {color: var(--dim); font-size: .9rem}
+body:not(#a):not(#b) #modelspage .mzhead h2.msec, body:not(#a):not(#b) #setpage h2.msec {font-size: 1.55rem !important; line-height: 1.2 !important; font-weight: 600 !important}
+body:not(#a):not(#b) #modelspage .mzone, body:not(#a):not(#b) #setpage .mzone {gap: 6px !important}
+body:not(#a):not(#b) table.mrank tr {border: none !important}
+#modelspage .mzscale::before {content: "↓ "}
+.mslot .mbar.dl {width: 110px}
 #modelspage h3.msub2 {margin: 14px 0 4px; font-size: 1.1rem; color: var(--ink)}
 #modelspage .msub {color: var(--dim); font-size: 1rem; max-width: 70ch}
 #ftbase .wrap:not(.default), #ftbase input {background: var(--panel) !important; color: var(--ink) !important}
@@ -2029,6 +2111,9 @@ def css_text(text):
 
 
 CSS = CSS.replace("@@WHAT_HELP@@", css_text(t("Hello. What would you like to do today?"))).replace("@@ASK_HINT@@", css_text(t("Everything you write here is stored only on this computer."))).replace("@@MODEL@@", css_text(t("Model:")))
+CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
+CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
+CSS += "\n#modelspage .mz0, #setpage .mz0 {background: color-mix(in srgb, var(--ink) 4%, var(--bg)) !important}"
 JS_TEXT = lambda text: json.dumps(text, ensure_ascii=False).replace("'", "\\'")  # a text inside the js="..." handlers below
 
 
@@ -2040,15 +2125,20 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             updnote = gr.HTML("")
             updbtn = gr.Button("⬆  " + t("Update Joshua"), size="sm", visible=False, elem_id="updbtn")
             new = gr.Button("＋  " + t("New chat"), size="sm", elem_id="newchat")
+            mact = gr.Textbox(elem_classes="mhidden", show_label=False, container=False)  # the hidden link between buttons drawn in HTML (tables, chat menus) and Python
+            mact_go = gr.Button(elem_id="mactgo", elem_classes="mhidden")
+            pin_go = gr.Button(elem_id="pingo", elem_classes="mhidden")
             with gr.Column(elem_id="chatopts") as rightcol:  # the options for this chat; hidden while Teach or Scheduled tasks is open
                 with gr.Accordion(t("This chat"), open=True, elem_id="thischat"):
-                    thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", info=t("Slower, better on hard questions"))
-                    goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", info=t("Give a goal; it keeps working until done"))
+                    gr.HTML("<button class='cmore cur'>⋯ " + t("Options for this chat") + "</button>")
+                    thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", elem_id="o_thinking", info=t("Slower, better on hard questions"))
+                    goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", elem_id="o_goal", info=t("Give a goal; it keeps working until done"))
                     rounds = gr.Slider(2, 30, value=10, step=1, label=t("Max rounds"), visible=False)
-                    swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes="opt", info=t("Several agents answer in parallel, then one combines the best answer"))
+                    swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes="opt", elem_id="o_swarm", info=t("Several agents answer in parallel, then one combines the best answer"))
                     agents = gr.Slider(2, 6, value=5, step=1, label=t("Agents"), visible=False)
-                    offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", info=t("Joshua doesn't search or read the web, and code can't go online"))
+                    offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", elem_id="o_offline", info=t("Joshua doesn't search or read the web, and code can't go online"))
                     files = gr.File(file_count="multiple", label=t("Files in this chat"), elem_id="wfiles", height=None)
+                    project = gr.Textbox(label=t("Project folder (optional)"), placeholder=t("e.g. ~/Projects/my-project"), info=t("The chat works directly in this folder. Press Enter to apply."), max_lines=1)
                     with gr.Row(elem_id="filebtns"):
                         openf = gr.Button("📂 " + t("Open folder"), size="sm")
                         dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
@@ -2059,66 +2149,84 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
             feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
             with gr.Column(elem_id="panels"):
-                with gr.Accordion("🧠 " + t("Memory"), open=False) as mem_box:
-                    mem = gr.Checkbox(True, label=t("Use memory"), info=t("Joshua learns lasting facts about you and uses them in every chat"))
-                    mem_topic = gr.Dropdown(choices=["profile"], value="profile", label=t("Notes"), elem_id="memtopic")
-                    mem_text = gr.Textbox(lines=8, max_lines=20, show_label=False, placeholder=t("Nothing remembered yet. Joshua adds notes as you chat, or you can type them here, one per line."))
-                    mem_btn = gr.Button(t("Save notes"), size="sm")
-                    cloudmem = gr.Checkbox(share_memory_setting(), label=t("Share notes with cloud models"), info=t("Off: cloud models never see your memory notes (Joshua still learns, on this computer)"))
+                mem_btn_open = gr.Button("🧠  " + t("Memory"), size="sm", elem_id="membtn")
                 tune = gr.Button("🧪  " + t("Teach Joshua (fine-tune)"), size="sm", elem_id="tunebtn")
                 models_btn = gr.Button("🧩  " + t("Models"), size="sm", elem_id="modelsbtn")
-                with gr.Accordion("🔌 API", open=False) as api_box:
-                    gr.Markdown(API_HELP, elem_id="apihelp")
-                    api_info = gr.HTML("")
-                    api_example = gr.Code(language="shell", label=t("Try it in Terminal"), interactive=False)
-                    api_lan_box = gr.Checkbox(api_settings()["lan"], label=t("Allow other devices on my network"), info=t("Off: only programs on this computer. Needs a restart of Joshua."))
-                    api_key_btn = gr.Button(t("Make a new key"), size="sm")
-                with gr.Accordion(t("Project & code settings"), open=False):
-                    project = gr.Textbox(label=t("Project folder (optional)"), placeholder=t("e.g. ~/Projects/my-project"), info=t("The chat works directly in this folder. Press Enter to apply."), max_lines=1)
-                    net = gr.Checkbox(True, label="🌐 " + t("Internet for code"), info=t("Lets code go online and install packages"))
-                    timeout = gr.Slider(10, 600, value=120, step=10, label=t("Code time limit (seconds)"))
-                with gr.Accordion(t("Tools"), open=False):
-                    gr.Markdown("<div id='tools'>🔎 " + t("Web search") + "<br>📄 " + t("Read web pages") + "<br>🐍 " + t("Run Python (sandboxed)") + "<br>📦 " + t("Install packages") + "<br>🗂️ " + t("Browse folders") + "<br>📂 " + t("Read & 💾 write files (text, Word, PDF)") + "<br>🕒 " + t("Date and time") + "<br>🖼️ " + t("Look at images") + "<br>" + ("🎨 " + t("Generate images") + "<br>🖌️ " + t("Edit your photos") + "<br>" if "edit_image" in tools else "") + "🧠 " + t("Remember & forget") + "</div>")
-            with gr.Accordion("⚙ " + t("Settings"), open=False, elem_id="settings"):
+                set_btn = gr.Button("⚙  " + t("Settings"), size="sm", elem_id="setbtn")
+        tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
+        with gr.Column(visible=False, scale=5, elem_id="mempage") as mem_panel:
+            with gr.Row():
+                gr.HTML("<div id='schedtitle'>" + t("WHAT JOSHUA KNOWS ABOUT YOU") + "</div>")
+                mem_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
+            gr.Markdown(t("""After each reply, a model on this computer reads your message and keeps any lasting fact about you: who you are, your work, your projects, how you like answers. Most messages contain nothing to keep. Joshua uses these notes in every chat. You can read, correct or delete them here."""), elem_id="memintro")
+            with gr.Row():
+                mem = gr.Checkbox(True, label=t("Use memory"), info=t("Joshua uses these notes in every chat"))
+                learn = gr.Checkbox(learn_setting(), label=t("Learn from chats"), info=t("Joshua adds new notes as you chat"))
+                cloudmem = gr.Checkbox(share_memory_setting(), label=t("Share notes with cloud models"), info=t("Off: cloud models never see your notes"))
+            mem_topic = gr.Dropdown(choices=["profile"], value="profile", label=t("Notes"), elem_id="memtopic")
+            mem_text = gr.Textbox(lines=14, max_lines=40, show_label=False, placeholder=t("Nothing remembered yet. Joshua adds notes as you chat, or you can type them here, one per line."))
+            mem_btn = gr.Button(t("Save notes"), size="sm")
+        with gr.Column(visible=False, scale=5, elem_id="setpage") as set_panel:
+            with gr.Row():
+                gr.HTML("<div id='schedtitle'>" + t("SETTINGS") + "</div>")
+                set_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
+            with gr.Column(elem_classes=["mzone", "mz0"]):
+                gr.HTML("<h2 class='msec'>" + t("Look") + "</h2>")
                 screen = gr.Radio([(t("Novel"), "novel"), (t("Black"), "black"), (t("White"), "white"), (t("Green"), "green"), (t("Amber"), "amber"), (t("Blue"), "blue"), (t("Modern"), "modern"), (t("Modern night"), "modern-night")], value="modern", label=t("Look"), elem_id="screen")
                 textsize = gr.Radio([("90%", "0.9"), ("100%", "1"), ("110%", "1.1"), ("125%", "1.25"), ("140%", "1.4")], value="1", label=t("Text size"), elem_id="textsize")
                 language = gr.Dropdown([(t("Language: automatic"), "auto")] + [(name, code) for code, name in LANGS.items()], value=i18n.chosen() if i18n.chosen() in LANGS else "auto", label=t("Language"), elem_id="language")
-        tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
+            with gr.Column(elem_classes=["mzone", "mz0"]):
+                gr.HTML("<h2 class='msec'>" + t("Tools") + "</h2><div class='msub'>" + t("What Joshua can do while it answers. Switch off the ones you don't want it to use. The list is part of Joshua: new tools come with updates.") + "</div>")
+                tools_on = gr.CheckboxGroup([(label, key) for key, (label, _) in TOOL_GROUPS.items()], value=[k for k in TOOL_GROUPS if k not in tools_off()], show_label=False, elem_id="toolson")
+            with gr.Column(elem_classes=["mzone", "mz0"]):
+                gr.HTML("<h2 class='msec'>" + t("Code") + "</h2>")
+                net = gr.Checkbox(True, label="🌐 " + t("Internet for code"), info=t("Lets code go online and install packages"))
+                timeout = gr.Slider(10, 600, value=120, step=10, label=t("Code time limit (seconds)"))
+            with gr.Column(elem_classes=["mzone", "mz0"]):
+                gr.HTML("<h2 class='msec'>🔌 API</h2>")
+                gr.Markdown(API_HELP, elem_id="apihelp")
+                api_info = gr.HTML("")
+                api_example = gr.Code(language="shell", label=t("Try it in Terminal"), interactive=False)
+                api_lan_box = gr.Checkbox(api_settings()["lan"], label=t("Allow other devices on my network"), info=t("Off: only programs on this computer. Needs a restart of Joshua."))
+                api_key_btn = gr.Button(t("Make a new key"), size="sm")
+
         with gr.Column(visible=False, scale=5, elem_id="modelspage") as models_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("MODELS") + "</div>")
                 models_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="modelsback")
             gr.Markdown(t("Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images gives no extra points: it is shown on its own, under Reads. For everyday questions, smaller models are often enough."), elem_id="mintro")
-            gr.HTML("<h2 class='msec'>" + t("Open models · on this computer") + "</h2><div class='msub'>" + t("Private and free: nothing leaves your computer. As fast and as capable as your hardware allows.") + "</div><h3 class='msub2'>" + t("Installed") + "</h3>")
-            inst_status = gr.HTML("")
-            installed = gr.HTML("")
-            gr.HTML("<h3 class='msub2'>" + t("Available for this computer") + "</h3>")
-            local_status = gr.HTML("")
-            local_list = gr.HTML("<div class='cloudstat'>" + t("Reading the list from ollama.com…") + "</div>")
-            local_upd = gr.Button(t("Update my models"), size="sm")
-            gr.HTML("<h2 class='msec'>" + t("Open models · in the cloud") + "</h2><div class='msub'>" + t("Run on Ollama's servers: much more capable than what fits a computer, paid with Ollama credit. Open models from many makers.") + "</div>")
-            cloud_status = gr.HTML("")
-            cloud_list = gr.HTML("")
-            gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
-            connect = gr.Button(t("Connect this computer to Ollama"), size="sm")
-            gr.HTML("<div class='cloudlinks'><a href='https://ollama.com/dashboard' target='_blank' rel='noopener'>💳 " + t("Add credit on ollama.com") + "</a>"
-                    "<a href='https://ollama.com/settings' target='_blank' rel='noopener'>" + t("See what you've used") + "</a></div>"
-                    "<div class='cloudnote'>" + t("Credit is paid to Ollama for the computing power of its servers, which run the cloud models. Joshua itself is free: none of this money goes to Joshua, and local models never need credit.") + "</div>")
-            credit = gr.HTML("")
-            with gr.Row():
-                o_key = gr.Textbox(type="password", show_label=False, placeholder=t("Ollama API key, only to show your credit"), max_lines=1, scale=3)
-                o_save = gr.Button(t("Save"), size="sm", scale=1)
-            mact = gr.Textbox(elem_classes="mhidden", show_label=False, container=False)  # the hidden link between the table buttons and Python
-            mact_go = gr.Button(elem_id="mactgo", elem_classes="mhidden")
-            gr.HTML("<h2 class='msec'>" + t("Closed models · in the cloud") + "</h2><div class='msub'>" + t("Claude, ChatGPT, Gemini: the most capable, run by their companies, paid through your own API key.") + "</div>")
-            closed_list = gr.HTML("")
-            gr.Markdown(KEYS_HELP, elem_id="keyshelp")
-            k_provider = gr.Radio([(v["name"], k) for k, v in providers.PROVIDERS.items()], value="anthropic", show_label=False, elem_id="kprov")
-            k_key = gr.Textbox(type="password", label=t("API key"), placeholder=t("Paste the key here"), max_lines=1)
-            k_save = gr.Button(t("Save the key"), size="sm")
-            k_status = gr.HTML("")
-            k_pick = gr.Dropdown([], label=t("Add a model"))
-            k_add = gr.Button(t("Add to the model menu"), size="sm")
+            with gr.Column(elem_classes=["mzone", "mz1"]):
+                gr.HTML("<div class='mzhead'><h2 class='msec'>" + t("Open local models") + "</h2><span class='mzscale'>" + t("ranked from best to worst") + "</span></div><div class='msub'>" + t("On this computer. Private and free: nothing leaves your computer. As fast and as capable as your hardware allows.") + "</div>")
+                gr.HTML("<h3 class='msub2'>" + t("Installed") + "</h3>")
+                inst_status = gr.HTML("")
+                installed = gr.HTML("")
+                gr.HTML("<h3 class='msub2'>" + t("Available for this computer") + "</h3>")
+                local_status = gr.HTML("")
+                local_list = gr.HTML("<div class='cloudstat'>" + t("Reading the list from ollama.com…") + "</div>")
+                local_upd = gr.Button(t("Update my models"), size="sm")
+            with gr.Column(elem_classes=["mzone", "mz2"]):
+                gr.HTML("<div class='mzhead'><h2 class='msec'>" + t("Open models in the cloud") + "</h2><span class='mzscale'>" + t("ranked from best to worst") + "</span></div><div class='msub'>" + t("Open models from many makers, run on Ollama's servers: much more capable than what fits a computer, paid with Ollama credit.") + "</div>")
+                cloud_status = gr.HTML("")
+                cloud_list = gr.HTML("")
+                gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
+                connect = gr.Button(t("Connect this computer to Ollama"), size="sm")
+                gr.HTML("<div class='cloudlinks'><a href='https://ollama.com/dashboard' target='_blank' rel='noopener'>💳 " + t("Add credit on ollama.com") + "</a>"
+                        "<a href='https://ollama.com/settings' target='_blank' rel='noopener'>" + t("See what you've used") + "</a></div>"
+                        "<div class='cloudnote'>" + t("Credit is paid to Ollama for the computing power of its servers, which run the cloud models. Joshua itself is free: none of this money goes to Joshua, and local models never need credit.") + "</div>")
+                credit = gr.HTML("")
+                with gr.Row():
+                    o_key = gr.Textbox(type="password", show_label=False, placeholder=t("Ollama API key, only to show your credit"), max_lines=1, scale=3)
+                    o_save = gr.Button(t("Save"), size="sm", scale=1)
+            with gr.Column(elem_classes=["mzone", "mz3"]):
+                gr.HTML("<div class='mzhead'><h2 class='msec'>" + t("Closed models") + "</h2><span class='mzscale'>" + t("ranked from best to worst") + "</span></div><div class='msub'>" + t("Claude, ChatGPT, Gemini: the most capable, run by their companies on their servers, paid through your own API key.") + "</div>")
+                closed_list = gr.HTML("")
+                gr.Markdown(KEYS_HELP, elem_id="keyshelp")
+                k_provider = gr.Radio([(v["name"], k) for k, v in providers.PROVIDERS.items()], value="anthropic", show_label=False, elem_id="kprov")
+                k_key = gr.Textbox(type="password", label=t("API key"), placeholder=t("Paste the key here"), max_lines=1)
+                k_save = gr.Button(t("Save the key"), size="sm")
+                k_status = gr.HTML("")
+                k_pick = gr.Dropdown([], label=t("Add a model"))
+                k_add = gr.Button(t("Add to the model menu"), size="sm")
         with gr.Column(visible=False, scale=5, elem_id="schedpanel") as sched_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("SCHEDULED TASKS") + "</div>")
@@ -2205,7 +2313,17 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     t_run.click(lambda n: task_action(n, "run"), t_pick, [task_list, t_pick, t_controls])
     t_pause.click(lambda n: task_action(n, "pause"), t_pick, [task_list, t_pick, t_controls])
     t_del.click(lambda n: task_action(n, "delete"), t_pick, [task_list, t_pick, t_controls], js="(n) => (n && confirm(" + JS_TEXT(t("Delete '{name}'? It won't run again.")) + ".replace('{name}', n))) ? n : null")
-    api_box.expand(api_panel, outputs=[api_info, api_example])
+    OTHER = [models_panel, sched_panel, tune_panel]
+    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back)]:
+        rest = [x for x in (mem_panel, set_panel) if x is not panel]
+        btn.click(lambda: (gr.Column(visible=True),) + (gr.Column(visible=False),) * 6, outputs=[panel, chatcol, rightcol] + OTHER + rest)
+        back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True)), outputs=[panel, chatcol, rightcol])
+        for o in (models_btn, sched, tune):  # opening another page closes this one
+            o.click(lambda: gr.Column(visible=False), outputs=panel)
+    mem_btn_open.click(mem_view, mem_topic, [mem_topic, mem_text])
+    set_btn.click(api_panel, outputs=[api_info, api_example])
+    learn.change(learn_setting, learn)
+    tools_on.change(lambda on: tools_off([k for k in TOOL_GROUPS if k not in on]), tools_on)
     api_lan_box.input(api_lan, api_lan_box, [api_info, api_example])
     api_key_btn.click(api_new_key, outputs=[api_info, api_example])
     mact_go.click(row_action, mact, [model, inst_status, local_status, cloud_status], js="() => window.joshuaAct || ''").then(
@@ -2217,15 +2335,16 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     k_provider.change(keys_status, k_provider, [k_pick, k_status])
     k_save.click(keys_save, [k_provider, k_key], [k_pick, k_status, k_key])
     k_add.click(keys_add, [k_provider, k_pick], [model, k_status]).then(lambda: (closed_html(), cloud_catalog()[1]), outputs=[closed_list, cloud_list], show_progress="hidden")
-    mem_box.expand(mem_view, mem_topic, [mem_topic, mem_text])
     mem_topic.input(mem_view, mem_topic, [mem_topic, mem_text])
     mem_btn.click(mem_save, [mem_topic, mem_text], [mem_topic, mem_text],
                   js="(topic, text) => (text.trim() || confirm(" + JS_TEXT(t("Clear all the notes in '{topic}'? This can't be undone.")) + ".replace('{topic}', topic))) ? [topic, text] : [topic, null]")
     swarm.change(lambda s: (gr.Slider(visible=s), gr.Checkbox(value=False) if s else gr.skip()), swarm, [agents, goal])
     stop.click(stop_chat, cid, concurrency_limit=None)
     goal.change(lambda g: (gr.Slider(visible=g), gr.MultimodalTextbox(placeholder=t("Describe a goal for Joshua to accomplish…") if g else t("Message Joshua, or drop files here…")), gr.Checkbox(value=False) if g else gr.skip()), goal, [rounds, box, swarm])
-    new.click(new_chat, outputs=[chatbot, cid, convs, files, project])
-    convs.input(open_conv, convs, [chatbot, cid, files, project, model]).then(badge, model, cloudbadge)
+    new.click(new_chat, outputs=[chatbot, cid, convs, files, project, thinking, goal, swarm, offline])
+    convs.input(open_conv, convs, [chatbot, cid, files, project, model, thinking, goal, swarm, offline]).then(badge, model, cloudbadge)
+    for o in (thinking, goal, swarm, offline):
+        o.input(save_opts, [cid, thinking, goal, swarm, offline], show_progress="hidden")
     project.submit(set_project, [project, cid], [files, cid, convs, project])
     files.upload(upload_files, [files, cid], [files, cid, convs])
     files.change(zip_files, cid, dlall, show_progress="hidden")
@@ -2235,6 +2354,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
     feedback.click(None, model, None, js="(m) => { window.open(" + json.dumps(FEEDBACK) + " + '&model=' + encodeURIComponent(m || ''), '_blank') }")
     renbtn.click(rename_open, cid, renbox)
+    pin_go.click(toggle_pin, cid, convs, show_progress="hidden")
     renbox.submit(rename_save, [cid, renbox], [renbox, convs])
     dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
@@ -2252,11 +2372,43 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
               if (k in M && M[k] !== k) n.nodeValue = n.nodeValue.replace(k, M[k]); } };
           fix(document.body); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(x => x.nodeType === 1 ? fix(x) : x.nodeType === 3 && fix(x.parentNode || document.body)))).observe(document.body, {childList: true, subtree: true}); }""")
     screen.change(None, screen, None, js="(v) => { document.body.dataset.screen = v; try { localStorage.setItem('joshua-screen2', v) } catch (e) {} }")
+    demo.load(None, None, None, js="""() => { new MutationObserver(() => document.querySelectorAll('.dlp').forEach(d => {  // a download's progress, drawn in its row
+        const slot = document.querySelector('.mslot[data-slot="' + d.dataset.slot + '"]'); if (!slot) return;
+        slot.innerHTML = "<span class='mbar dl' title='" + d.dataset.label + "'><i style='width:" + d.dataset.pct + "%'></i></span> " + d.dataset.pct + '%'; d.remove(); }))
+        .observe(document.body, {childList: true, subtree: true}) }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // Download / Add in the Models tables
         const b = e.target.closest('button.mact'); if (!b) return;
         if (b.dataset.act.startsWith('rm:') && !confirm(""" + JS_TEXT(t("Remove {model} from this computer? You can download it again later.")) + """.replace('{model}', b.dataset.act.slice(3)))) return;
         window.joshuaAct = b.dataset.act; b.disabled = true; b.textContent = '…';
         const g = document.querySelector('#mactgo'); (g.tagName === 'BUTTON' ? g : g.querySelector('button')).click(); }) }""")
+    demo.load(None, None, None, js="""() => {  // the ⋯ menu of each chat: its settings and actions
+        const L = {thinking: """ + JS_TEXT("💭 " + t("Deep thinking")) + """, goal: """ + JS_TEXT("🎯 " + t("Goal mode")) + """, swarm: """ + JS_TEXT("🐝 " + t("Swarm")) + """, offline: """ + JS_TEXT("🚫 " + t("No internet")) + """,
+                   pin: """ + JS_TEXT("📌 " + t("Pin to the top")) + """, unpin: """ + JS_TEXT("📌 " + t("Unpin")) + """, rename: """ + JS_TEXT("✏ " + t("Rename")) + """, del: """ + JS_TEXT("🗑 " + t("Delete")) + """};
+        const press = (id) => { const g = document.querySelector('#' + id); if (g) (g.tagName === 'BUTTON' || g.tagName === 'INPUT' ? g : g.querySelector('button, input')).click(); };
+        const close = () => { const m = document.querySelector('#cmenu'); if (m) m.remove(); };
+        const open = (anchor, saved) => {
+          close(); const m = document.createElement('div'); m.id = 'cmenu';
+          const on = (k) => { const i = document.querySelector('#o_' + k + ' input'); return i && i.checked; };
+          const sel = document.querySelector('#convs label.selected'); const pinned = sel && sel.textContent.trim().startsWith('📌');
+          let h = '';
+          for (const k of ['thinking', 'goal', 'swarm', 'offline']) h += "<button data-k='" + k + "'>" + L[k] + (on(k) ? " <b>✓</b>" : '') + '</button>';
+          if (saved) h += '<hr>' + "<button data-k='pin'>" + (pinned ? L.unpin : L.pin) + "</button><button data-k='rename'>" + L.rename + "</button><button data-k='del' class='danger'>" + L.del + '</button>';
+          m.innerHTML = h; document.body.appendChild(m);
+          const r = anchor.getBoundingClientRect(); m.style.left = Math.min(r.left, innerWidth - m.offsetWidth - 8) + 'px';
+          m.style.top = Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8) + 'px';
+          m.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k; close();
+            if (OPT.includes(k)) press('o_' + k); else if (k === 'pin') press('pingo'); else if (k === 'rename') press('renchat'); else if (k === 'del') press('delchat'); });
+        };
+        const OPT = ['thinking', 'goal', 'swarm', 'offline'];
+        const dots = () => document.querySelectorAll('#convs label').forEach(l => { if (!l.querySelector('.cmore')) { const d = document.createElement('span'); d.className = 'cmore'; d.textContent = '⋯'; l.appendChild(d); } });
+        new MutationObserver(dots).observe(document.body, {childList: true, subtree: true}); dots();
+        document.addEventListener('click', (e) => {
+          const d = e.target.closest('.cmore');
+          if (!d) { if (!e.target.closest('#cmenu')) close(); return; }
+          if (d.classList.contains('cur')) { e.preventDefault(); open(d, !!document.querySelector('#convs label.selected')); return; }
+          const already = d.closest('label').classList.contains('selected');  // the click also opens the chat; its settings arrive a moment later
+          setTimeout(() => open(d, true), already ? 0 : 700); }, true);
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); }); }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('copy', (e) => {  // text selected in the chat is copied without the extra blank lines and spaces around it
         const s = getSelection(); if (!s.rangeCount || !s.anchorNode || !s.anchorNode.parentElement || !s.anchorNode.parentElement.closest('#chat')) return;
         e.clipboardData.setData('text/plain', s.toString().replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim()); e.preventDefault(); }) }""")
