@@ -1584,8 +1584,8 @@ body.noside #leftcol {display: none !important}
 #tune .legend, #tune [class*=legend] {display: none !important}
 #modelrow {flex-wrap: nowrap !important}
 #modelrow > #working {flex: 0 0 auto !important; width: auto !important; min-width: 0 !important}
-#modelrow > #cloudbadge {flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; overflow: hidden}
-#cloudbadge .cloudbadge {white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
+#modelrow > #cloudbadge {flex: 1 1 0 !important; width: auto !important; min-width: 8ch !important}
+#cloudbadge .cloudbadge {white-space: normal; overflow: visible; line-height: 1.25}  /* a narrow window wraps it onto a second line instead of cutting it */
 #modelrow > #model {flex: 0 0 auto !important}
 body:not(#a):not(#b):not(#c) #modelrow #model {min-width: 0 !important; width: auto !important}
 body:not(#a):not(#b):not(#c) #modelrow #model input {field-sizing: content; min-width: 12ch; max-width: 30ch}  /* the menu is as wide as the model's name */
