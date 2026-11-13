@@ -450,5 +450,7 @@
  "Cost": "Costo",
  "Off-peak": "Fuori picco",
  "Off-peak (half price): outside 12:00–18:00 UTC on weekdays, and all weekend.": "Fuori picco (metà prezzo): fuori dalle 12:00–18:00 UTC nei giorni feriali, e tutto il weekend.",
- "DeepSeek's own API: off-peak outside 01:00–04:00 and 06:00–10:00 UTC on weekdays.": "API di DeepSeek: fuori picco al di fuori delle 01:00–04:00 e 06:00–10:00 UTC nei giorni feriali."
+ "DeepSeek's own API: off-peak outside 01:00–04:00 and 06:00–10:00 UTC on weekdays.": "API di DeepSeek: fuori picco al di fuori delle 01:00–04:00 e 06:00–10:00 UTC nei giorni feriali.",
+ "Dollars per million tokens (about 750,000 words).": "Dollari per milione di token (circa 750.000 parole).",
+ "Every message sends the whole chat again as input, so long chats cost more; cached input is the part already sent before.": "Ogni messaggio rimanda tutta la chat come input, quindi le chat lunghe costano di più; l'input in cache è la parte già inviata prima."
 }

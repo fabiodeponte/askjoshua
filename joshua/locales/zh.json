@@ -450,5 +450,7 @@
  "Cost": "费用",
  "Off-peak": "非高峰",
  "Off-peak (half price): outside 12:00–18:00 UTC on weekdays, and all weekend.": "非高峰（半价）：工作日 UTC 12:00–18:00 以外的时间，以及整个周末。",
- "DeepSeek's own API: off-peak outside 01:00–04:00 and 06:00–10:00 UTC on weekdays.": "DeepSeek 自己的 API：工作日 UTC 01:00–04:00 和 06:00–10:00 以外为非高峰。"
+ "DeepSeek's own API: off-peak outside 01:00–04:00 and 06:00–10:00 UTC on weekdays.": "DeepSeek 自己的 API：工作日 UTC 01:00–04:00 和 06:00–10:00 以外为非高峰。",
+ "Dollars per million tokens (about 750,000 words).": "每百万个 token 的美元价格（约 75 万个单词）。",
+ "Every message sends the whole chat again as input, so long chats cost more; cached input is the part already sent before.": "每条消息都会把整个对话重新作为输入发送，所以对话越长越贵；缓存输入是之前已发送的部分。"
 }

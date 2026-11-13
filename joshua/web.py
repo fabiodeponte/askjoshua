@@ -117,7 +117,7 @@ def badge(choice):
 
 CLOUD_HELP = ("**" + t("Stays here:") + "** " + t("your chats, files and memory notes.") + "  \n"
               + "**" + t("Goes to Ollama:") + "** " + t("the conversation, with the files and photos in it.") + "  \n"
-              + "**" + t("Cost:") + "** " + t("pay per use, paid to Ollama, not to Joshua. Local models are free.") + "\n\n"
+              + "**" + t("Cost:") + "** " + t("pay per use, paid to Ollama, not to Joshua. Local models are free.") + " " + t("Every message sends the whole chat again as input, so long chats cost more; cached input is the part already sent before.") + "\n\n"
               + "<details><summary>" + t("Read more") + "</summary>\n\n" + t("""Bigger models running on Ollama's servers, for when this computer is too small or slow.
 **What goes to the cloud:** for every message, the conversation so far, including the text of files and web pages Joshua reads, and your photos if you send them.
 **What stays here:** your chats, files, memory notes and trained models are stored only on this computer. Memory notes are sent only if you allow it in 🧠 Memory.
@@ -149,7 +149,7 @@ def cost_box(price=None, offpeak_note=""):
     box = "<table class='pbox'>" + "".join(f"<tr><td>{a}</td><td>{money(b)}</td>" + (f"<td>{money(price[3][i])}</td>" if len(price) > 3 else "") + "</tr>" for i, (a, b) in enumerate(rows)) + "</table>"
     if len(price) > 3:
         box = box.replace("<table class='pbox'>", "<table class='pbox'><tr><th></th><th>" + t("Normal") + "</th><th>" + t("Off-peak") + "</th></tr>", 1)
-    note = t("Dollars per million tokens (about 750,000 words). Every message sends the whole chat again as input, so long chats cost more; cached input is the part already sent before.")
+    note = t("Dollars per million tokens (about 750,000 words).")
     return (f"<details class='mcost'><summary title='{html.escape(t('Cost'), quote=True)}'></summary><div class='pwrap'>{box}"
             f"<div class='pnote'>{note}{' ' + html.escape(t(offpeak_note)) if len(price) > 3 and offpeak_note else ''}</div></div></details>")
 
