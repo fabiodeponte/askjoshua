@@ -2636,6 +2636,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           const already = d.closest('label').classList.contains('selected');  // the click also opens the chat; its settings arrive a moment later
           setTimeout(() => open(d, true), already ? 0 : 700); }, true);
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); }); }""")
+    demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // a cost box closes when you click anywhere else; one open at a time
+        document.querySelectorAll('details.mcost[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('details.mcost[open]').forEach(d => d.open = false); }); }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('copy', (e) => {  // text selected in the chat is copied without the extra blank lines and spaces around it
         const s = getSelection(); if (!s.rangeCount || !s.anchorNode || !s.anchorNode.parentElement || !s.anchorNode.parentElement.closest('#chat')) return;
         e.clipboardData.setData('text/plain', s.toString().replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim()); e.preventDefault(); }) }""")
