@@ -367,14 +367,12 @@
  "Save": "Salva",
  "All of these can use Joshua's tools. Most capable first.": "Tutti possono usare gli strumenti di Joshua. I più capaci per primi.",
  "Available for this computer": "Disponibili per questo computer",
- "Capability": "Capacità",
  "Claude, ChatGPT, Gemini: the most capable, run by their companies, paid through your own API key.": "Claude, ChatGPT, Gemini: i più capaci, gestiti dalle loro aziende, pagati con la tua chiave API.",
  "Closed models · in the cloud": "Modelli chiusi · nel cloud",
  "Installed": "Installati",
  "Key works: {n} models available, most capable first.": "La chiave funziona: {n} modelli disponibili, i più capaci per primi.",
  "MODELS": "MODELLI",
  "Models": "Modelli",
- "Most capable first, in each group. The scores are rough: they come from public tests ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026), and for small models they are Joshua's estimate. A higher score means better reasoning, writing and use of tools; for everyday questions, smaller models are often enough.": "In ogni gruppo, i più capaci per primi. I punteggi sono indicativi: vengono da test pubblici ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), novembre 2026) e, per i modelli piccoli, sono una stima di Joshua. Un punteggio più alto significa ragionamento, scrittura e uso degli strumenti migliori; per le domande di tutti i giorni bastano spesso modelli più piccoli.",
  "No local models yet: download one below.": "Ancora nessun modello locale: scaricane uno qui sotto.",
  "None yet: add a key below, then pick a model.": "Ancora nessuno: aggiungi una chiave qui sotto, poi scegli un modello.",
  "Open models · in the cloud": "Modelli aperti · nel cloud",
@@ -408,5 +406,7 @@
  "✓ fits this computer · ✗ doesn't, and why. Bigger learns better but trains more slowly.": "✓ ci sta in questo computer · ✗ no, e perché. Più grande impara meglio ma si addestra più lentamente.",
  "Use it": "Usalo",
  "its name on Hugging Face, like mlx-community/Llama-3.2-3B-Instruct-4bit": "il suo nome su Hugging Face, come mlx-community/Llama-3.2-3B-Instruct-4bit",
- "its name on Hugging Face, like meta-llama/Llama-3.2-3B-Instruct": "il suo nome su Hugging Face, come meta-llama/Llama-3.2-3B-Instruct"
+ "its name on Hugging Face, like meta-llama/Llama-3.2-3B-Instruct": "il suo nome su Hugging Face, come meta-llama/Llama-3.2-3B-Instruct",
+ "Reasoning": "Ragionamento",
+ "Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images gives no extra points: it is shown on its own, under Reads. For everyday questions, smaller models are often enough.": "Prima chi ragiona meglio, in ogni gruppo. Il punteggio misura solo il ragionamento: test pubblici di logica, programmazione, conoscenze e uso di strumenti, tutti su testo ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), novembre 2026); per i modelli piccoli è una stima di Joshua. Leggere le immagini non dà punti in più: è indicato a parte, sotto Legge. Per le domande di tutti i giorni bastano spesso modelli più piccoli."
 }

@@ -1,7 +1,7 @@
 {
- "updated": "2026-11-12",
+ "updated": "2026-11-13",
  "source": "Artificial Analysis Intelligence Index v5 (November 2026); for sizes and models it doesn't test, Joshua's estimate",
- "note": "score = how capable the model is, roughly (higher is better). 'families' are local models: score at 'size' billion parameters, scaled for other sizes.",
+ "note": "score = reasoning ability, from text-only tests (higher is better); image support doesn't count. 'families' are local models: score at 'size' billion parameters, scaled for other sizes.",
  "families": {
   "qwen3.8": {
    "score": 15,
@@ -20,7 +20,7 @@
    "size": 120
   },
   "qwen3-vl": {
-   "score": 7,
+   "score": 6,
    "size": 32
   },
   "qwen3-coder": {

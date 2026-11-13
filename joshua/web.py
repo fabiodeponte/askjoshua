@@ -128,7 +128,7 @@ def rank_table(rows, empty):
     if not rows:
         return f"<div class='cloudstat'>{empty}</div>"
     top = max([r[3] or 0 for r in rows] + [1])
-    out = ["<table class='mrank'><tr><th>" + t("Model") + "</th><th>" + t("Size") + "</th><th>" + t("Reads") + "</th><th>" + t("Capability") + "</th><th></th></tr>"]
+    out = ["<table class='mrank'><tr><th>" + t("Model") + "</th><th>" + t("Size") + "</th><th>" + t("Reads") + "</th><th>" + t("Reasoning") + "</th><th></th></tr>"]
     for name, size, reads, score, note in rows:
         bar = f"<span class='mbar'><i style='width:{100 * (score or 0) / top:.0f}%'></i></span> {score:g}" if score is not None else "<span class='mdim'>" + t("not rated") + "</span>"
         out.append(f"<tr><td class='mname'>{html.escape(name)}</td><td>{html.escape(size)}</td><td>{html.escape(reads)}</td><td>{bar}</td><td class='mnote'>{note}</td></tr>")
@@ -1576,6 +1576,8 @@ main.contain > .column > .row {height: 100%; flex-wrap: nowrap !important; align
 #chatcol, #tune, #modelspage {height: 100%; min-width: 0 !important; min-height: 0}
 #chatcol {display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important}
 #tune, #schedpanel, #modelspage {overflow-y: auto !important}
+#modelspage {flex-wrap: nowrap !important}  /* a tall column must scroll, not wrap into new columns to the right */
+#modelspage > * {flex-shrink: 0 !important}
 #modelspage h2.msec {margin: 26px 0 2px; font-size: 1.5rem; color: var(--cyan); letter-spacing: .04em}
 #modelspage h3.msub2 {margin: 14px 0 4px; font-size: 1.1rem; color: var(--ink)}
 #modelspage .msub {color: var(--dim); font-size: 1rem; max-width: 70ch}
@@ -2061,7 +2063,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("MODELS") + "</div>")
                 models_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="modelsback")
-            gr.Markdown(t("Most capable first, in each group. The scores are rough: they come from public tests ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026), and for small models they are Joshua's estimate. A higher score means better reasoning, writing and use of tools; for everyday questions, smaller models are often enough."), elem_id="mintro")
+            gr.Markdown(t("Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images gives no extra points: it is shown on its own, under Reads. For everyday questions, smaller models are often enough."), elem_id="mintro")
             gr.HTML("<h2 class='msec'>" + t("Open models · on this computer") + "</h2><div class='msub'>" + t("Private and free: nothing leaves your computer. As fast and as capable as your hardware allows.") + "</div><h3 class='msub2'>" + t("Installed") + "</h3>")
             installed = gr.HTML("")
             gr.HTML("<h3 class='msub2'>" + t("Available for this computer") + "</h3>")
