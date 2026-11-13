@@ -612,7 +612,7 @@ def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
             content, inline = split_think(raw)  # some models (glm) write their reasoning in the text, ending it with </think>
             thought = reasoned + ("\n\n" if reasoned and inline else "") + inline
             calls += chunk.message.tool_calls or []
-            live = [{"role": "assistant", "content": thought, "metadata": {"title": "💭 " + t("Thinking"), "status": "done" if content or calls else "pending"}}] if thought else []
+            live = [{"role": "assistant", "content": thought, "metadata": {"title": "💭 " + t("Thinking"), "status": "done"}}] if thought else []
             live += [{"role": "assistant", "content": content}] if content else []
             yield shown + live
             if stop.is_set():
@@ -625,15 +625,20 @@ def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
             return
         for c in calls:
             name, args = c.function.name, dict(c.function.arguments)
-            box = {"role": "assistant", "content": f"```json\n{json.dumps(args, ensure_ascii=False, indent=2)}\n```", "metadata": {"title": f"{ICONS.get(name, '🔧')} {name}", "status": "pending"}}
-            yield shown + [box]
+            box = {"role": "assistant", "content": f"```json\n{json.dumps(args, ensure_ascii=False, indent=2)}\n```", "metadata": {"title": f"{ICONS.get(name, '🔧')} {name}", "status": "done"}}
+            last = shown[-1] if shown else None  # the same tool called again right away goes in the same box: "🔎 web_search ×4"
+            group = last if isinstance(last, dict) and isinstance(last.get("content"), str) and (last.get("metadata") or {}).get("title") == box["metadata"]["title"] else None
+            yield shown if group else shown + [box]
             try:
                 result = str(toolset[name](**args))
             except Exception as e:
                 result = f"Error: {e}"
             box["content"] += f"\n**Result**\n```\n{result[:1500]}{'…' if len(result) > 1500 else ''}\n```"
-            box["metadata"]["status"] = "done"
-            shown.append(box)
+            if group:
+                group["content"] += "\n\n---\n\n" + box["content"]
+                group["metadata"]["log"] = "×" + str(group["content"].count("\n\n---\n\n") + 1)
+            else:
+                shown.append(box)
             if name in ("generate_image", "edit_image") and getattr(agent.CTX, "last_image", None):
                 shown.append({"role": "assistant", "content": {"path": agent.CTX.last_image}})
                 agent.CTX.last_image = None
@@ -784,7 +789,7 @@ def verify(evidence, msgs, shown, toolset, model, thinking, language, job):
     target = last_answer(shown)
     if not target or not target["content"].strip():
         return
-    box = {"role": "assistant", "content": t("Checking the answer against the sources…"), "metadata": {"title": "🔍 " + t("Fact check"), "status": "pending"}}
+    box = {"role": "assistant", "content": t("Checking the answer against the sources…"), "metadata": {"title": "🔍 " + t("Fact check"), "status": "done"}}
     shown.append(box)
     job.publish(shown)
     try:
@@ -859,7 +864,7 @@ def run_swarm(job, cid, conv, model, thinking, n, pool, net, timeout, toolset):
     answers, threads = [None] * n, []
     for k in range(n):
         m = pool[k % len(pool)]
-        box = {"role": "assistant", "content": tr("Working…"), "metadata": {"title": "🐝 " + tr("Agent {n}", n=k + 1) + f" · {m.removesuffix(':latest')}", "status": "pending"}}
+        box = {"role": "assistant", "content": tr("Working…"), "metadata": {"title": "🐝 " + tr("Agent {n}", n=k + 1) + f" · {m.removesuffix(':latest')}", "status": "done"}}
         shown.append(box)
         t = threading.Thread(target=swarm_agent, args=(k, n, m, thinking, copy.deepcopy(msgs), box, answers, job.stop, work, net, timeout, toolset, conv.get("region", "wt-wt")), daemon=True)
         t.start()
@@ -918,7 +923,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     evidence = None
     try:
         if not offline and user_text and "web_search" not in off:
-            box = {"role": "assistant", "content": "", "metadata": {"title": "🔎 " + t("Looking online…"), "status": "pending"}}
+            box = {"role": "assistant", "content": "", "metadata": {"title": "🔎 " + t("Looking online…"), "status": "done"}}
 
             def show():  # the box appears only once Joshua has decided to search
                 if not any(b is box for b in shown):
