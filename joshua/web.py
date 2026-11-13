@@ -1404,7 +1404,8 @@ body:not(#a):not(#b) #brand svg {display: inline-block !important; width: 5.3rem
 #convs label.selected {background: color-mix(in srgb, var(--cyan) 18%, transparent); color: var(--ink)}
 #convs label.selected::before {content: "> "; color: var(--amber)}
 #convs input {display: none}
-#convs label {position: relative; padding-right: 30px !important}
+#convs label {position: relative}
+body:not(#a):not(#b):not(#c) #convs label {padding-right: 34px !important}  /* room for the ⋯, so the name never runs under it */
 #convs .cmore {position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 0 6px; border-radius: 6px; opacity: 0; color: var(--dim); font-weight: 700; line-height: 1.4}
 #convs label:hover .cmore, #convs label.selected .cmore {opacity: 1}
 #convs .cmore:hover {background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink)}
@@ -1430,7 +1431,8 @@ body:not([data-files="open"]) #chatopts {display: none !important}
 #convs label .pinsvg {margin-right: 6px}
 #convs label.dropto {box-shadow: inset 0 2px 0 var(--brand) !important}
 #convs label.pinned {cursor: grab}
-#convs .renfield {position: absolute; inset: 2px 30px 2px 4px; font: inherit; padding: 2px 6px; border: 1px solid var(--brand); border-radius: 6px; background: var(--bg); color: var(--ink)}
+.renfield {position: fixed; z-index: 1001; box-sizing: border-box; font: inherit; font-size: .9rem; padding: 2px 8px; border: 1.5px solid var(--brand); border-radius: 6px; background: var(--bg); color: var(--ink); outline: none}
+#convs label span:not(.cmore) {flex: 1 1 auto !important; min-width: 0 !important; display: block !important; text-overflow: clip !important; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent)}  /* long names fade out, so no "…" next to the ⋯ */
 #cmenu {position: fixed; z-index: 1000; min-width: 210px; padding: 6px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); display: flex; flex-direction: column}
 #cmenu button {all: unset; padding: 7px 10px; border-radius: 6px; cursor: pointer; color: var(--ink); font-size: .92rem}
 #cmenu button:hover {background: color-mix(in srgb, var(--cyan) 14%, transparent)}
@@ -2468,11 +2470,15 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         };
         const rename = () => {  // the chat's name becomes a text field: Enter saves, Esc cancels
           const l = document.querySelector('#convs label.selected'); if (!l) return;
-          const f = document.createElement('input'); f.className = 'renfield'; f.value = text(l).replace(PIN, '').replace(/^⏳ /, '');
-          l.appendChild(f); f.focus(); f.select(); let done = false;
-          const end = (save) => { if (done) return; done = true; if (save && f.value.trim()) { window.joshuaRename = f.value.trim(); press('rengo'); } f.remove(); };
-          f.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); end(true); } if (e.key === 'Escape') end(false); });
-          f.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); }); f.addEventListener('blur', () => end(true));
+          // the field floats over the name, outside the list: inside it, every click and key would also go to the list
+          const old = text(l).replace(PIN, '').replace(/^⏳ /, ''), r = l.getBoundingClientRect();
+          const f = document.createElement('input'); f.className = 'renfield'; f.value = old;
+          Object.assign(f.style, {left: r.left + 'px', top: r.top + 'px', width: (r.width - 6) + 'px', height: r.height + 'px'});
+          document.body.appendChild(f); let done = false;
+          setTimeout(() => { f.focus(); f.select(); }, 50);  // after the menu has closed, or it takes the focus back
+          const end = (save) => { if (done) return; done = true; const v = f.value.trim(); f.remove(); if (save && v && v !== old) { window.joshuaRename = v; press('rengo'); } };
+          f.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); end(true); } else if (e.key === 'Escape') { e.preventDefault(); end(false); } });
+          f.addEventListener('blur', () => setTimeout(() => end(true), 150));
         };
         let drag = null;
         const mark = () => document.querySelectorAll('#convs label').forEach(l => {
