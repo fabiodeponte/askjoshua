@@ -56,7 +56,7 @@ CLOUD = set()  # models that run on Ollama's servers, not on this computer
 
 
 def is_cloud(name):
-    return providers.is_api(name) or name in CLOUD or name.split(":")[-1].endswith("cloud")
+    return providers.is_api(name) or name in CLOUD or name.removesuffix(":latest").split(":")[-1].endswith("cloud")
 
 
 PAIR = "auto:qwen3-vl"  # one menu entry: the deep-thinking switch picks qwen3-vl or its faster instruct version
@@ -72,7 +72,7 @@ def models(add=False):
         listed = []
     CLOUD.update(m.model for m in listed if getattr(m, "remote_host", None) or m.model.split(":")[-1].endswith("cloud"))
     names = [n for n in (m.model for m in listed) if "tools" in caps(n)]
-    label = lambda n: "☁ " + n.removesuffix(":cloud").removesuffix("-cloud") if is_cloud(n) else "★ " + n.removeprefix("joshua-").removesuffix(":latest") if n.startswith("joshua-") else n.removesuffix(":latest")
+    label = lambda n: "☁ " + n.removesuffix(":latest").removesuffix(":cloud").removesuffix("-cloud") if is_cloud(n) else "★ " + n.removeprefix("joshua-").removesuffix(":latest") if n.startswith("joshua-") else n.removesuffix(":latest")
     pair = FAST in names and (MODEL in names or MODEL + ":latest" in names)  # both halves of Joshua's model are here
     choices = [(label(n), n) for n in names if not (pair and n in (FAST, MODEL, MODEL + ":latest"))]
     if pair:
@@ -84,10 +84,18 @@ def models(add=False):
     local = abc(c for c in choices if not is_cloud(c[1]))
     cloud_open = abc([c for c in choices if is_cloud(c[1])] + providers.menu(open_weights=True))
     choices = local + cloud_open + abc(providers.menu(open_weights=False))
+    mine = model_order()  # the order you set on the Models page; models you haven't placed keep theirs, after
+    choices.sort(key=lambda c: mine.index(c[1]) if c[1] in mine else len(mine))
     return (choices or [(FAST, FAST)]) + ([(t("＋ Add a model…"), ADD)] if add else [])
 
 
+def model_order(value=None):
+    return _settings("model_order", [], value)
+
+
 def default_model():
+    if model_order():  # you chose an order: the first is the default
+        return models()[0][1]
     local = [v for _, v in models() if not is_cloud(v)]
     if PAIR in local:  # Joshua's own model stays the starting one, wherever the alphabet puts it
         return PAIR
@@ -95,12 +103,13 @@ def default_model():
     return (local or [models()[0][1]])[0]  # start on a local model; cloud is always a choice you make
 
 
-CLOUD_BADGE = "<div class='cloudbadge'>" + t("☁ Cloud model: messages go to Ollama's servers; everything stays stored here") + "</div>"
+CLOUD_BADGE = "<div class='cloudbadge' title='" + html.escape(t("☁ Cloud model: messages go to Ollama's servers; everything stays stored here"), quote=True) + "'>☁ " + t("on Ollama's servers") + "</div>"
 
 
 def badge(choice):
     if choice and providers.is_api(choice):
-        return "<div class='cloudbadge'>" + t("🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here", company=providers.company(choice)) + "</div>"
+        full = t("🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here", company=providers.company(choice))
+        return "<div class='cloudbadge' title='" + html.escape(full, quote=True) + "'>🔑 " + t("on {company}'s servers", company=providers.company(choice)) + "</div>"
     return CLOUD_BADGE if choice and choice != ADD and is_cloud(resolve(choice, False)) else ""
 
 
@@ -129,14 +138,29 @@ def act_button(action, tag, label):
     return f"<span class='mslot' data-slot='{act}'><button class='mact' data-act='{act}'>{html.escape(label)}</button></span>"
 
 
+def cost_box(price=None, offpeak_note=""):
+    """A small arrow next to the score; it opens a box with what the model costs per million tokens."""
+    if not price:
+        return ""
+    money = lambda x: "—" if x is None else f"${x:,.4f}".rstrip("0").rstrip(".") if x < 0.1 else f"${x:,.2f}"
+    rows = [(t("Input"), price[0]), (t("Cached input"), price[1]), (t("Output"), price[2])]
+    box = "<table class='pbox'>" + "".join(f"<tr><td>{a}</td><td>{money(b)}</td>" + (f"<td>{money(price[3][i])}</td>" if len(price) > 3 else "") + "</tr>" for i, (a, b) in enumerate(rows)) + "</table>"
+    if len(price) > 3:
+        box = box.replace("<table class='pbox'>", "<table class='pbox'><tr><th></th><th>" + t("Normal") + "</th><th>" + t("Off-peak") + "</th></tr>", 1)
+    note = t("Dollars per million tokens (about 750,000 words). Every message sends the whole chat again as input, so long chats cost more; cached input is the part already sent before.")
+    return (f"<details class='mcost'><summary title='{html.escape(t('Cost'), quote=True)}'></summary><div class='pwrap'>{box}"
+            f"<div class='pnote'>{note}{' ' + html.escape(t(offpeak_note)) if len(price) > 3 and offpeak_note else ''}</div></div></details>")
+
+
 def rank_table(rows, empty):
     """A ranked list: (name, size, can read, score or None, note). Best first; the bar shows the score."""
     if not rows:
         return f"<div class='cloudstat'>{empty}</div>"
     top = max([r[3] or 0 for r in rows] + [1])
     out = ["<table class='mrank'><tr><th>" + t("Model") + "</th><th>" + t("Size") + "</th><th>" + t("Reads") + "</th><th>" + t("Reasoning") + "</th><th></th></tr>"]
-    for name, size, reads, score, note in rows:
+    for name, size, reads, score, note, *price in rows:
         bar = f"<span class='mbar'><i style='width:{100 * (score or 0) / top:.0f}%'></i></span> {score:g}" if score is not None else "<span class='mdim'>" + t("not rated") + "</span>"
+        bar += cost_box(*price)
         out.append(f"<tr><td class='mname'>{html.escape(name)}</td><td>{html.escape(size)}</td><td>{html.escape(reads)}</td><td>{bar}</td><td class='mnote'>{note}</td></tr>")
     return "".join(out) + "</table>"
 
@@ -173,7 +197,8 @@ def cloud_catalog():
     usable = sorted(((n, c) for n, c in info.items() if "tools" in c), key=lambda x: -(ranking.cloud_score(x[0]) or 0))
     have = set(CLOUD)
     added = lambda n: (n + ("-cloud" if ":" in n else ":cloud")) in have
-    rows = [(n, "☁", media("vision" in c, "audio" in c), ranking.cloud_score(n), ("✓ " + t("in your menu") if added(n) else act_button("add", n, t("Add"))) + (" · " + t("cheapest") if n in free else "")) for n, c in usable]
+    pnote = ranking.data().get("prices", {}).get("offpeak_cloud", "")
+    rows = [(n, "☁", media("vision" in c, "audio" in c), ranking.cloud_score(n), ("✓ " + t("in your menu") + " " + act_button("unmenu", n + ("-cloud" if ":" in n else ":cloud"), t("Remove")) if added(n) else act_button("add", n, t("Add"))) + (" · " + t("cheapest") if n in free else ""), ranking.cloud_price(n), pnote) for n, c in usable]
     rows.sort(key=lambda r: -(r[3] or 0))
     return "", rank_table(rows, "")
 
@@ -287,13 +312,53 @@ def local_catalog():
     return f"<div class='cloudstat'>{note}</div>", rank_table(rows, "")
 
 
+def menu_order():
+    """The menu as the Models page shows it: your order, or (until you set one) the default model first."""
+    items = models()
+    if not model_order():
+        d = default_model()
+        items.sort(key=lambda c: c[1] != d)
+    return items
+
+
+def menu_html():
+    """The models in your model menu, in their order, with buttons to move them and to take them out."""
+    items = menu_order()
+    if not items:
+        return ""
+    rows = []
+    for i, (label, v) in enumerate(items):
+        kind = t("on this computer") if not is_cloud(v) and not providers.is_api(v) else t("in the cloud")
+        btns = (act_button("up", v, "↑") if i else "<span class='mspace'></span>") + (act_button("down", v, "↓") if i < len(items) - 1 else "<span class='mspace'></span>")
+        if v not in (PAIR, apple.NAME):
+            btns += act_button("unmenu", v, t("Remove") if not is_cloud(v) or providers.is_api(v) else t("Remove from the menu"))
+        first = " <span class='mdefault'>" + t("default") + "</span>" if i == 0 else ""
+        rows.append(f"<tr><td class='mname'>{html.escape(label)}{first}</td><td class='mdim'>{kind}</td><td class='mnote mbtns'>{btns}</td></tr>")
+    return "<table class='mrank mmenu'>" + "".join(rows) + "</table>"
+
+
+def move_model(v, step):
+    order = [c for _, c in menu_order()]
+    if v in order:
+        i = order.index(v)
+        j = max(0, min(len(order) - 1, i + step))
+        order.insert(j, order.pop(i))
+        model_order(order)
+
+
 def row_action(act):
     """A Download or Add button pressed in one of the tables: 'dl:qwen3:8b' or 'add:kimi-k3'."""
     kind, _, tag = (act or "").partition(":")
     if kind == "dl":
         for m, status in local_download(tag):
             yield m, gr.skip(), status, gr.skip()
-    elif kind == "rm":
+    elif kind in ("up", "down"):
+        move_model(tag, -1 if kind == "up" else 1)
+        yield gr.Dropdown(choices=models(True)), gr.skip(), gr.skip(), gr.skip()
+    elif kind == "unmenu" and providers.is_api(tag):
+        providers.remove_model(tag)
+        yield gr.Dropdown(choices=models(True)), gr.skip(), gr.skip(), gr.skip()
+    elif kind in ("rm", "unmenu"):
         try:
             ollama.delete(tag)
             CAPS.pop(tag, None)
@@ -454,7 +519,8 @@ def keys_save(provider, key):
 
 def closed_html():
     """The Claude, ChatGPT, Gemini and DeepSeek models in your menu, best first."""
-    rows = [(providers.label(v).removeprefix("🔑 "), "☁", media(providers.sees_images(v)), ranking.closed_score(providers.split(v)[1]), "") for _, v in providers.menu(False)]
+    pnote = ranking.data().get("prices", {}).get("offpeak_closed", "")
+    rows = [(providers.label(v).removeprefix("🔑 "), "☁", media(providers.sees_images(v)), ranking.closed_score(providers.split(v)[1]), "", ranking.closed_price(providers.split(v)[1]), pnote) for _, v in providers.menu(False)]
     rows.sort(key=lambda r: -(r[3] or 0))
     return rank_table(rows, t("None yet: add a key below, then pick a model."))
 
@@ -1517,9 +1583,12 @@ body.noside #leftcol {display: none !important}
 .ftstatus.ok {color: var(--ink) !important}
 #tune .legend, #tune [class*=legend] {display: none !important}
 #modelrow {flex-wrap: nowrap !important}
-#modelrow > #working {flex: 0 1 auto !important; width: auto !important; min-width: 0 !important}
-#modelrow > #cloudbadge {flex: 1 1 auto !important; width: auto !important; min-width: 0 !important}
+#modelrow > #working {flex: 0 0 auto !important; width: auto !important; min-width: 0 !important}
+#modelrow > #cloudbadge {flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; overflow: hidden}
+#cloudbadge .cloudbadge {white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
 #modelrow > #model {flex: 0 0 auto !important}
+body:not(#a):not(#b):not(#c) #modelrow #model {min-width: 0 !important; width: auto !important}
+body:not(#a):not(#b):not(#c) #modelrow #model input {field-sizing: content; min-width: 12ch; max-width: 30ch}  /* the menu is as wide as the model's name */
 #cloudbadge .cloudbadge {font-size: 1rem; line-height: 1.2; color: var(--amber); padding: 2px 8px 0; text-align: right}
 .cloudstat {font-size: 1.05rem; line-height: 1.3; padding: 6px 0; color: var(--ink)}
 #localhelp, #localhelp *, #apihelp, #apihelp *, #schedhelp, #schedhelp * {font-size: 1.05rem !important; line-height: 1.3 !important}
@@ -1746,6 +1815,24 @@ table.mrank {width: 100%; border-collapse: collapse; font-size: .95rem; margin: 
 table.mrank th {text-align: left; font-weight: 500; color: var(--dim); border-bottom: 1px solid var(--line); padding: 4px 8px}
 table.mrank td {padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); vertical-align: middle; color: var(--ink)}
 table.mrank td.mname {font-weight: 600; word-break: break-word}
+table.mmenu td.mbtns {text-align: right; white-space: nowrap}
+details.mcost {display: inline-block; vertical-align: middle; margin-left: 6px; position: relative}
+table.mrank td:has(details.mcost) {white-space: nowrap}
+details.mcost summary {list-style: none; cursor: pointer; color: var(--brand); font-size: .8rem; padding: 0 4px; border-radius: 4px}
+details.mcost summary::-webkit-details-marker {display: none}
+details.mcost summary::before {content: "▸ $"}
+details.mcost[open] summary::before {content: "▾ $"}
+details.mcost summary:hover {background: color-mix(in srgb, var(--brand) 12%, transparent)}
+details.mcost .pwrap {position: absolute; z-index: 60; top: 100%; left: 0; width: 300px; white-space: normal; box-shadow: 0 8px 20px rgba(0, 0, 0, .15); margin: 4px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); max-width: 340px}
+table.pbox {border-collapse: collapse; font-size: .85rem}
+body:not(#a):not(#b):not(#c) table.pbox, body:not(#a):not(#b):not(#c) table.pbox tr, body:not(#a):not(#b):not(#c) table.pbox td, body:not(#a):not(#b):not(#c) table.pbox th {border: none !important; background: transparent !important}
+table.pbox td, table.pbox th {padding: 1px 12px 1px 0 !important; border: none !important; font-weight: 400; color: var(--ink)}
+table.pbox th {color: var(--dim); font-size: .78rem}
+table.pbox td:not(:first-child) {font-variant-numeric: tabular-nums; text-align: right}
+details.mcost .pnote {margin-top: 6px; font-size: .75rem; line-height: 1.35; color: var(--dim); white-space: normal}
+table.mmenu .mslot {margin-left: 4px}
+table.mmenu .mspace {display: inline-block; width: 38px}
+.mdefault {font-weight: 400; font-size: .78rem; color: var(--brand); border: 1px solid var(--brand); border-radius: 999px; padding: 0 7px; margin-left: 6px}
 .mhidden {display: none !important}
 button.mact {font: inherit; font-size: .85rem; padding: 2px 12px; border-radius: 6px; border: 1px solid var(--brand); color: var(--brand); background: transparent; cursor: pointer; white-space: nowrap}
 button.mact:hover {background: var(--brand); color: var(--bg, #fff)}
@@ -2242,6 +2329,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 gr.HTML("<div id='schedtitle'>" + t("MODELS") + "</div>")
                 models_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="modelsback")
             gr.Markdown(t("Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images gives no extra points: it is shown on its own, under Reads. For everyday questions, smaller models are often enough."), elem_id="mintro")
+            with gr.Column(elem_classes=["mzone", "mz0"]):
+                gr.HTML("<div class='mzhead'><h2 class='msec'>" + t("Your model menu") + "</h2></div><div class='msub'>" + t("The models you choose from under the chat, in this order. The first one is the default for new chats.") + "</div>")
+                menu_list = gr.HTML(menu_html())
             with gr.Column(elem_classes=["mzone", "mz1"]):
                 gr.HTML("<div class='mzhead'><h2 class='msec'>" + t("Open local models") + "</h2><span class='mzscale'>" + t("ranked from best to worst") + "</span></div><div class='msub'>" + t("On this computer. Private and free: nothing leaves your computer. As fast and as capable as your hardware allows.") + "</div>")
                 gr.HTML("<h3 class='msub2'>" + t("Installed") + "</h3>")
@@ -2376,7 +2466,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 return f, []
             return (lambda a, *x: f(*x) if a else ((gr.skip(),) * n if n > 1 else gr.skip())), [gate]
         # first what the page showed last time, at once; then each part is brought up to date
-        for f, ins, outs in [(last_shown, [], SHOWN),
+        for f, ins, outs in [(last_shown, [], SHOWN), (menu_html, [], [menu_list]),
                              (keep(lambda: (installed_html(), closed_html(), ollama_credit()), [installed, closed_list, credit]), [], [installed, closed_list, credit]),
                              (keys_status, [k_provider], [k_pick, k_status]),
                              (keep(cloud_catalog, [cloud_status, cloud_list]), [], [cloud_status, cloud_list]),
@@ -2419,6 +2509,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     api_lan_box.input(api_lan, api_lan_box, [api_info, api_example])
     api_key_btn.click(api_new_key, outputs=[api_info, api_example])
     mact_go.click(row_action, mact, [model, inst_status, local_status, cloud_status], js="() => window.joshuaAct || ''").then(
+        menu_html, outputs=menu_list, show_progress="hidden").then(
         lambda: (installed_html(), local_catalog()[1], cloud_catalog()[1]), outputs=[installed, local_list, cloud_list], show_progress="hidden")
     local_upd.click(local_update, outputs=local_status)
     demo.load(check_update, outputs=[updnote, updbtn])
@@ -2435,6 +2526,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     goal.change(lambda g: (gr.Slider(visible=g), gr.MultimodalTextbox(placeholder=t("Describe a goal for Joshua to accomplish…") if g else t("Message Joshua, or drop files here…")), gr.Checkbox(value=False) if g else gr.skip()), goal, [rounds, box, swarm])
     new.click(new_chat, outputs=[chatbot, cid, convs, files, project, thinking, goal, swarm, offline])
     convs.input(open_conv, convs, [chatbot, cid, files, project, model, thinking, goal, swarm, offline]).then(badge, model, cloudbadge)
+    to_chat = lambda: (gr.Column(visible=True), gr.Column(visible=True)) + (gr.Column(visible=False),) * 5
+    for e in (convs.input, new.click):  # a chat or New chat in the side column closes Models, Settings and the other pages
+        e(to_chat, outputs=[chatcol, rightcol, models_panel, sched_panel, tune_panel, mem_panel, set_panel], show_progress="hidden")
     for o in (thinking, goal, swarm, offline):
         o.input(save_opts, [cid, thinking, goal, swarm, offline], show_progress="hidden")
     project.submit(set_project, [project, cid], [files, cid, convs, project])

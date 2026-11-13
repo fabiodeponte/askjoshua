@@ -434,5 +434,21 @@
  "Closed models": "闭源模型",
  "Unpin": "取消置顶",
  "Pin to the top": "置顶",
- "Files and folder of this chat": "此对话的文件和文件夹"
+ "Files and folder of this chat": "此对话的文件和文件夹",
+ "on Ollama's servers": "在 Ollama 的服务器上",
+ "on this computer": "在这台电脑上",
+ "in the cloud": "在云端",
+ "on {company}'s servers": "在 {company} 的服务器上",
+ "Remove from the menu": "从菜单中移除",
+ "default": "默认",
+ "The models you choose from under the chat, in this order. The first one is the default for new chats.": "你在对话下方选择的模型，按此顺序排列。第一个是新对话的默认模型。",
+ "Your model menu": "你的模型菜单",
+ "Dollars per million tokens (about 750,000 words). Every message sends the whole chat again as input, so long chats cost more; cached input is the part already sent before.": "每百万个 token 的美元价格（约 75 万个单词）。每条消息都会把整个对话重新作为输入发送，所以对话越长越贵；缓存输入是之前已发送的部分。",
+ "Input": "输入",
+ "Cached input": "缓存输入",
+ "Output": "输出",
+ "Cost": "费用",
+ "Off-peak": "非高峰",
+ "Off-peak (half price): outside 12:00–18:00 UTC on weekdays, and all weekend.": "非高峰（半价）：工作日 UTC 12:00–18:00 以外的时间，以及整个周末。",
+ "DeepSeek's own API: off-peak outside 01:00–04:00 and 06:00–10:00 UTC on weekdays.": "DeepSeek 自己的 API：工作日 UTC 01:00–04:00 和 06:00–10:00 以外为非高峰。"
 }

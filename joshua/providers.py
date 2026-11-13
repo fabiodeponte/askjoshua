@@ -52,6 +52,12 @@ def add_model(provider, model):
     return value
 
 
+def remove_model(value):
+    data = settings()
+    data["models"] = [v for v in data["models"] if v != value]
+    save(data)
+
+
 def is_api(value):
     return isinstance(value, str) and SEP in value and value.split(SEP)[0] in PROVIDERS
 

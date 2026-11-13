@@ -434,5 +434,21 @@
  "Closed models": "Modèles fermés",
  "Unpin": "Détacher",
  "Pin to the top": "Épingler en haut",
- "Files and folder of this chat": "Fichiers et dossier de ce chat"
+ "Files and folder of this chat": "Fichiers et dossier de ce chat",
+ "on Ollama's servers": "sur les serveurs d'Ollama",
+ "on this computer": "sur cet ordinateur",
+ "in the cloud": "dans le cloud",
+ "on {company}'s servers": "sur les serveurs de {company}",
+ "Remove from the menu": "Retirer du menu",
+ "default": "par défaut",
+ "The models you choose from under the chat, in this order. The first one is the default for new chats.": "Les modèles parmi lesquels vous choisissez sous le chat, dans cet ordre. Le premier est celui par défaut pour les nouveaux chats.",
+ "Your model menu": "Votre menu de modèles",
+ "Dollars per million tokens (about 750,000 words). Every message sends the whole chat again as input, so long chats cost more; cached input is the part already sent before.": "Dollars par million de tokens (environ 750 000 mots). Chaque message renvoie tout le chat en entrée, donc les longs chats coûtent plus ; l'entrée en cache est la partie déjà envoyée.",
+ "Input": "Entrée",
+ "Cached input": "Entrée en cache",
+ "Output": "Sortie",
+ "Cost": "Coût",
+ "Off-peak": "Heures creuses",
+ "Off-peak (half price): outside 12:00–18:00 UTC on weekdays, and all weekend.": "Heures creuses (moitié prix) : en dehors de 12:00–18:00 UTC en semaine, et tout le week-end.",
+ "DeepSeek's own API: off-peak outside 01:00–04:00 and 06:00–10:00 UTC on weekdays.": "API de DeepSeek : heures creuses en dehors de 01:00–04:00 et 06:00–10:00 UTC en semaine."
 }

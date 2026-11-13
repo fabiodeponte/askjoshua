@@ -434,5 +434,21 @@
  "Closed models": "Geschlossene Modelle",
  "Unpin": "Lösen",
  "Pin to the top": "Oben anheften",
- "Files and folder of this chat": "Dateien und Ordner dieses Chats"
+ "Files and folder of this chat": "Dateien und Ordner dieses Chats",
+ "on Ollama's servers": "auf Ollamas Servern",
+ "on this computer": "auf diesem Computer",
+ "in the cloud": "in der Cloud",
+ "on {company}'s servers": "auf den Servern von {company}",
+ "Remove from the menu": "Aus dem Menü entfernen",
+ "default": "Standard",
+ "The models you choose from under the chat, in this order. The first one is the default for new chats.": "Die Modelle, aus denen du unter dem Chat wählst, in dieser Reihenfolge. Das erste ist der Standard für neue Chats.",
+ "Your model menu": "Dein Modellmenü",
+ "Dollars per million tokens (about 750,000 words). Every message sends the whole chat again as input, so long chats cost more; cached input is the part already sent before.": "Dollar pro Million Tokens (etwa 750.000 Wörter). Jede Nachricht schickt den ganzen Chat erneut als Eingabe, lange Chats kosten also mehr; zwischengespeicherte Eingabe ist der schon gesendete Teil.",
+ "Input": "Eingabe",
+ "Cached input": "Zwischengespeicherte Eingabe",
+ "Output": "Ausgabe",
+ "Cost": "Kosten",
+ "Off-peak": "Nebenzeit",
+ "Off-peak (half price): outside 12:00–18:00 UTC on weekdays, and all weekend.": "Nebenzeit (halber Preis): außerhalb 12:00–18:00 UTC an Werktagen und das ganze Wochenende.",
+ "DeepSeek's own API: off-peak outside 01:00–04:00 and 06:00–10:00 UTC on weekdays.": "DeepSeeks eigene API: Nebenzeit außerhalb 01:00–04:00 und 06:00–10:00 UTC an Werktagen."
 }

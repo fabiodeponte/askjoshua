@@ -52,3 +52,12 @@ def cloud_score(name):
 
 def closed_score(model):
     return _match(model, data()["closed"])
+
+
+def cloud_price(name):
+    """Ollama's price for a cloud model: [input, cached input, output] in dollars per million tokens, plus the off-peak prices if any."""
+    return _match(name.removesuffix(":cloud").removesuffix("-cloud"), data().get("prices", {}).get("cloud", {}))
+
+
+def closed_price(model):
+    return _match(model, data().get("prices", {}).get("closed", {}))
