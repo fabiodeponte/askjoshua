@@ -76,13 +76,15 @@ def models(add=False):
     pair = FAST in names and (MODEL in names or MODEL + ":latest" in names)  # both halves of Joshua's model are here
     choices = [(label(n), n) for n in names if not (pair and n in (FAST, MODEL, MODEL + ":latest"))]
     if pair:
-        choices.insert(0, (agent.CONFIG.get("label", "qwen3-vl"), PAIR))
+        own = agent.CONFIG.get("label", "qwen3-vl")
+        choices.insert(0, ("☁ " + own.removesuffix(":cloud").removesuffix("-cloud") if is_cloud(FAST) else own, PAIR))  # Joshua's model can be a cloud one, chosen at install
     if not apple.why_not():  # macOS 26 with Apple Intelligence on: free, and already on this Mac
         choices.append((apple.LABEL, apple.NAME))
     # the order: on this computer, then open-weight models in the cloud, then closed ones (Claude, ChatGPT, Gemini)
     abc = lambda group: sorted(group, key=lambda c: re.sub(r"^\W+", "", c[0]).lower())  # alphabetical, ignoring ☁ ★ 🔑 🍎
-    local = abc(c for c in choices if not is_cloud(c[1]))
-    cloud_open = abc([c for c in choices if is_cloud(c[1])] + providers.menu(open_weights=True))
+    cl = lambda v: is_cloud(FAST) if v == PAIR else is_cloud(v)
+    local = abc(c for c in choices if not cl(c[1]))
+    cloud_open = abc([c for c in choices if cl(c[1])] + providers.menu(open_weights=True))
     choices = local + cloud_open + abc(providers.menu(open_weights=False))
     mine = model_order()  # the order you set on the Models page; models you haven't placed keep theirs, after
     choices.sort(key=lambda c: mine.index(c[1]) if c[1] in mine else len(mine))
@@ -326,9 +328,17 @@ def menu_html():
     items = menu_order()
     if not items:
         return ""
+    try:
+        sizes = {m.model: m.size or 0 for m in ollama.list().models}
+    except Exception:
+        sizes = {}
     rows = []
     for i, (label, v) in enumerate(items):
-        kind = t("on this computer") if not is_cloud(v) and not providers.is_api(v) else t("in the cloud")
+        kind = t("on this computer") if not is_cloud(resolve(v, False) if v == PAIR else v) and not providers.is_api(v) else t("in the cloud")
+        parts = [n for n in (FAST, MODEL, MODEL + ":latest") if n in sizes and not is_cloud(n)] if v == PAIR else [v] if v in sizes else []
+        used = sum(sizes[n] for n in parts)
+        if used and kind == t("on this computer"):
+            kind += f" · {used / 1e9:.1f} GB"
         btns = (act_button("up", v, "↑") if i else "<span class='mspace'></span>") + (act_button("down", v, "↓") if i < len(items) - 1 else "<span class='mspace'></span>")
         if v not in (PAIR, apple.NAME):
             btns += act_button("unmenu", v, t("Remove") if not is_cloud(v) or providers.is_api(v) else t("Remove from the menu"))
