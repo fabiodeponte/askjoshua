@@ -123,6 +123,11 @@ def media(vision, audio=False):
     return t("text + images + audio") if vision and audio else t("text + images") if vision else t("text + audio") if audio else t("text only")
 
 
+def act_button(action, tag, label):
+    """A button in a table row; the page script hands its action to row_action."""
+    return f"<button class='mact' data-act='{html.escape(action + ':' + tag, quote=True)}'>{html.escape(label)}</button>"
+
+
 def rank_table(rows, empty):
     """A ranked list: (name, size, can read, score or None, note). Best first; the bar shows the score."""
     if not rows:
@@ -148,7 +153,7 @@ def installed_html():
             continue
         gb = (getattr(m, "size", 0) or 0) / 1e9
         name = ("★ " + n.removeprefix("joshua-") + " · " + t("taught by you")) if n.startswith("joshua-") else n.removesuffix(":latest")
-        rows.append((name, f"{gb:.1f} GB", media("vision" in c, "audio" in c), ranking.local_score(n, gb), ""))
+        rows.append((name, f"{gb:.1f} GB", media("vision" in c, "audio" in c), ranking.local_score(n, gb), act_button("rm", n, t("Remove"))))
     if not apple.why_not():
         rows.append((apple.LABEL, t("built into macOS"), media(False), ranking.data().get("apple", 1), ""))
     rows.sort(key=lambda r: -(r[3] or 0))
@@ -162,16 +167,15 @@ def cloud_catalog():
         names = [m["name"] for m in requests.get("https://ollama.com/api/tags", timeout=15).json()["models"]]
         info = {n: requests.post("https://ollama.com/api/show", json={"model": n}, timeout=15).json().get("capabilities", []) for n in names}
     except Exception:
-        return gr.Dropdown(choices=[]), "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com. Check your internet connection, then close and reopen this panel to try again.") + "</div>", ""
+        return "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com. Check your internet connection, then close and reopen this panel to try again.") + "</div>", ""
     free = {"gemma4:31b"}  # free for older accounts on Ollama's legacy free plan, and among the cheapest per message (November 2026)
     usable = sorted(((n, c) for n, c in info.items() if "tools" in c), key=lambda x: -(ranking.cloud_score(x[0]) or 0))
     have = set(CLOUD)
     added = lambda n: (n + ("-cloud" if ":" in n else ":cloud")) in have
-    choices = [(n + (" · " + t("cheapest") if n in free else "") + (" ✓" if added(n) else ""), n) for n, c in usable]
-    rows = [(n, "☁", media("vision" in c, "audio" in c), ranking.cloud_score(n), ("✓ " + t("in your menu") if added(n) else "") + (" · " + t("cheapest") if n in free else "")) for n, c in usable]
+    rows = [(n, "☁", media("vision" in c, "audio" in c), ranking.cloud_score(n), ("✓ " + t("in your menu") if added(n) else act_button("add", n, t("Add"))) + (" · " + t("cheapest") if n in free else "")) for n, c in usable]
     rows += [(providers.label(v).removeprefix("🔑 "), "☁ " + providers.company(v), media(providers.sees_images(v)), ranking.closed_score(providers.split(v)[1]), "✓ " + t("in your menu") + " · " + t("with your API key")) for _, v in providers.menu(True)]
     rows.sort(key=lambda r: -(r[3] or 0))
-    return gr.Dropdown(choices=choices, value=None), "", rank_table(rows, "")
+    return "", rank_table(rows, "")
 
 
 def ollama_credit(key=None):
@@ -272,16 +276,33 @@ def local_catalog():
         with ThreadPoolExecutor(8) as pool:
             tags = [t for ts in pool.map(lambda n: _try(_model_tags, n), names) for t in ts]
     except Exception:
-        return gr.Dropdown(choices=[]), "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com. Check your internet connection, then close and reopen this panel to try again.") + "</div>", ""
+        return "<div class='cloudstat'>" + t("Joshua couldn't reach ollama.com. Check your internet connection, then close and reopen this panel to try again.") + "</div>", ""
     sized = {(x[0].split(":")[0], x[1]) for x in tags if not x[0].endswith(":latest")}
     tags = [x for x in tags if not (x[0].endswith(":latest") and (x[0].split(":")[0], x[1]) in sized)]  # 'latest' is usually a copy of another size
     budget, free = memory_budget(), shutil.disk_usage(pathlib.Path.home()).free / 2**30
     have = {m.model for m in _try(lambda: ollama.list().models)}
     fits = sorted({x for x in tags if x[1] * 1.2 + 2 <= budget}, key=lambda x: (-ranking.local_score(x[0], x[1]), x[1]))
-    choices = [(("✓ " if tg in have else "") + f"{tg} · {gb:g} GB · {media(v, a)}", tg) for tg, gb, v, a in fits]
-    rows = [(tg, f"{gb:g} GB", media(v, a), ranking.local_score(tg, gb), "✓ " + t("installed") if tg in have else "") for tg, gb, v, a in fits[:30]]
-    note = t("{n} versions fit this computer ({memory} GB of memory for models, {disk} GB free disk). Most capable first.", n=len(choices), memory=f"{budget:.0f}", disk=f"{free:.0f}")
-    return gr.Dropdown(choices=choices, value=None), f"<div class='cloudstat'>{note}</div>", rank_table(rows, "")
+    rows = [(tg, f"{gb:g} GB", media(v, a), ranking.local_score(tg, gb), "✓ " + t("installed") if tg in have else act_button("dl", tg, t("Download"))) for tg, gb, v, a in fits]
+    note = t("{n} versions fit this computer ({memory} GB of memory for models, {disk} GB free disk). Most capable first.", n=len(rows), memory=f"{budget:.0f}", disk=f"{free:.0f}")
+    return f"<div class='cloudstat'>{note}</div>", rank_table(rows, "")
+
+
+def row_action(act):
+    """A Download or Add button pressed in one of the tables: 'dl:qwen3:8b' or 'add:kimi-k3'."""
+    kind, _, tag = (act or "").partition(":")
+    if kind == "dl":
+        for m, status in local_download(tag):
+            yield m, gr.skip(), status, gr.skip()
+    elif kind == "rm":
+        try:
+            ollama.delete(tag)
+            CAPS.pop(tag, None)
+            yield gr.Dropdown(choices=models(True)), "<div class='cloudstat'>" + t("{model} was removed from this computer.", model=html.escape(tag)) + "</div>", gr.skip(), gr.skip()
+        except Exception as e:
+            yield gr.skip(), "<div class='cloudstat'>" + t("Couldn't remove {model}: {error}", model=html.escape(tag), error=html.escape(str(e))) + "</div>", gr.skip(), gr.skip()
+    elif kind == "add":
+        m, status = cloud_add_model(tag)
+        yield m, gr.skip(), gr.skip(), status
 
 
 def _try(f, *a):
@@ -1586,6 +1607,10 @@ table.mrank {width: 100%; border-collapse: collapse; font-size: .95rem; margin: 
 table.mrank th {text-align: left; font-weight: 500; color: var(--dim); border-bottom: 1px solid var(--line); padding: 4px 8px}
 table.mrank td {padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); vertical-align: middle; color: var(--ink)}
 table.mrank td.mname {font-weight: 600; word-break: break-word}
+.mhidden {display: none !important}
+button.mact {font: inherit; font-size: .85rem; padding: 2px 12px; border-radius: 6px; border: 1px solid var(--brand); color: var(--brand); background: transparent; cursor: pointer; white-space: nowrap}
+button.mact:hover {background: var(--brand); color: var(--bg, #fff)}
+button.mact:disabled {opacity: .6; cursor: wait}
 table.mrank td.mnote, table.mrank .mdim {color: var(--dim); font-size: .85rem}
 .mbar {display: inline-block; width: 90px; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--line) 60%, transparent); vertical-align: middle; margin-right: 6px; overflow: hidden}
 .mbar i {display: block; height: 100%; background: var(--brand)}
@@ -2065,17 +2090,16 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 models_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="modelsback")
             gr.Markdown(t("Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images gives no extra points: it is shown on its own, under Reads. For everyday questions, smaller models are often enough."), elem_id="mintro")
             gr.HTML("<h2 class='msec'>" + t("Open models · on this computer") + "</h2><div class='msub'>" + t("Private and free: nothing leaves your computer. As fast and as capable as your hardware allows.") + "</div><h3 class='msub2'>" + t("Installed") + "</h3>")
+            inst_status = gr.HTML("")
             installed = gr.HTML("")
             gr.HTML("<h3 class='msub2'>" + t("Available for this computer") + "</h3>")
-            local_list = gr.HTML("<div class='cloudstat'>" + t("Reading the list from ollama.com…") + "</div>")
             local_status = gr.HTML("")
-            local_pick = gr.Dropdown([], label=t("Download a model"))
-            local_get = gr.Button(t("Download"), size="sm")
+            local_list = gr.HTML("<div class='cloudstat'>" + t("Reading the list from ollama.com…") + "</div>")
             local_upd = gr.Button(t("Update my models"), size="sm")
             gr.HTML("<h2 class='msec'>" + t("Open models · in the cloud") + "</h2><div class='msub'>" + t("Run on Ollama's servers: much more capable than what fits a computer, paid with Ollama credit. Open models from many makers.") + "</div>")
+            cloud_status = gr.HTML("")
             cloud_list = gr.HTML("")
             gr.Markdown(CLOUD_HELP, elem_id="cloudhelp")
-            cloud_status = gr.HTML("")
             connect = gr.Button(t("Connect this computer to Ollama"), size="sm")
             gr.HTML("<div class='cloudlinks'><a href='https://ollama.com/dashboard' target='_blank' rel='noopener'>💳 " + t("Add credit on ollama.com") + "</a>"
                     "<a href='https://ollama.com/settings' target='_blank' rel='noopener'>" + t("See what you've used") + "</a></div>"
@@ -2084,8 +2108,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             with gr.Row():
                 o_key = gr.Textbox(type="password", show_label=False, placeholder=t("Ollama API key, only to show your credit"), max_lines=1, scale=3)
                 o_save = gr.Button(t("Save"), size="sm", scale=1)
-            cloud_pick = gr.Dropdown([], label=t("Add a cloud model"), info=t("All of these can use Joshua's tools. Most capable first."))
-            cloud_add = gr.Button(t("Add to the model menu"), size="sm")
+            mact = gr.Textbox(elem_classes="mhidden", show_label=False, container=False)  # the hidden link between the table buttons and Python
+            mact_go = gr.Button(elem_id="mactgo", elem_classes="mhidden")
             gr.HTML("<h2 class='msec'>" + t("Closed models · in the cloud") + "</h2><div class='msub'>" + t("Claude, ChatGPT, Gemini: the most capable, run by their companies, paid through your own API key.") + "</div>")
             closed_list = gr.HTML("")
             gr.Markdown(KEYS_HELP, elem_id="keyshelp")
@@ -2155,8 +2179,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             return (lambda a, *x: f(*x) if a else ((gr.skip(),) * n if n > 1 else gr.skip())), [gate]
         for f, ins, outs in [(lambda: (installed_html(), closed_html(), ollama_credit()), [], [installed, closed_list, credit]),
                              (keys_status, [k_provider], [k_pick, k_status]),
-                             (cloud_catalog, [], [cloud_pick, cloud_status, cloud_list]),
-                             (local_catalog, [], [local_pick, local_status, local_list])]:
+                             (cloud_catalog, [], [cloud_status, cloud_list]),
+                             (local_catalog, [], [local_status, local_list])]:
             fn, gates = step(f, len(outs))
             e = e.then(fn, gates + ins, outs, show_progress="hidden")
         return e
@@ -2184,15 +2208,15 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     api_box.expand(api_panel, outputs=[api_info, api_example])
     api_lan_box.input(api_lan, api_lan_box, [api_info, api_example])
     api_key_btn.click(api_new_key, outputs=[api_info, api_example])
-    local_get.click(local_download, local_pick, [model, local_status]).then(installed_html, outputs=installed, show_progress="hidden")
+    mact_go.click(row_action, mact, [model, inst_status, local_status, cloud_status], js="() => window.joshuaAct || ''").then(
+        lambda: (installed_html(), local_catalog()[1], cloud_catalog()[1]), outputs=[installed, local_list, cloud_list], show_progress="hidden")
     local_upd.click(local_update, outputs=local_status)
     demo.load(check_update, outputs=[updnote, updbtn])
     updbtn.click(do_update, outputs=updnote)
     connect.click(cloud_connect, outputs=cloud_status)
-    cloud_add.click(cloud_add_model, cloud_pick, [model, cloud_status]).then(cloud_catalog, outputs=[cloud_pick, cloud_status, cloud_list], show_progress="hidden")
     k_provider.change(keys_status, k_provider, [k_pick, k_status])
     k_save.click(keys_save, [k_provider, k_key], [k_pick, k_status, k_key])
-    k_add.click(keys_add, [k_provider, k_pick], [model, k_status]).then(lambda: (closed_html(), cloud_catalog()[2]), outputs=[closed_list, cloud_list], show_progress="hidden")
+    k_add.click(keys_add, [k_provider, k_pick], [model, k_status]).then(lambda: (closed_html(), cloud_catalog()[1]), outputs=[closed_list, cloud_list], show_progress="hidden")
     mem_box.expand(mem_view, mem_topic, [mem_topic, mem_text])
     mem_topic.input(mem_view, mem_topic, [mem_topic, mem_text])
     mem_btn.click(mem_save, [mem_topic, mem_text], [mem_topic, mem_text],
@@ -2228,6 +2252,11 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
               if (k in M && M[k] !== k) n.nodeValue = n.nodeValue.replace(k, M[k]); } };
           fix(document.body); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(x => x.nodeType === 1 ? fix(x) : x.nodeType === 3 && fix(x.parentNode || document.body)))).observe(document.body, {childList: true, subtree: true}); }""")
     screen.change(None, screen, None, js="(v) => { document.body.dataset.screen = v; try { localStorage.setItem('joshua-screen2', v) } catch (e) {} }")
+    demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // Download / Add in the Models tables
+        const b = e.target.closest('button.mact'); if (!b) return;
+        if (b.dataset.act.startsWith('rm:') && !confirm(""" + JS_TEXT(t("Remove {model} from this computer? You can download it again later.")) + """.replace('{model}', b.dataset.act.slice(3)))) return;
+        window.joshuaAct = b.dataset.act; b.disabled = true; b.textContent = '…';
+        const g = document.querySelector('#mactgo'); (g.tagName === 'BUTTON' ? g : g.querySelector('button')).click(); }) }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('copy', (e) => {  // text selected in the chat is copied without the extra blank lines and spaces around it
         const s = getSelection(); if (!s.rangeCount || !s.anchorNode || !s.anchorNode.parentElement || !s.anchorNode.parentElement.closest('#chat')) return;
         e.clipboardData.setData('text/plain', s.toString().replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim()); e.preventDefault(); }) }""")
