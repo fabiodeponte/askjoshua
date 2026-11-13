@@ -541,8 +541,35 @@ def new_conv():
 
 def conv_choices():
     convs = [(load(p.name), p.name) for p in ROOT.iterdir() if (p / "chat.json").exists()]
-    order = sorted(convs, key=lambda x: (not x[0].get("pinned"), -x[0]["updated"]))  # pinned chats first, then the most recent
-    return [(("⏳ " if busy(cid) else "") + ("📌 " if c.get("pinned") else "") + (c["title"] or t("New chat")), cid) for c, cid in order]
+    order = sorted(convs, key=lambda x: (not x[0].get("pinned"), x[0].get("pin_order", 0), -x[0]["updated"]))  # pinned chats first, in your order; then the most recent
+    # PIN is an invisible character: the page script sees it and draws the green pin
+    return [((PIN if c.get("pinned") else "") + ("⏳ " if busy(cid) else "") + (c["title"] or t("New chat")), cid) for c, cid in order]
+
+
+PIN = "\u2063"
+
+
+def pinned_ids():
+    return [cid for label, cid in conv_choices() if label.startswith(PIN)]
+
+
+def write_conv(cid, conv):
+    (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))  # not save(): this doesn't move the chat to the top
+
+
+def reorder_pins(cid, order):
+    """The pinned chats dragged into a new order: 'order' lists their old positions, like '2,0,1'."""
+    ids = pinned_ids()
+    try:
+        new = [ids[int(i)] for i in (order or "").split(",")]
+    except (ValueError, IndexError):
+        return gr.skip()
+    if sorted(new) == sorted(ids):
+        for n, c in enumerate(new, 1):
+            conv = load(c)
+            conv["pin_order"] = n
+            write_conv(c, conv)
+    return gr.Radio(choices=conv_choices(), value=cid)
 
 
 OPTS = ("thinking", "goal", "swarm", "offline")
@@ -564,8 +591,10 @@ def save_opts(cid, *values):
 def toggle_pin(cid):
     if cid and (ROOT / cid).exists():
         conv = load(cid)
+        others = [load(c).get("pin_order", 0) for c in pinned_ids() if c != cid]
         conv["pinned"] = not conv.get("pinned")
-        (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))
+        conv["pin_order"] = min(others, default=1) - 1  # a newly pinned chat goes to the top of the pinned ones
+        write_conv(cid, conv)
     return gr.Radio(choices=conv_choices(), value=cid)
 
 
@@ -1379,9 +1408,29 @@ body:not(#a):not(#b) #brand svg {display: inline-block !important; width: 5.3rem
 #convs .cmore {position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 0 6px; border-radius: 6px; opacity: 0; color: var(--dim); font-weight: 700; line-height: 1.4}
 #convs label:hover .cmore, #convs label.selected .cmore {opacity: 1}
 #convs .cmore:hover {background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink)}
-button.cmore.cur {background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; color: var(--ink); cursor: pointer; font: inherit; font-size: .9rem; width: 100%; text-align: left}
+button.cmore.cur {background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; color: var(--ink); cursor: pointer; font: inherit}
 #renchat, #delchat {display: none !important}
-#thischat .opt:not(:has(input:checked)) {display: none !important}  /* the menu sets them; only the ones that are on show here */
+#chatbar {justify-content: flex-end !important; align-items: center !important; gap: 6px !important; flex-wrap: wrap !important; min-height: 0 !important; padding: 0 4px !important; background: transparent !important; border: none !important; flex-grow: 0 !important}
+#chatbar > * {flex: 0 0 auto !important; min-width: 0 !important; width: auto !important}
+body:not(#a):not(#b):not(#c) #chatbar .opt {padding: 2px 10px !important; margin: 0 !important; width: auto !important; overflow: visible !important}
+body:not(#a):not(#b):not(#c) #chatbar .opt, body:not(#a):not(#b):not(#c) #chatbar .opt * {cursor: pointer}
+#chatbar .opt .info-text {display: none !important}
+body:not(#a):not(#b):not(#c) #chatbar .opt {border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent) !important; border-radius: 999px !important; padding: 2px 10px !important; background: color-mix(in srgb, var(--brand) 8%, transparent) !important}
+#chatbar .opt:not(:has(input:checked)) {display: none !important}  /* the ⋯ menu sets them; only the ones that are on show, as small labels */
+#chatbar .opt input {display: none !important}
+#chatbar .opt [data-testid="block-info"], #chatbar .opt .info {display: none !important}
+#chatbar .opt label, #chatbar .opt label span {font-size: .82rem !important; margin: 0 !important; padding: 0 !important}
+#chatbar .html-container, #chatbar .block {padding: 0 !important; border: none !important; background: transparent !important; box-shadow: none !important}
+#chatbar button.cmore.cur {width: auto; border: none; font-size: 1.3rem; line-height: 1; padding: 2px 10px; color: var(--dim)}
+#chatbar button.cmore.cur:hover {color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent)}
+body:not([data-files="open"]) #chatopts {display: none !important}
+#chatopts {flex-grow: 0 !important; margin: 0 4px 8px !important; padding: 10px 12px !important; border-radius: 12px; background: color-mix(in srgb, var(--brand) 6%, var(--bg)) !important}
+#chatopts .fhead {font-weight: 600; color: var(--brand)}
+.pinsvg {width: .95em; height: .95em; fill: var(--brand); vertical-align: -.12em; flex: none}
+#convs label .pinsvg {margin-right: 6px}
+#convs label.dropto {box-shadow: inset 0 2px 0 var(--brand) !important}
+#convs label.pinned {cursor: grab}
+#convs .renfield {position: absolute; inset: 2px 30px 2px 4px; font: inherit; padding: 2px 6px; border: 1px solid var(--brand); border-radius: 6px; background: var(--bg); color: var(--ink)}
 #cmenu {position: fixed; z-index: 1000; min-width: 210px; padding: 6px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, .18); display: flex; flex-direction: column}
 #cmenu button {all: unset; padding: 7px 10px; border-radius: 6px; cursor: pointer; color: var(--ink); font-size: .92rem}
 #cmenu button:hover {background: color-mix(in srgb, var(--cyan) 14%, transparent)}
@@ -2134,20 +2183,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             mact = gr.Textbox(elem_classes="mhidden", show_label=False, container=False)  # the hidden link between buttons drawn in HTML (tables, chat menus) and Python
             mact_go = gr.Button(elem_id="mactgo", elem_classes="mhidden")
             pin_go = gr.Button(elem_id="pingo", elem_classes="mhidden")
-            with gr.Column(elem_id="chatopts") as rightcol:  # the options for this chat; hidden while Teach or Scheduled tasks is open
-                with gr.Accordion(t("This chat"), open=True, elem_id="thischat"):
-                    gr.HTML("<button class='cmore cur'>⋯ " + t("Options for this chat") + "</button>")
-                    thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", elem_id="o_thinking", info=t("Slower, better on hard questions"))
-                    goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", elem_id="o_goal", info=t("Give a goal; it keeps working until done"))
-                    rounds = gr.Slider(2, 30, value=10, step=1, label=t("Max rounds"), visible=False)
-                    swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes="opt", elem_id="o_swarm", info=t("Several agents answer in parallel, then one combines the best answer"))
-                    agents = gr.Slider(2, 6, value=5, step=1, label=t("Agents"), visible=False)
-                    offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", elem_id="o_offline", info=t("Joshua doesn't search or read the web, and code can't go online"))
-                    files = gr.File(file_count="multiple", label=t("Files in this chat"), elem_id="wfiles", height=None)
-                    project = gr.Textbox(label=t("Project folder (optional)"), placeholder=t("e.g. ~/Projects/my-project"), info=t("The chat works directly in this folder. Press Enter to apply."), max_lines=1)
-                    with gr.Row(elem_id="filebtns"):
-                        openf = gr.Button("📂 " + t("Open folder"), size="sm")
-                        dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
+            ren_val = gr.Textbox(elem_classes="mhidden", show_label=False, container=False)
+            ren_go = gr.Button(elem_id="rengo", elem_classes="mhidden")
+            ord_val = gr.Textbox(elem_classes="mhidden", show_label=False, container=False)
+            ord_go = gr.Button(elem_id="ordgo", elem_classes="mhidden")
             convs = gr.Radio(choices=conv_choices(), show_label=False, container=False, elem_id="convs")
             renbtn = gr.Button("✏  " + t("Rename this chat"), size="sm", elem_id="renchat")
             renbox = gr.Textbox(visible=False, show_label=False, max_lines=1, placeholder=t("New name, then press Enter"), elem_id="renbox")
@@ -2266,6 +2305,21 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                         t_del = gr.Button(t("Delete this task"), size="sm", elem_id="schedel")
         with gr.Column(scale=4, elem_id="chatcol", elem_classes="chat-panel") as chatcol:
             sidetoggle = gr.Button("☰", size="sm", elem_id="sidetoggle", min_width=0)
+            with gr.Row(elem_id="chatbar"):  # this chat's settings that are on, and its ⋯ menu
+                thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", elem_id="o_thinking", info=t("Slower, better on hard questions"))
+                goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", elem_id="o_goal", info=t("Give a goal; it keeps working until done"))
+                rounds = gr.Slider(2, 30, value=10, step=1, label=t("Max rounds"), visible=False)
+                swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes="opt", elem_id="o_swarm", info=t("Several agents answer in parallel, then one combines the best answer"))
+                agents = gr.Slider(2, 6, value=5, step=1, label=t("Agents"), visible=False)
+                offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", elem_id="o_offline", info=t("Joshua doesn't search or read the web, and code can't go online"))
+                gr.HTML("<button class='cmore cur' title='" + html.escape(t("Options for this chat"), quote=True) + "'>⋯</button>")
+            with gr.Column(elem_id="chatopts") as rightcol:  # this chat's files, opened from the ⋯ menu
+                gr.HTML("<div class='fhead'>📂 " + t("Files and folder of this chat") + "</div>")
+                files = gr.File(file_count="multiple", label=t("Files in this chat"), elem_id="wfiles", height=None)
+                project = gr.Textbox(label=t("Project folder (optional)"), placeholder=t("e.g. ~/Projects/my-project"), info=t("The chat works directly in this folder. Press Enter to apply."), max_lines=1)
+                with gr.Row(elem_id="filebtns"):
+                    openf = gr.Button("📂 " + t("Open folder"), size="sm")
+                    dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
             chatbot = gr.Chatbot(height="100%", show_label=False, elem_id="chat", placeholder="### " + t("Hello. What would you like to do today?") + "\n" + t("Everything you write here is stored only on this computer."))
             with gr.Row(equal_height=True, elem_id="promptrow"):
                 box = gr.MultimodalTextbox(file_count="multiple", placeholder=t("Message Joshua, or drop files here…"), show_label=False, scale=12)
@@ -2361,6 +2415,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     feedback.click(None, model, None, js="(m) => { window.open(" + json.dumps(FEEDBACK) + " + '&model=' + encodeURIComponent(m || ''), '_blank') }")
     renbtn.click(rename_open, cid, renbox)
     pin_go.click(toggle_pin, cid, convs, show_progress="hidden")
+    ord_go.click(None, None, ord_val, js="() => window.joshuaOrder || ''").then(reorder_pins, [cid, ord_val], convs, show_progress="hidden")
+    ren_go.click(None, None, ren_val, js="() => window.joshuaRename || ''").then(rename_save, [cid, ren_val], [renbox, convs], show_progress="hidden")
     renbox.submit(rename_save, [cid, renbox], [renbox, convs])
     dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
@@ -2387,27 +2443,52 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         if (b.dataset.act.startsWith('rm:') && !confirm(""" + JS_TEXT(t("Remove {model} from this computer? You can download it again later.")) + """.replace('{model}', b.dataset.act.slice(3)))) return;
         window.joshuaAct = b.dataset.act; b.disabled = true; b.textContent = '…';
         const g = document.querySelector('#mactgo'); (g.tagName === 'BUTTON' ? g : g.querySelector('button')).click(); }) }""")
-    demo.load(None, None, None, js="""() => {  // the ⋯ menu of each chat: its settings and actions
+    demo.load(None, None, None, js="""() => {  // the ⋯ menu of each chat (pin, rename, delete, its settings, its files), the green pin, dragging pinned chats
+        const PIN = '\\u2063', ICON = "<svg class='pinsvg' viewBox='0 0 24 24'><path d='M14.5 2.5l7 7-2.2.6-3.8 3.8.6 4.6-2.1 2.1-4.1-4.1-5.4 5.4-1.4-1.4 5.4-5.4-4.1-4.1 2.1-2.1 4.6.6 3.8-3.8z'/></svg>";
         const L = {thinking: """ + JS_TEXT("💭 " + t("Deep thinking")) + """, goal: """ + JS_TEXT("🎯 " + t("Goal mode")) + """, swarm: """ + JS_TEXT("🐝 " + t("Swarm")) + """, offline: """ + JS_TEXT("🚫 " + t("No internet")) + """,
-                   pin: """ + JS_TEXT("📌 " + t("Pin to the top")) + """, unpin: """ + JS_TEXT("📌 " + t("Unpin")) + """, rename: """ + JS_TEXT("✏ " + t("Rename")) + """, del: """ + JS_TEXT("🗑 " + t("Delete")) + """};
-        const press = (id) => { const g = document.querySelector('#' + id); if (g) (g.tagName === 'BUTTON' || g.tagName === 'INPUT' ? g : g.querySelector('button, input')).click(); };
+                   pin: """ + JS_TEXT(t("Pin to the top")) + """, unpin: """ + JS_TEXT(t("Unpin")) + """, rename: """ + JS_TEXT("✏ " + t("Rename")) + """, del: """ + JS_TEXT("🗑 " + t("Delete")) + """, files: """ + JS_TEXT("📂 " + t("Files and folder of this chat")) + """};
+        const OPT = ['thinking', 'goal', 'swarm', 'offline'];
+        const press = (id) => { const g = document.querySelector('#' + id); if (g) (g.tagName === 'BUTTON' ? g : g.querySelector('button, input')).click(); };
         const close = () => { const m = document.querySelector('#cmenu'); if (m) m.remove(); };
+        const text = (l) => { const s = l.querySelector('span:not(.cmore)'); return s ? s.textContent : ''; };
         const open = (anchor, saved) => {
           close(); const m = document.createElement('div'); m.id = 'cmenu';
           const on = (k) => { const i = document.querySelector('#o_' + k + ' input'); return i && i.checked; };
-          const sel = document.querySelector('#convs label.selected'); const pinned = sel && sel.textContent.trim().startsWith('📌');
+          const sel = document.querySelector('#convs label.selected'); const pinned = sel && text(sel).startsWith(PIN);
           let h = '';
-          for (const k of ['thinking', 'goal', 'swarm', 'offline']) h += "<button data-k='" + k + "'>" + L[k] + (on(k) ? " <b>✓</b>" : '') + '</button>';
-          if (saved) h += '<hr>' + "<button data-k='pin'>" + (pinned ? L.unpin : L.pin) + "</button><button data-k='rename'>" + L.rename + "</button><button data-k='del' class='danger'>" + L.del + '</button>';
+          if (saved) h += "<button data-k='pin'>" + ICON + ' ' + (pinned ? L.unpin : L.pin) + "</button><button data-k='rename'>" + L.rename + "</button><button data-k='del' class='danger'>" + L.del + '</button><hr>';
+          for (const k of OPT) h += "<button data-k='" + k + "'>" + L[k] + (on(k) ? ' <b>✓</b>' : '') + '</button>';
+          h += "<hr><button data-k='files'>" + L.files + (document.body.dataset.files ? ' <b>✓</b>' : '') + '</button>';
           m.innerHTML = h; document.body.appendChild(m);
-          const r = anchor.getBoundingClientRect(); m.style.left = Math.min(r.left, innerWidth - m.offsetWidth - 8) + 'px';
+          const r = anchor.getBoundingClientRect(); m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
           m.style.top = Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8) + 'px';
           m.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k; close();
-            if (OPT.includes(k)) press('o_' + k); else if (k === 'pin') press('pingo'); else if (k === 'rename') press('renchat'); else if (k === 'del') press('delchat'); });
+            if (OPT.includes(k)) press('o_' + k); else if (k === 'pin') press('pingo'); else if (k === 'rename') rename(); else if (k === 'del') press('delchat');
+            else if (k === 'files') document.body.dataset.files = document.body.dataset.files ? '' : 'open'; });
         };
-        const OPT = ['thinking', 'goal', 'swarm', 'offline'];
-        const dots = () => document.querySelectorAll('#convs label').forEach(l => { if (!l.querySelector('.cmore')) { const d = document.createElement('span'); d.className = 'cmore'; d.textContent = '⋯'; l.appendChild(d); } });
-        new MutationObserver(dots).observe(document.body, {childList: true, subtree: true}); dots();
+        const rename = () => {  // the chat's name becomes a text field: Enter saves, Esc cancels
+          const l = document.querySelector('#convs label.selected'); if (!l) return;
+          const f = document.createElement('input'); f.className = 'renfield'; f.value = text(l).replace(PIN, '').replace(/^⏳ /, '');
+          l.appendChild(f); f.focus(); f.select(); let done = false;
+          const end = (save) => { if (done) return; done = true; if (save && f.value.trim()) { window.joshuaRename = f.value.trim(); press('rengo'); } f.remove(); };
+          f.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); end(true); } if (e.key === 'Escape') end(false); });
+          f.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); }); f.addEventListener('blur', () => end(true));
+        };
+        let drag = null;
+        const mark = () => document.querySelectorAll('#convs label').forEach(l => {
+          if (!l.querySelector('.cmore')) { const d = document.createElement('span'); d.className = 'cmore'; d.textContent = '⋯'; l.appendChild(d); }
+          const p = text(l).startsWith(PIN); if (l.classList.contains('pinned') !== p) l.classList.toggle('pinned', p); if (l.draggable !== p) l.draggable = p;
+          if (p && !l.querySelector('.pinsvg')) l.insertAdjacentHTML('afterbegin', ICON); if (!p && l.querySelector('.pinsvg')) l.querySelectorAll('.pinsvg').forEach(x => x.remove());
+          if (!l.dataset.dnd) { l.dataset.dnd = 1;  // drag a pinned chat over another pinned chat to change their order
+            l.addEventListener('dragstart', (e) => { drag = l; e.dataTransfer.effectAllowed = 'move'; });
+            l.addEventListener('dragover', (e) => { if (drag && l.classList.contains('pinned')) { e.preventDefault(); l.classList.add('dropto'); } });
+            l.addEventListener('dragleave', () => l.classList.remove('dropto'));
+            l.addEventListener('drop', (e) => { e.preventDefault(); l.classList.remove('dropto'); if (!drag || drag === l) return;
+              const pins = [...document.querySelectorAll('#convs label.pinned')]; const order = pins.map((x, i) => i);
+              const from = pins.indexOf(drag), to = pins.indexOf(l); order.splice(to, 0, order.splice(from, 1)[0]);
+              window.joshuaOrder = order.join(','); drag = null; press('ordgo'); }); }
+        });
+        new MutationObserver(mark).observe(document.body, {childList: true, subtree: true, characterData: true}); mark();
         document.addEventListener('click', (e) => {
           const d = e.target.closest('.cmore');
           if (!d) { if (!e.target.closest('#cmenu')) close(); return; }
