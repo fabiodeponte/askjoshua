@@ -217,8 +217,8 @@ Write-Utf8 (Join-Path $HomeDir "start.ps1") @"
 function Up(`$u) { try { Invoke-WebRequest -Uri `$u -UseBasicParsing -TimeoutSec 2 | Out-Null; return `$true } catch { return `$false } }
 if (-not (Up 'http://127.0.0.1:11434/api/version')) { Start-Process -FilePath '$Ollama' -ArgumentList 'serve' -WindowStyle Hidden; Start-Sleep 4 }
 if (-not (Up '$Url')) {
-  `$env:PYTHONUTF8 = '1'; `$env:JOSHUA_NO_OPEN = '1'
-  Start-Process -FilePath '$Py' -ArgumentList 'web.py' -WorkingDirectory '$App' -WindowStyle Hidden -RedirectStandardOutput '$HomeDir\joshua.log' -RedirectStandardError '$HomeDir\joshua-errors.log'
+  `$env:PYTHONUTF8 = '1'; `$env:JOSHUA_NO_OPEN = '1'; `$env:JOSHUA_LOG = '$HomeDir\joshua.log'
+  Start-Process -FilePath '$Pyw' -ArgumentList 'web.py' -WorkingDirectory '$App'   # pythonw: Joshua runs without a window
   for (`$i = 0; `$i -lt 60 -and -not (Up '$Url'); `$i++) { Start-Sleep 1 }
 }
 if (`$args -contains '-NoOpen' -or `$env:JOSHUA_STAY_HIDDEN) { exit 0 }
