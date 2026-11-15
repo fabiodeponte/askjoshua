@@ -390,5 +390,8 @@
  "Or paste this in PowerShell (open the Start menu and type PowerShell):": "Ou collez ceci dans PowerShell (ouvrez le menu Démarrer et tapez PowerShell) :",
  "Free and open, on every system.": "Gratuit et ouvert, sur tous les systèmes.",
  "Install command for Linux": "Commande d'installation pour Linux",
- "Install command for Mac": "Commande d'installation pour Mac"
+ "Install command for Mac": "Commande d'installation pour Mac",
+ "<b>Requirements:</b> A 64-bit PC with 8 GB of memory and 10–40 GB of free disk. An NVIDIA graphics card makes it much faster, and is needed for images and fine-tuning.": "<b>Configuration requise :</b> Un PC 64 bits avec 8 Go de mémoire et 10–40 Go libres sur le disque. Une carte graphique NVIDIA le rend bien plus rapide, et elle est nécessaire pour les images et le fine-tuning.",
+ "<b>Requirements:</b> A Mac with Apple Silicon (M1 or later), 8 GB of memory, 10–40 GB of free disk. On an Intel Mac Joshua works with cloud models only.": "<b>Configuration requise :</b> Un Mac avec Apple Silicon (M1 ou plus récent), 8 Go de mémoire, 10–40 Go libres sur le disque. Sur un Mac Intel, Joshua fonctionne uniquement avec les modèles cloud.",
+ "<b>Requirements:</b> No administrator rights needed. 8 GB of memory, 10–20 GB of free disk; an NVIDIA graphics card makes it much faster. On Windows, images and fine-tuning aren't available yet, and the code Joshua writes runs without a sandbox.": "<b>Configuration requise :</b> Pas besoin de droits d'administrateur. 8 Go de mémoire, 10–20 Go libres sur le disque ; une carte graphique NVIDIA le rend bien plus rapide. Sous Windows, les images et le fine-tuning ne sont pas encore disponibles, et le code que Joshua écrit tourne sans bac à sable."
 }

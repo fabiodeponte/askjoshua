@@ -390,5 +390,8 @@
  "Or paste this in PowerShell (open the Start menu and type PowerShell):": "或者把这行粘贴到 PowerShell 中（打开开始菜单，输入 PowerShell）：",
  "Free and open, on every system.": "免费、开源，适用于所有系统。",
  "Install command for Linux": "Linux 安装命令",
- "Install command for Mac": "Mac 安装命令"
+ "Install command for Mac": "Mac 安装命令",
+ "<b>Requirements:</b> A 64-bit PC with 8 GB of memory and 10–40 GB of free disk. An NVIDIA graphics card makes it much faster, and is needed for images and fine-tuning.": "<b>要求：</b> 64 位电脑，8 GB 内存，10–40 GB 可用磁盘空间。NVIDIA 显卡会让它快很多，图像生成和微调也需要它。",
+ "<b>Requirements:</b> A Mac with Apple Silicon (M1 or later), 8 GB of memory, 10–40 GB of free disk. On an Intel Mac Joshua works with cloud models only.": "<b>要求：</b> 搭载 Apple 芯片（M1 或更新）的 Mac，8 GB 内存，10–40 GB 可用磁盘空间。在 Intel Mac 上，Joshua 只能使用云端模型。",
+ "<b>Requirements:</b> No administrator rights needed. 8 GB of memory, 10–20 GB of free disk; an NVIDIA graphics card makes it much faster. On Windows, images and fine-tuning aren't available yet, and the code Joshua writes runs without a sandbox.": "<b>要求：</b> 不需要管理员权限。8 GB 内存，10–20 GB 可用磁盘空间；NVIDIA 显卡会让它快很多。在 Windows 上，图像生成和微调暂不可用，Joshua 编写的代码在没有沙盒的情况下运行。"
 }
