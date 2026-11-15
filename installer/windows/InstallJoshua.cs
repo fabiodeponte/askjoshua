@@ -216,6 +216,7 @@ class Installer : Form
         log.Height = main.Top - log.Top - 16;
         finished.AppendLine("  -> " + (a == "y" ? "Yes" : "No"));
         log.Text = finished.ToString();
+        log.SelectionStart = log.TextLength; log.ScrollToCaret();
         try { process.StandardInput.WriteLine(a); process.StandardInput.Flush(); } catch { }
     }
 
