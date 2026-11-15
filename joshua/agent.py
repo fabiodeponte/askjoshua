@@ -299,6 +299,9 @@ def edit_image(instruction: str, images: str, name: str = "") -> str:
 tools = {f.__name__: f for f in [web_search, read_page, run_python, install_package, list_files, read_file, write_file, get_datetime, look_at_image, generate_image, edit_image, remember, forget, read_memory]}
 if not IMAGES_OK:  # image generation was not installed
     tools.pop("generate_image"), tools.pop("edit_image")
+import browser  # Joshua's own browser window, to use sites that need clicking and typing
+tools.update({f.__name__: f for f in browser.TOOLS})
+BROWSER_TOOLS = {f.__name__ for f in browser.TOOLS}
 MEMORY_TOOLS = {"remember", "forget", "read_memory"}
 messages = []
 while __name__ == "__main__":

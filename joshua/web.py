@@ -17,7 +17,7 @@ ROOT = (pathlib.Path(__file__).parent / "conversations").resolve()
 ROOT.mkdir(exist_ok=True)
 IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 LOGO = "<g transform='translate(-4 3)'><path d='M54 44 V64 A15 15 0 0 1 24 64' stroke='#3f8a49' stroke-width='9' fill='none' stroke-linecap='round'/><path d='M54 44 C47 22 64 3 94 3 C96 28 78 49 54 44 Z' fill='#7fb86a'/><path d='M58 40 L86 11 M65 33 V20 M72 26 H84' stroke='#f3efdc' stroke-width='2.2' fill='none' stroke-linecap='round'/><circle cx='86' cy='11' r='2.8' fill='#f3efdc'/><circle cx='65' cy='20' r='2.8' fill='#f3efdc'/><circle cx='84' cy='26' r='2.8' fill='#f3efdc'/><circle cx='39' cy='64' r='8.5' fill='#2a6bb5'/><path d='M34.5 59.5 C37.5 57.5 41.5 58.5 41.5 61.5 C41.5 64.5 37.5 64.5 35.5 66.5 C33.5 64.5 32.5 61.5 34.5 59.5 Z' fill='#7fb86a'/></g>"  # the sprout J, the same drawing as the website's img/logo.svg
-ICONS = {"web_search": "🔎", "read_page": "📄", "run_python": "🐍", "read_file": "📂", "write_file": "💾", "get_datetime": "🕒", "look_at_image": "🖼️", "generate_image": "🎨", "edit_image": "🖌️", "goal_done": "✅", "give_up": "🛑", "install_package": "📦", "list_files": "🗂️", "remember": "🧠", "forget": "🧹", "read_memory": "📒"}
+ICONS = {"web_search": "🔎", "read_page": "📄", "run_python": "🐍", "read_file": "📂", "write_file": "💾", "get_datetime": "🕒", "look_at_image": "🖼️", "generate_image": "🎨", "edit_image": "🖌️", "goal_done": "✅", "give_up": "🛑", "install_package": "📦", "list_files": "🗂️", "remember": "🧠", "forget": "🧹", "read_memory": "📒", "browser_open": "🧭", "browser_read": "🧭", "browser_click": "🖱️", "browser_type": "⌨️", "browser_scroll": "🧭", "browser_back": "🧭"}
 SKIP = (gr.skip(),) * 4
 
 IMAGE_RULE = " When the user asks to change, combine or add to photos they shared, use edit_image with those photo files and never answer with an invented picture; use generate_image only for brand-new pictures." if "edit_image" in tools else " You cannot create or edit pictures on this computer: say so if asked."
@@ -578,6 +578,7 @@ TOOL_GROUPS = {"web_search": ("🔎 " + t("Web search"), ["web_search"]), "read_
                "list_files": ("🗂️ " + t("Browse folders"), ["list_files"]), "files": ("📂 " + t("Read & 💾 write files (text, Word, PDF)"), ["read_file", "write_file"]),
                "get_datetime": ("🕒 " + t("Date and time"), ["get_datetime"]), "look_at_image": ("🖼️ " + t("Look at images"), ["look_at_image"]),
                **({"generate_image": ("🎨 " + t("Generate images"), ["generate_image"]), "edit_image": ("🖌️ " + t("Edit your photos"), ["edit_image"])} if "edit_image" in tools else {}),
+               "browser": ("🧭 " + t("Use websites in its own browser (Firefox)"), sorted(agent.BROWSER_TOOLS)),
                "memory": ("🧠 " + t("Remember & forget"), sorted(agent.MEMORY_TOOLS))}
 
 
@@ -1021,7 +1022,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     agent.CTX.vision = model if "vision" in caps(model) else FAST
     shown, msgs = conv["display"], conv["llm"]
     off = {n for g in tools_off() for n in TOOL_GROUPS.get(g, ("", []))[1]}
-    base = {k: v for k, v in tools.items() if k not in off and (mem and not private or k not in agent.MEMORY_TOOLS) and not (offline and k in ("web_search", "read_page"))}
+    base = {k: v for k, v in tools.items() if k not in off and (mem and not private or k not in agent.MEMORY_TOOLS) and not (offline and (k in ("web_search", "read_page") or k in agent.BROWSER_TOOLS))}
     toolset = dict(base, goal_done=goal_done, give_up=give_up) if goal else base
     rounds = 0 if swarm else int(rounds) if goal else 1
     language = agent.LANGUAGES.get(conv.get("lang"))
@@ -1292,7 +1293,7 @@ def mem_save(topic, text):
     return mem_view(topic)
 
 
-STEPS = {"web_search": t("searching the web"), "read_page": t("reading a web page"), "run_python": t("running code"), "install_package": t("installing a package"),
+STEPS = {**{k: t("using the browser") for k in agent.BROWSER_TOOLS}, "web_search": t("searching the web"), "read_page": t("reading a web page"), "run_python": t("running code"), "install_package": t("installing a package"),
          "list_files": t("browsing files"), "read_file": t("reading a file"), "write_file": t("writing a file"), "look_at_image": t("looking at an image"),
          "generate_image": t("generating an image (a minute or two)"), "edit_image": t("editing the image (several minutes)"), "remember": t("updating memory"),
          "forget": t("updating memory"), "read_memory": t("reading memory"), "get_datetime": t("checking the date"), "goal_done": t("wrapping up"), "give_up": t("wrapping up"),
