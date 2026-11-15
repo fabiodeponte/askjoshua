@@ -38,18 +38,42 @@ class Installer : Form
     bool installed;
     int step, shots;
 
+    static readonly string LogFile = Path.Combine(Path.GetTempPath(), "Install Joshua.log");  // what happened, if the window closes by surprise
+
+    static void Note(string text)
+    {
+        try { File.AppendAllText(LogFile, DateTime.Now.ToString("HH:mm:ss ") + text + Environment.NewLine); } catch { }
+    }
+
+    static void Crash(object e)
+    {
+        Note("ERROR " + e);
+        MessageBox.Show("Install Joshua stopped because of an error:\n\n" + e + "\n\nThe details are in " + LogFile,
+                        "Install Joshua", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+
     [STAThread]
     static void Main()
     {
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new Installer());
+        Note("started, Windows " + Environment.OSVersion + ", .NET " + Environment.Version);
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (s, e) => Crash(e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (s, e) => Crash(e.ExceptionObject);
+        try
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new Installer());
+        }
+        catch (Exception e) { Crash(e); }
+        Note("closed");
     }
 
     Installer()
     {
         Text = "Install Joshua";
-        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); }  // fails when the program sits on a network folder
+        catch { Icon = SystemIcons.Application; }
         BackColor = Cream; ForeColor = Ink;
         Font = new Font("Segoe UI", 10f);
         ClientSize = new Size(680, 600);
@@ -158,12 +182,14 @@ class Installer : Form
         process.OutputDataReceived += (s, e) => { if (e.Data != null) BeginInvoke((Action)(() => Line(e.Data))); };
         process.ErrorDataReceived += (s, e) => { if (e.Data != null) BeginInvoke((Action)(() => Line(e.Data))); };
         process.Exited += delegate { BeginInvoke((Action)(() => Ended(process.ExitCode))); };
+        Note("running " + script);
         try { process.Start(); process.BeginOutputReadLine(); process.BeginErrorReadLine(); }
         catch (Exception e) { failure = "Couldn't start PowerShell: " + e.Message; Ended(1); }
     }
 
     void Line(string raw)
     {
+        Note(raw);
         string l = Regex.Replace(raw, "\u001B\\[[0-9;?]*[A-Za-z]", "");  // terminal colours and cursor moves
         if (l.Contains("\r")) l = l.Substring(l.LastIndexOf('\r') + 1);  // a progress bar redraws its line: keep the last state
         if (l.StartsWith("@@ASK|"))  // a question: "@@ASK|y|Install the deep-thinking version?"
@@ -223,6 +249,7 @@ class Installer : Form
     // ---------- the end ----------
     void Ended(int code)
     {
+        Note("installer ended with code " + code);
         questionBox.Visible = false;
         main.Visible = true;
         if (code == 0)
