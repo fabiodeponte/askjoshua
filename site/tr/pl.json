@@ -368,5 +368,11 @@
  "<a href=\"features.html\">Features</a>": "<a href=\"features.html\">Funkcje</a>",
  "Features": "Funkcje",
  "<a aria-current=\"page\" href=\"features.html\">Features</a>": "<a aria-current=\"page\" href=\"features.html\">Funkcje</a>",
- "Joshua's<br/><em>features</em>": "Funkcje<br/><em>Joshuy</em>"
+ "Joshua's<br/><em>features</em>": "Funkcje<br/><em>Joshuy</em>",
+ "On Windows 10 or 11, paste this in PowerShell (open the Start menu and type PowerShell):": "Na Windows 10 lub 11 wklej to do PowerShell (otwórz menu Start i wpisz PowerShell):",
+ "No administrator rights needed. 8 GB of memory, 10–20 GB of free disk; an NVIDIA graphics card makes it much faster. On Windows, images and fine-tuning aren't available yet, and the code Joshua writes runs without a sandbox.": "Nie trzeba uprawnień administratora. 8 GB pamięci, 10–20 GB wolnego miejsca; karta graficzna NVIDIA znacznie przyspiesza. Na Windows obrazy i fine-tuning nie są jeszcze dostępne, a kod pisany przez Joshuę działa bez piaskownicy.",
+ "Windows": "Windows",
+ "chosen by the graphics card: 4B under 7 GB, 8B from 7 GB": "wybierany według karty graficznej: 4B poniżej 7 GB, 8B od 7 GB",
+ "Deep thinking and cloud models. Images and fine-tuning are not available yet. Without a card, the 4B runs on the processor, slowly.": "Głębokie myślenie i modele w chmurze. Obrazy i fine-tuning nie są jeszcze dostępne. Bez karty 4B działa powoli na procesorze.",
+ "Install command for Windows": "Polecenie instalacji dla Windows"
 }

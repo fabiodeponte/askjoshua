@@ -19,10 +19,16 @@ jobs:
         env:
           JOSHUA_YES: "1"
           JOSHUA_MODEL: qwen3:0.6b
+          FROM_SITE: "1"
         run: |
-          $env:JOSHUA_URL = "$env:RUNNER_TEMP\joshua.tar.gz"
           Start-Transcript -Path "$env:RUNNER_TEMP\install-log.txt"
-          & .\install.ps1
+          if ($env:FROM_SITE) {
+            # exactly what a person types: the installer and Joshua as published on ask.joshua.earth
+            irm https://ask.joshua.earth/install.ps1 | iex
+          } else {
+            $env:JOSHUA_URL = "$env:RUNNER_TEMP\joshua.tar.gz"
+            & .\install.ps1
+          }
           Stop-Transcript
       - name: Try Joshua
         shell: pwsh

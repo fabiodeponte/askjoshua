@@ -214,9 +214,15 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
       <p class="or">Or, on a Mac or a Linux PC, paste this in Terminal:</p>
       <div class="install" role="group" aria-label="Install command">
         <code id="cmd">curl -fsSL https://ask.joshua.earth/install.sh | bash</code>
-        <button type="button" id="copy">Copy</button>
+        <button type="button" id="copy" class="copy" data-for="cmd">Copy</button>
       </div>
       <p class="fine">Paste it in a terminal. A Mac with Apple Silicon (M1 or later) or a Linux PC, 8 GB of memory, 10–40 GB of free disk. On Linux an NVIDIA graphics card makes it much faster. Free and open.</p>
+      <p class="or">On Windows 10 or 11, paste this in PowerShell (open the Start menu and type PowerShell):</p>
+      <div class="install" role="group" aria-label="Install command for Windows">
+        <code id="cmdwin">irm https://ask.joshua.earth/install.ps1 | iex</code>
+        <button type="button" class="copy" data-for="cmdwin">Copy</button>
+      </div>
+      <p class="fine">No administrator rights needed. 8 GB of memory, 10–20 GB of free disk; an NVIDIA graphics card makes it much faster. On Windows, images and fine-tuning aren't available yet, and the code Joshua writes runs without a sandbox.</p>
       <p class="fine" id="installs" hidden data-text="Installed {n} times since {date}."></p>
   </header>
 
@@ -240,6 +246,7 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
             <tr><td>32 GB+</td><td>qwen3-vl 30B · about 20 GB</td><td>Everything, with a larger and smarter model if you want it.</td></tr>
             <tr><td>Any computer</td><td>Cloud models only · about 1 GB</td><td>For computers too small or too old for local models (Intel Macs, under 8 GB of memory, little free disk), or if you prefer. Answers come from Ollama's servers; chats, files and memory stay on your computer. Needs an internet connection and an Ollama account with a few dollars of pay-as-you-go credit.</td></tr>
             <tr><td>Mac with macOS 26</td><td>🍎 Apple Intelligence · already on the Mac</td><td>Added by itself, with any choice above, when Apple Intelligence is on (any Mac with an M1 or later). Free, private and fast, but small: no tools, short chats, more mistakes.</td></tr>
+            <tr><td>Windows</td><td>chosen by the graphics card: 4B under 7 GB, 8B from 7 GB</td><td>Deep thinking and cloud models. Images and fine-tuning are not available yet. Without a card, the 4B runs on the processor, slowly.</td></tr>
             <tr><td>Linux</td><td>chosen by the graphics card: 4B under 7 GB, 8B from 7 GB, 30B from 22 GB</td><td>Images from 12 GB, fine-tuning from 8 GB, on NVIDIA cards. Without a card, the 4B runs on the processor, slowly.</td></tr>
           </tbody>
         </table>
@@ -261,7 +268,7 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
 
   <footer>
     <span>Ask Joshua · from the people behind <a href="https://yattaphone.org">Yattaphone</a>, the phone you build yourself.</span>
-    <span>Version 2026.11.15.5 · Own your hardware. Own your data. Own your intelligence.</span>
+    <span>Version 2026.11.15.6 · Own your hardware. Own your data. Own your intelligence.</span>
   </footer>
 </div>
 
@@ -277,10 +284,10 @@ fetch("/stats.json").then(r => r.json()).then(s => {
 }).catch(() => {});
 </script>
 <script>
-document.getElementById("copy").addEventListener("click", async (e) => {
-  const b = e.currentTarget, text = document.getElementById("cmd").textContent;
-  try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; }
-  catch (err) { const r = document.createRange(); r.selectNodeContents(document.getElementById("cmd")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selected"; }
-  setTimeout(() => (b.textContent = "Copy"), 1800);
-});
+document.querySelectorAll("button.copy").forEach(btn => btn.addEventListener("click", async (e) => {
+  const b = e.currentTarget, code = document.getElementById(b.dataset.for), label = b.textContent;
+  try { await navigator.clipboard.writeText(code.textContent); b.textContent = "✓"; }
+  catch (err) { const r = document.createRange(); r.selectNodeContents(code); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "…"; }
+  setTimeout(() => (b.textContent = label), 1800);
+}));
 </script>
