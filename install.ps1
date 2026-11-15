@@ -137,7 +137,9 @@ else {
     $setup = Join-Path $env:TEMP "OllamaSetup.exe"
     Dim "Downloading Ollama..."
     Invoke-WebRequest -Uri "https://ollama.com/download/OllamaSetup.exe" -OutFile $setup -UseBasicParsing
-    Start-Process -FilePath $setup -ArgumentList "/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES" -Wait
+    # wait for the setup program only: Start-Process -Wait would also wait for the Ollama app it opens, which keeps running
+    $p = Start-Process -FilePath $setup -ArgumentList "/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES" -PassThru
+    $p.WaitForExit()
     Remove-Item $setup -ErrorAction SilentlyContinue
     $Ollama = Find-Ollama
     if (-not $Ollama) { Die "Ollama didn't install. Install it from https://ollama.com/download/windows, then run this again." }

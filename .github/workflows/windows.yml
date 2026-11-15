@@ -8,7 +8,7 @@ on:
 jobs:
   install-and-try:
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Package Joshua as the site would serve it
@@ -21,7 +21,9 @@ jobs:
           JOSHUA_MODEL: qwen3:0.6b
         run: |
           $env:JOSHUA_URL = "$env:RUNNER_TEMP\joshua.tar.gz"
+          Start-Transcript -Path "$env:RUNNER_TEMP\install-log.txt"
           & .\install.ps1
+          Stop-Transcript
       - name: Try Joshua
         shell: pwsh
         run: |
@@ -33,7 +35,7 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          foreach ($f in "joshua.log", "joshua-errors.log") {
-            $p = "$HOME\AskJoshua\$f"
+          foreach ($p in "$env:RUNNER_TEMP\install-log.txt", "$HOME\AskJoshua\joshua.log", "$HOME\AskJoshua\joshua-errors.log") {
+            $f = Split-Path $p -Leaf
             if (Test-Path $p) { $t = (Get-Content $p -Tail 40) -join "%0A"; Write-Host "::notice title=$f::$t" }
           }
