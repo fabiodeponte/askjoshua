@@ -1817,7 +1817,7 @@ body[data-screen^="modern"]:not(#a):not(#b) .ftstep {border: none !important; pa
 body[data-screen^="modern"]:not(#a):not(#b) .ftres, body[data-screen^="modern"]:not(#a):not(#b) .ftcount, body[data-screen^="modern"]:not(#a):not(#b) .ftstatus, body[data-screen^="modern"]:not(#a):not(#b) .ftans {border: none !important; background: var(--codebg) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #ftlog textarea {border: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #tuneback {border: none !important; background: var(--soft) !important}
-@media (prefers-reduced-motion: reduce) {body[data-screen^="modern"]:not(#a):not(#b) #working .wdot {animation: none}}
+/* the working cursor keeps its slow fade even when the system asks for less motion: it is a change of light, not movement */
 /* ---- app frame: the page never scrolls; the side column and the messages each scroll in their own place ---- */
 html, body {height: 100%; overflow: hidden !important}
 .gradio-container {height: 100vh !important; max-height: 100vh; min-height: 0 !important; padding: 0 !important; margin: 0 !important; max-width: none !important; overflow: hidden}

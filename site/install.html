@@ -124,7 +124,7 @@ footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; j
   nav ul { gap: 14px }
 }
 @keyframes slowblink { 0%, 100% { opacity: 1 } 50% { opacity: .15 } }
-@media (prefers-reduced-motion: reduce) { .brand::after, .cursor { animation: none } }
+@media (prefers-reduced-motion: reduce) { .cursor { animation: slowblink 2.6s ease-in-out infinite } }  /* a slow fade is not movement: it stays on even when the system asks for less motion */
 
 /* data map */
 .data { width: 100%; border-collapse: collapse; min-width: 720px; font-size: .93rem }
@@ -261,7 +261,7 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
 
   <footer>
     <span>Ask Joshua · from the people behind <a href="https://yattaphone.org">Yattaphone</a>, the phone you build yourself.</span>
-    <span>Version 2026.11.15.4 · Own your hardware. Own your data. Own your intelligence.</span>
+    <span>Version 2026.11.15.5 · Own your hardware. Own your data. Own your intelligence.</span>
   </footer>
 </div>
 
