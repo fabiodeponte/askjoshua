@@ -25,21 +25,15 @@ jobs:
           Set-ItemProperty -Path $k -Name ExecutionPolicy -Value "Restricted"
           powershell -NoProfile -Command "Get-ExecutionPolicy -List | Out-String" | Write-Host
       - name: Run the installer, answering every question with its default
-        shell: powershell   # Windows PowerShell 5.1, the one every Windows computer has
+        shell: pwsh   # the step runs in PowerShell 7; the installer itself in Windows PowerShell 5.1, as typed by a person (scripts are forbidden there)
         env:
           JOSHUA_YES: "1"
           JOSHUA_MODEL: qwen3:0.6b
-          FROM_SITE: ""
         run: |
-          Start-Transcript -Path "$env:RUNNER_TEMP\install-log.txt"
-          if ($env:FROM_SITE) {
-            # exactly what a person types: the installer and Joshua as published on ask.joshua.earth
-            irm https://ask.joshua.earth/install.ps1 | iex
-          } else {
-            $env:JOSHUA_URL = "$env:RUNNER_TEMP\joshua.tar.gz"
-            & .\install.ps1
-          }
-          Stop-Transcript
+          $env:JOSHUA_URL = "$env:RUNNER_TEMP\joshua.tar.gz"
+          $env:PSModulePath = $null
+          powershell -NoProfile -Command "Start-Transcript -Path '$env:RUNNER_TEMP\install-log.txt'; & ([scriptblock]::Create([IO.File]::ReadAllText('$PWD\install.ps1'))); Stop-Transcript"
+          if ($LASTEXITCODE) { throw "installer failed" }
       - name: Try Joshua
         shell: pwsh
         run: |
