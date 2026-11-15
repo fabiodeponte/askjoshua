@@ -1553,7 +1553,8 @@ body.noside #leftcol {display: none !important}
 #working {flex: 1 1 auto !important; min-width: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 0 0 4px !important}
 #working .working {display: flex; align-items: center; gap: 8px; color: var(--cyan); font-size: 1.15rem; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
 #working .progress-text, #working .eta-bar, #working .timer, #working .meta-text, #working .meta-text-center, #working .progress-level {display: none !important}
-#working .wdot {flex: 0 0 auto; width: 11px; height: 19px; background: repeating-linear-gradient(to bottom, var(--brand) 0 2px, color-mix(in srgb, var(--brand) 55%, #b8f0a0) 2px 3px); box-shadow: 0 0 6px color-mix(in srgb, var(--brand) 45%, transparent); animation: blink 1.1s steps(1) infinite}  /* the logo's cursor: blinking while Joshua works */
+#working .wdot {flex: 0 0 auto; width: 11px; height: 19px; background: repeating-linear-gradient(to bottom, var(--brand) 0 2px, color-mix(in srgb, var(--brand) 55%, #b8f0a0) 2px 3px); box-shadow: 0 0 6px color-mix(in srgb, var(--brand) 45%, transparent); animation: slowblink 2.6s ease-in-out infinite}  /* the logo's cursor: slowly blinking while Joshua works */
+@keyframes slowblink {0%, 100% {opacity: 1} 50% {opacity: .15}}
 #working .done {display: flex; align-items: center; gap: 8px; color: var(--brand); font-size: 1.15rem; letter-spacing: .05em; white-space: nowrap}
 #working .working b.clock, #working .done {font-variant-numeric: tabular-nums}
 #working .working b.clock {display: inline; font-weight: 600; color: var(--ink)}
