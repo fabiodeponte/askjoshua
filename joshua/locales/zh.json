@@ -454,5 +454,8 @@
  "Dollars per million tokens (about 750,000 words).": "每百万个 token 的美元价格（约 75 万个单词）。",
  "Every message sends the whole chat again as input, so long chats cost more; cached input is the part already sent before.": "每条消息都会把整个对话重新作为输入发送，所以对话越长越贵；缓存输入是之前已发送的部分。",
  "using the browser": "正在使用浏览器",
- "Use websites in its own browser (Firefox)": "在自己的浏览器（Firefox）中使用网站"
+ "Use websites in its own browser (Firefox)": "在自己的浏览器（Firefox）中使用网站",
+ "**Joshua's browser** is a Firefox window of its own, separate from yours. To let Joshua work on a site where you need an account, open the window, go to the site and sign in yourself: the sign-in is kept there, also after a restart. Joshua never types passwords. Remember that with a cloud model, the pages Joshua reads are sent to that model.": "**Joshua 的浏览器**是它自己的 Firefox 窗口，与你的浏览器分开。要让 Joshua 在需要账号的网站上工作，请打开这个窗口，进入网站并自己登录：登录状态会保存在那里，重启后也一样。Joshua 从不输入密码。请注意，使用云端模型时，Joshua 读取的页面会发送给该模型。",
+ "Open Joshua's browser": "打开 Joshua 的浏览器",
+ "The browser couldn't open.": "浏览器无法打开。"
 }

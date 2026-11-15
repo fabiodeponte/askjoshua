@@ -2,7 +2,7 @@ import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, su
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, providers, ranking, tune_ui
+import agent, apple, browser, providers, ranking, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -2324,6 +2324,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Tools") + "</h2><div class='msub'>" + t("What Joshua can do while it answers. Switch off the ones you don't want it to use. The list is part of Joshua: new tools come with updates.") + "</div>")
                 tools_on = gr.CheckboxGroup([(label, key) for key, (label, _) in TOOL_GROUPS.items()], value=[k for k in TOOL_GROUPS if k not in tools_off()], show_label=False, elem_id="toolson")
+                gr.Markdown(t("**Joshua's browser** is a Firefox window of its own, separate from yours. To let Joshua work on a site where you need an account, open the window, go to the site and sign in yourself: the sign-in is kept there, also after a restart. Joshua never types passwords. Remember that with a cloud model, the pages Joshua reads are sent to that model."), elem_id="browserhelp")
+                with gr.Row():
+                    br_open = gr.Button("🧭 " + t("Open Joshua's browser"), size="sm", scale=0, min_width=240)
+                    br_status = gr.HTML("")
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Code") + "</h2>")
                 net = gr.Checkbox(True, label="🌐 " + t("Internet for code"), info=t("Lets code go online and install packages"))
@@ -2517,6 +2521,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     mem_btn_open.click(mem_view, mem_topic, [mem_topic, mem_text])
     set_btn.click(api_panel, outputs=[api_info, api_example])
     learn.change(learn_setting, learn)
+    br_open.click(lambda: "" if browser.show() == "ok" else "<span class='cloudstat'>" + t("The browser couldn't open.") + "</span>", outputs=br_status)
     tools_on.change(lambda on: tools_off([k for k in TOOL_GROUPS if k not in on]), tools_on)
     api_lan_box.input(api_lan, api_lan_box, [api_info, api_example])
     api_key_btn.click(api_new_key, outputs=[api_info, api_example])

@@ -454,5 +454,8 @@
  "Dollars per million tokens (about 750,000 words).": "Dolary za milion tokenów (około 750 000 słów).",
  "Every message sends the whole chat again as input, so long chats cost more; cached input is the part already sent before.": "Każda wiadomość wysyła cały czat ponownie jako wejście, więc długie czaty kosztują więcej; wejście z pamięci podręcznej to część już wysłana.",
  "using the browser": "używa przeglądarki",
- "Use websites in its own browser (Firefox)": "Korzystać ze stron we własnej przeglądarce (Firefox)"
+ "Use websites in its own browser (Firefox)": "Korzystać ze stron we własnej przeglądarce (Firefox)",
+ "**Joshua's browser** is a Firefox window of its own, separate from yours. To let Joshua work on a site where you need an account, open the window, go to the site and sign in yourself: the sign-in is kept there, also after a restart. Joshua never types passwords. Remember that with a cloud model, the pages Joshua reads are sent to that model.": "**Przeglądarka Joshuy** to jego własne okno Firefoksa, oddzielne od twojego. Aby Joshua pracował na stronie wymagającej konta, otwórz okno, wejdź na stronę i zaloguj się sam: logowanie zostaje tam zapisane, także po ponownym uruchomieniu. Joshua nigdy nie wpisuje haseł. Pamiętaj, że przy modelu w chmurze strony czytane przez Joshuę trafiają do tego modelu.",
+ "Open Joshua's browser": "Otwórz przeglądarkę Joshuy",
+ "The browser couldn't open.": "Nie udało się otworzyć przeglądarki."
 }

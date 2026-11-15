@@ -4,7 +4,10 @@ It is a separate browser, not yours: none of your accounts or passwords are in i
 Playwright isn't thread-safe, and Joshua's tools run in different threads, so one thread owns the browser
 and every command is handed to it through a queue.
 """
-import queue, re, subprocess, sys, threading
+import pathlib, queue, re, subprocess, sys, threading
+
+# Joshua's browser keeps its own profile here: sites you sign in to in its window stay signed in, also after a restart
+PROFILE = pathlib.Path(__file__).parent / "browser-profile"
 
 _jobs = queue.Queue()
 _state = {"page": None, "engine": None}
@@ -35,10 +38,10 @@ def _owner():
     """The one thread that owns the browser and runs every command."""
     from playwright.sync_api import sync_playwright
     pw = sync_playwright().start()
-    browser = None
+    ctx = None
     for engine in ("firefox", "chromium"):  # Firefox first; Chromium if Firefox won't start
         try:
-            browser = getattr(pw, engine).launch(headless=False)
+            ctx = getattr(pw, engine).launch_persistent_context(str(PROFILE / engine), headless=False, viewport={"width": 1280, "height": 860})
             _state["engine"] = engine
             break
         except Exception:
@@ -46,12 +49,20 @@ def _owner():
     while True:
         fn, args, done = _jobs.get()
         try:
-            if browser is None:
+            if ctx is None:
                 raise RuntimeError("No browser could start. Try again after Joshua installs it.")
-            if _state["page"] is None or _state["page"].is_closed():
-                _state["page"] = browser.new_page(viewport={"width": 1280, "height": 860})
-            done.put((True, fn(_state["page"], *args)))
+            open_tabs = [p for p in ctx.pages if not p.is_closed()]
+            # Joshua works in the tab you used last: open a page there yourself, sign in, then ask Joshua
+            page = open_tabs[-1] if open_tabs else ctx.new_page()
+            done.put((True, fn(page, *args)))
         except Exception as e:
+            if "closed" in str(e).lower():  # you closed the window: start it again next time
+                try:
+                    ctx = getattr(pw, _state["engine"]).launch_persistent_context(str(PROFILE / _state["engine"]), headless=False, viewport={"width": 1280, "height": 860})
+                    done.put((True, fn(ctx.pages[0] if ctx.pages else ctx.new_page(), *args)))
+                    continue
+                except Exception as e2:
+                    e = e2
             done.put((False, str(e)))
 
 
@@ -171,6 +182,11 @@ def browser_scroll(direction: str = "down") -> str:
 def browser_back() -> str:
     """Go back to the previous page."""
     return _run(lambda p: (p.go_back(wait_until="domcontentloaded", timeout=20000), _view(p))[1])
+
+
+def show():
+    """Open Joshua's browser window for you, so you can go to a site and sign in before asking Joshua to use it."""
+    return _run(lambda p: (p.goto("https://duckduckgo.com") if p.url in ("", "about:blank") else None, p.bring_to_front(), "ok")[2])
 
 
 TOOLS = [browser_open, browser_read, browser_click, browser_type, browser_scroll, browser_back]
