@@ -169,7 +169,8 @@ class Installer : Form
         }
         catch (Exception e) { failure = "Couldn't download the installer: " + e.Message + ". Check your internet connection and try again."; Ended(1); return; }
 
-        var info = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -File \"" + script + "\"")
+        // the script is run as text read from the file, not as a .ps1 file: many companies forbid .ps1 files, and that rule only covers files
+        var info = new ProcessStartInfo("powershell.exe", "-NoProfile -Command \"& ([scriptblock]::Create([IO.File]::ReadAllText('" + script.Replace("'", "''") + "')))\"")
         {
             UseShellExecute = false, CreateNoWindow = true,
             RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true,
@@ -275,7 +276,7 @@ class Installer : Form
     {
         string start = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "AskJoshua", "start.ps1");
         if (File.Exists(start))
-            Process.Start(new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + start + "\"") { UseShellExecute = false, CreateNoWindow = true });
+            Process.Start(new ProcessStartInfo("powershell.exe", "-NoProfile -WindowStyle Hidden -Command \"& ([scriptblock]::Create([IO.File]::ReadAllText('" + start.Replace("'", "''") + "')))\"") { UseShellExecute = false, CreateNoWindow = true });
         Close();
     }
 }

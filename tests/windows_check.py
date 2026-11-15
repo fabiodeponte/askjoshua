@@ -96,17 +96,24 @@ def _():
 
 @check("Stop and start again")
 def _():
-    subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(HOME / "stop.ps1")], timeout=60)
+    subprocess.run(["cmd", "/c", str(HOME / "stop.cmd")], timeout=60)
     time.sleep(3)
     assert not up(wait=3), "still running after stop.ps1"
-    subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(HOME / "start.ps1"), "-NoOpen"], timeout=180)
+    subprocess.run(["cmd", "/c", str(HOME / "start.cmd"), "-NoOpen"], timeout=180)
     assert up(), "didn't start again"
 
 
-@check("Start menu shortcut")
+@check("Start menu shortcut starts Joshua (with PowerShell scripts forbidden)")
 def _():
     lnk = pathlib.Path(os.environ["APPDATA"]) / "Microsoft/Windows/Start Menu/Programs/Joshua.lnk"
     assert lnk.exists(), "no shortcut"
+    subprocess.run(["cmd", "/c", str(HOME / "stop.cmd")], timeout=60)
+    time.sleep(3)
+    assert not up(wait=3), "still running after stop.cmd"
+    os.environ["JOSHUA_STAY_HIDDEN"] = "1"  # start without opening a browser window
+    subprocess.run(["powershell", "-NoProfile", "-Command", f"Start-Process '{lnk}'"], timeout=60)
+    assert up(), "the Start menu shortcut didn't start Joshua"
+    return "started from the shortcut"
 
 
 print(f"{sum(results)}/{len(results)} checks passed")

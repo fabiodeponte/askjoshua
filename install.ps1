@@ -218,6 +218,9 @@ Write-Utf8 (Join-Path $App "config.json") ('{"model": "' + $Model + '", "fast": 
 # ---------- 5. launcher ----------
 Step "Joshua launcher"
 $Pyw = Join-Path $HomeDir "venv\Scripts\pythonw.exe"
+# Many companies forbid running .ps1 files ("execution policy"). Joshua's own scripts are therefore run as text, read from the file:
+# that is allowed wherever PowerShell itself is.
+function Run-Line($file, $extra) { return "-NoProfile -WindowStyle Hidden -Command `"& ([scriptblock]::Create([IO.File]::ReadAllText('$file'))) $extra`"" }
 # start.ps1 starts Ollama and Joshua if they aren't running, then opens Joshua in a window of its own
 Write-Utf8 (Join-Path $HomeDir "start.ps1") @"
 `$ErrorActionPreference = 'SilentlyContinue'
@@ -232,27 +235,29 @@ if (`$args -contains '-NoOpen' -or `$env:JOSHUA_STAY_HIDDEN) { exit 0 }
 `$edge = @("`${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "`$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe", "`$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "`$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") | Where-Object { Test-Path `$_ } | Select-Object -First 1
 if (`$edge) { Start-Process -FilePath `$edge -ArgumentList '--app=$Url' } else { Start-Process '$Url' }
 "@
-Write-Utf8 (Join-Path $HomeDir "start.cmd") "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"%~dp0start.ps1`" %*`r`n"
+Write-Utf8 (Join-Path $HomeDir "start.cmd") ("@echo off`r`npowershell " + (Run-Line "$HomeDir\start.ps1" "%*") + "`r`n")
 Write-Utf8 (Join-Path $HomeDir "stop.ps1") @"
 # Stops Joshua until you open it again
 Get-CimInstance Win32_Process | Where-Object { `$_.CommandLine -like '*web.py*' -and `$_.ExecutablePath -like '$HomeDir*' } | ForEach-Object { Stop-Process -Id `$_.ProcessId -Force }
 Write-Host 'Joshua stopped.'
 "@
+Write-Utf8 (Join-Path $HomeDir "stop.cmd") ("@echo off`r`npowershell " + (Run-Line "$HomeDir\stop.ps1" "") + "`r`n")
 $StartMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Joshua.lnk"
 $Startup = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup\Joshua.lnk"
 Write-Utf8 (Join-Path $HomeDir "uninstall.ps1") @"
 # Removes Joshua. Your chats are in $App\conversations: copy them first if you want to keep them.
 `$a = Read-Host 'Remove Joshua, its chats and its Python? [y/N]'
 if (`$a -notmatch '^[Yy]') { exit 0 }
-& '$HomeDir\stop.ps1'
+& ([scriptblock]::Create([IO.File]::ReadAllText('$HomeDir\stop.ps1')))
 Remove-Item -Force '$StartMenu', '$Startup' -ErrorAction SilentlyContinue
 Set-Location `$HOME; Remove-Item -Recurse -Force '$HomeDir'
 Write-Host 'Done. Ollama itself is still installed; remove it from Settings > Apps if you do not need it.'
 "@
+Write-Utf8 (Join-Path $HomeDir "uninstall.cmd") "@echo off`r`npowershell -NoProfile -Command `"& ([scriptblock]::Create([IO.File]::ReadAllText('$HomeDir\uninstall.ps1')))`"`r`npause`r`n"
 function New-Shortcut($path, $arguments) {
     $s = (New-Object -ComObject WScript.Shell).CreateShortcut($path)
     $s.TargetPath = "powershell.exe"
-    $s.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$HomeDir\start.ps1`" $arguments"
+    $s.Arguments = Run-Line "$HomeDir\start.ps1" $arguments
     $s.WorkingDirectory = $HomeDir
     $ico = Join-Path $App "icon.ico"
     if (Test-Path $ico) { $s.IconLocation = $ico }
@@ -274,5 +279,5 @@ if (-not (Test-Path $counted) -and -not $env:JOSHUA_YES) {
     New-Item -ItemType File -Path $counted -Force | Out-Null
 }
 Say "  Open Joshua from the Start menu. It opens at $Url"
-Dim "Everything lives in $HomeDir - stop it with stop.ps1 - remove it with uninstall.ps1"
-if (Ask "Start Joshua now?" "y") { & (Join-Path $HomeDir "start.ps1") $(if ($env:JOSHUA_YES) { "-NoOpen" } else { "" }) }
+Dim "Everything lives in $HomeDir - stop it with stop.cmd - remove it with uninstall.cmd"
+if (Ask "Start Joshua now?" "y") { & ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $HomeDir "start.ps1")))) $(if ($env:JOSHUA_YES) { "-NoOpen" } else { "" }) }

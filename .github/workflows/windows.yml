@@ -16,12 +16,20 @@ jobs:
       - name: Package Joshua as the site would serve it
         shell: pwsh
         run: tar.exe -czf "$env:RUNNER_TEMP\joshua.tar.gz" --exclude=__pycache__ joshua
+      - name: Forbid PowerShell scripts, as many companies do (a Group Policy that even -ExecutionPolicy Bypass can't override)
+        shell: pwsh
+        run: |
+          $k = "HKLM:\Software\Policies\Microsoft\Windows\PowerShell"
+          New-Item -Path $k -Force | Out-Null
+          Set-ItemProperty -Path $k -Name EnableScripts -Value 1 -Type DWord
+          Set-ItemProperty -Path $k -Name ExecutionPolicy -Value "Restricted"
+          powershell -NoProfile -Command "Get-ExecutionPolicy -List | Out-String" | Write-Host
       - name: Run the installer, answering every question with its default
         shell: powershell   # Windows PowerShell 5.1, the one every Windows computer has
         env:
           JOSHUA_YES: "1"
           JOSHUA_MODEL: qwen3:0.6b
-          FROM_SITE: "1"
+          FROM_SITE: ""
         run: |
           Start-Transcript -Path "$env:RUNNER_TEMP\install-log.txt"
           if ($env:FROM_SITE) {
@@ -56,6 +64,14 @@ jobs:
       - name: Package Joshua as the site would serve it
         shell: pwsh
         run: tar.exe -czf "$env:RUNNER_TEMP\joshua.tar.gz" --exclude=__pycache__ joshua
+      - name: Forbid PowerShell scripts, as many companies do (a Group Policy that even -ExecutionPolicy Bypass can't override)
+        shell: pwsh
+        run: |
+          $k = "HKLM:\Software\Policies\Microsoft\Windows\PowerShell"
+          New-Item -Path $k -Force | Out-Null
+          Set-ItemProperty -Path $k -Name EnableScripts -Value 1 -Type DWord
+          Set-ItemProperty -Path $k -Name ExecutionPolicy -Value "Restricted"
+          powershell -NoProfile -Command "Get-ExecutionPolicy -List | Out-String" | Write-Host
       - name: Run "Install Joshua.exe"; in test mode it answers each question with its default and saves pictures of its window
         shell: pwsh
         env:
