@@ -364,5 +364,9 @@
  "<strong>Switch it on in Joshua</strong>In Settings, under Access from anywhere, tick “Let my devices on Tailscale reach Joshua”. Joshua shows its address and a QR code.": "<strong>In Joshua einschalten</strong>In den Einstellungen unter Zugriff von überall „Meine Geräte auf Tailscale dürfen Joshua erreichen“ ankreuzen. Joshua zeigt seine Adresse und einen QR-Code.",
  "<strong>On your other devices</strong>Install Tailscale and sign in with the same account.": "<strong>Auf deinen anderen Geräten</strong>Installiere Tailscale und melde dich mit demselben Konto an.",
  "<strong>Open the address</strong>Type it in the browser, or scan the QR code with your phone. Joshua opens as it does at home.": "<strong>Die Adresse öffnen</strong>Gib sie im Browser ein oder scanne den QR-Code mit dem Telefon. Joshua öffnet sich wie zu Hause.",
- "The computer with Joshua has to stay on and awake. On a Mac: System Settings, Battery or Energy, “Prevent automatic sleeping when the display is off”.": "Der Computer mit Joshua muss eingeschaltet und wach bleiben. Auf einem Mac: Systemeinstellungen, Batterie oder Energie, „Automatischen Ruhezustand verhindern, wenn der Bildschirm aus ist“."
+ "The computer with Joshua has to stay on and awake. On a Mac: System Settings, Battery or Energy, “Prevent automatic sleeping when the display is off”.": "Der Computer mit Joshua muss eingeschaltet und wach bleiben. Auf einem Mac: Systemeinstellungen, Batterie oder Energie, „Automatischen Ruhezustand verhindern, wenn der Bildschirm aus ist“.",
+ "<a href=\"features.html\">Features</a>": "<a href=\"features.html\">Funktionen</a>",
+ "Features": "Funktionen",
+ "<a aria-current=\"page\" href=\"features.html\">Features</a>": "<a aria-current=\"page\" href=\"features.html\">Funktionen</a>",
+ "Joshua's<br/><em>features</em>": "Joshuas<br/><em>Funktionen</em>"
 }

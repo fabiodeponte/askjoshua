@@ -364,5 +364,9 @@
  "<strong>Switch it on in Joshua</strong>In Settings, under Access from anywhere, tick “Let my devices on Tailscale reach Joshua”. Joshua shows its address and a QR code.": "<strong>在 Joshua 中打开</strong>在设置的“随处访问”下，勾选“允许我在 Tailscale 上的设备访问 Joshua”。Joshua 会显示它的地址和一个二维码。",
  "<strong>On your other devices</strong>Install Tailscale and sign in with the same account.": "<strong>在其他设备上</strong>安装 Tailscale，并用同一个账号登录。",
  "<strong>Open the address</strong>Type it in the browser, or scan the QR code with your phone. Joshua opens as it does at home.": "<strong>打开地址</strong>在浏览器中输入，或用手机扫描二维码。Joshua 会像在家里一样打开。",
- "The computer with Joshua has to stay on and awake. On a Mac: System Settings, Battery or Energy, “Prevent automatic sleeping when the display is off”.": "装有 Joshua 的电脑必须保持开机和唤醒。在 Mac 上：系统设置，电池或能源，“显示器关闭时防止自动进入睡眠”。"
+ "The computer with Joshua has to stay on and awake. On a Mac: System Settings, Battery or Energy, “Prevent automatic sleeping when the display is off”.": "装有 Joshua 的电脑必须保持开机和唤醒。在 Mac 上：系统设置，电池或能源，“显示器关闭时防止自动进入睡眠”。",
+ "<a href=\"features.html\">Features</a>": "<a href=\"features.html\">功能</a>",
+ "Features": "功能",
+ "<a aria-current=\"page\" href=\"features.html\">Features</a>": "<a aria-current=\"page\" href=\"features.html\">功能</a>",
+ "Joshua's<br/><em>features</em>": "Joshua 的<br/><em>功能</em>"
 }
