@@ -374,5 +374,8 @@
  "Windows": "Windows",
  "chosen by the graphics card: 4B under 7 GB, 8B from 7 GB": "wybierany według karty graficznej: 4B poniżej 7 GB, 8B od 7 GB",
  "Deep thinking and cloud models. Images and fine-tuning are not available yet. Without a card, the 4B runs on the processor, slowly.": "Głębokie myślenie i modele w chmurze. Obrazy i fine-tuning nie są jeszcze dostępne. Bez karty 4B działa powoli na procesorze.",
- "Install command for Windows": "Polecenie instalacji dla Windows"
+ "Install command for Windows": "Polecenie instalacji dla Windows",
+ "<a class=\"download\" download=\"\" href=\"/Install-Joshua.exe\">Download for Windows</a> <span class=\"fine\">Install Joshua.exe · the same, for Windows 10 and 11, no administrator rights needed</span>": "<a class=\"download\" download=\"\" href=\"/Install-Joshua.exe\">Pobierz dla Windows</a> <span class=\"fine\">Install Joshua.exe · to samo dla Windows 10 i 11, bez uprawnień administratora</span>",
+ "The first time, Windows says it protected your PC": "Za pierwszym razem Windows mówi, że ochronił komputer",
+ "The installer isn't signed with a Microsoft certificate yet, so Windows SmartScreen stops it the first time. Its code is public <a href=\"https://github.com/fabiodeponte/askjoshua\">on GitHub</a>. To open it, click <b>More info</b>, then <b>Run anyway</b>. If your browser warns about the download, choose <b>Keep</b>.": "Instalator nie jest jeszcze podpisany certyfikatem Microsoftu, więc Windows SmartScreen zatrzymuje go za pierwszym razem. Jego kod jest publiczny <a href=\"https://github.com/fabiodeponte/askjoshua\">na GitHubie</a>. Aby go otworzyć, kliknij <b>Więcej informacji</b>, a potem <b>Uruchom mimo to</b>. Jeśli przeglądarka ostrzega przy pobieraniu, wybierz <b>Zachowaj</b>."
 }

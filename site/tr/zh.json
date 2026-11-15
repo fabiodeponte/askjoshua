@@ -374,5 +374,8 @@
  "Windows": "Windows",
  "chosen by the graphics card: 4B under 7 GB, 8B from 7 GB": "按显卡选择：7 GB 以下用 4B，7 GB 起用 8B",
  "Deep thinking and cloud models. Images and fine-tuning are not available yet. Without a card, the 4B runs on the processor, slowly.": "深度思考和云端模型。图像和微调暂不可用。没有显卡时，4B 在处理器上运行，速度较慢。",
- "Install command for Windows": "Windows 安装命令"
+ "Install command for Windows": "Windows 安装命令",
+ "<a class=\"download\" download=\"\" href=\"/Install-Joshua.exe\">Download for Windows</a> <span class=\"fine\">Install Joshua.exe · the same, for Windows 10 and 11, no administrator rights needed</span>": "<a class=\"download\" download=\"\" href=\"/Install-Joshua.exe\">下载 Windows 版</a> <span class=\"fine\">Install Joshua.exe · 同样的安装程序，适用于 Windows 10 和 11，无需管理员权限</span>",
+ "The first time, Windows says it protected your PC": "第一次运行时，Windows 会说它保护了你的电脑",
+ "The installer isn't signed with a Microsoft certificate yet, so Windows SmartScreen stops it the first time. Its code is public <a href=\"https://github.com/fabiodeponte/askjoshua\">on GitHub</a>. To open it, click <b>More info</b>, then <b>Run anyway</b>. If your browser warns about the download, choose <b>Keep</b>.": "安装程序尚未使用 Microsoft 证书签名，因此 Windows SmartScreen 会在第一次时拦截它。它的代码公开在 <a href=\"https://github.com/fabiodeponte/askjoshua\">GitHub 上</a>。要打开它，请点击<b>更多信息</b>，然后点击<b>仍要运行</b>。如果浏览器对下载发出警告，请选择<b>保留</b>。"
 }
