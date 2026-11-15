@@ -457,5 +457,19 @@
  "Use websites in its own browser (Firefox)": "在自己的浏览器（Firefox）中使用网站",
  "**Joshua's browser** is a Firefox window of its own, separate from yours. To let Joshua work on a site where you need an account, open the window, go to the site and sign in yourself: the sign-in is kept there, also after a restart. Joshua never types passwords. Remember that with a cloud model, the pages Joshua reads are sent to that model.": "**Joshua 的浏览器**是它自己的 Firefox 窗口，与你的浏览器分开。要让 Joshua 在需要账号的网站上工作，请打开这个窗口，进入网站并自己登录：登录状态会保存在那里，重启后也一样。Joshua 从不输入密码。请注意，使用云端模型时，Joshua 读取的页面会发送给该模型。",
  "Open Joshua's browser": "打开 Joshua 的浏览器",
- "The browser couldn't open.": "浏览器无法打开。"
+ "The browser couldn't open.": "浏览器无法打开。",
+ "Tailscale isn't installed on this computer.": "这台电脑上没有安装 Tailscale。",
+ "Download it from <a href='https://tailscale.com/download' target='_blank' rel='noopener'>tailscale.com/download</a> and install it.": "从 <a href='https://tailscale.com/download' target='_blank' rel='noopener'>tailscale.com/download</a> 下载并安装。",
+ "Open it and sign in (a free personal account is enough).": "打开它并登录（免费的个人账号就够了）。",
+ "Come back here and press Check again.": "回到这里，按“再次检查”。",
+ "Tailscale is installed but not connected: open it from the menu bar and sign in, then press Check again.": "Tailscale 已安装但未连接：从菜单栏打开它并登录，然后按“再次检查”。",
+ "Tailscale is connected as <b>{name}</b>. Switch on access to reach Joshua from your other devices.": "Tailscale 已连接，名称为 <b>{name}</b>。打开访问，即可从你的其他设备使用 Joshua。",
+ "Access is on, but Joshua couldn't listen on the Tailscale address. Press Check again in a moment.": "访问已打开，但 Joshua 无法在 Tailscale 地址上监听。请稍后按“再次检查”。",
+ "Joshua can be reached at:": "可以通过以下地址访问 Joshua：",
+ "On each device you want to use: install Tailscale, sign in with the same account, then open this address in the browser. A phone can scan the code.": "在每台要使用的设备上：安装 Tailscale，用同一个账号登录，然后在浏览器中打开这个地址。手机可以扫描二维码。",
+ "This computer has to stay on and awake: in System Settings, turn on \"Prevent automatic sleeping when the display is off\".": "这台电脑必须保持开机和唤醒：在系统设置中打开“显示器关闭时防止自动进入睡眠”。",
+ "Access from anywhere": "随处访问",
+ "Use Joshua from your other computers, phone or tablet, wherever you are, through Tailscale: a free app that links your own devices in a private network. Nothing is opened to the internet.": "通过 Tailscale 在你的其他电脑、手机或平板上使用 Joshua，无论你在哪里：这是一个免费应用，把你自己的设备连成一个私有网络。不会向互联网开放任何东西。",
+ "Let my devices on Tailscale reach Joshua": "允许我在 Tailscale 上的设备访问 Joshua",
+ "Check again": "再次检查"
 }

@@ -2,7 +2,7 @@ import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, su
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, providers, ranking, tune_ui
+import agent, apple, browser, providers, ranking, remote, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -561,6 +561,33 @@ def _settings(key, default, value=None):
         data[key] = value
         f.write_text(json.dumps(data))
     return data.get(key, default)
+
+
+PORT = int(os.environ.get("GRADIO_SERVER_PORT", 7860))
+
+
+def remote_setting(value=None):
+    """Whether your other devices can reach Joshua through Tailscale."""
+    return _settings("remote", False, None if value is None else bool(value))
+
+
+def remote_html():
+    """Where things stand with Tailscale, and what to do next."""
+    now = remote.info()
+    box = lambda body: "<div class='remotebox'>" + body + "</div>"
+    if now["state"] == "missing":
+        return box(t("Tailscale isn't installed on this computer.") + "<ol><li>" + t("Download it from <a href='https://tailscale.com/download' target='_blank' rel='noopener'>tailscale.com/download</a> and install it.") + "</li><li>"
+                   + t("Open it and sign in (a free personal account is enough).") + "</li><li>" + t("Come back here and press Check again.") + "</li></ol>")
+    if now["state"] == "stopped":
+        return box(t("Tailscale is installed but not connected: open it from the menu bar and sign in, then press Check again."))
+    if not remote_setting():
+        return box(t("Tailscale is connected as <b>{name}</b>. Switch on access to reach Joshua from your other devices.", name=html.escape(now["name"] or now["ip"])))
+    if not remote.listening():
+        return box(t("Access is on, but Joshua couldn't listen on the Tailscale address. Press Check again in a moment."))
+    urls = [u for u in (f"http://{now['name']}:{PORT}" if now["name"] else "", f"http://{now['ip']}:{PORT}") if u]
+    links = "".join(f"<div><a href='{u}' target='_blank' rel='noopener'><code>{u}</code></a></div>" for u in urls)
+    return box("<div class='remotegrid'><div>" + t("Joshua can be reached at:") + links + "<p>" + t("On each device you want to use: install Tailscale, sign in with the same account, then open this address in the browser. A phone can scan the code.") + "</p><p class='mdim'>"
+               + t("This computer has to stay on and awake: in System Settings, turn on \"Prevent automatic sleeping when the display is off\".") + "</p></div><div class='remoteqr'>" + remote.qr_svg(urls[0]) + "</div></div>")
 
 
 def learn_setting(value=None):
@@ -1844,6 +1871,12 @@ table.pbox td:not(:first-child) {font-variant-numeric: tabular-nums; text-align:
 details.mcost .pnote {margin-top: 6px; font-size: .75rem; line-height: 1.35; color: var(--dim); white-space: normal}
 table.mmenu .mslot {margin-left: 4px}
 table.mmenu .mspace {display: inline-block; width: 38px}
+.remotebox {line-height: 1.5}
+.remotebox ol {margin: 6px 0 0 1.2em; padding: 0}
+.remotegrid {display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap}
+.remotegrid > div:first-child {flex: 1 1 280px}
+.remotegrid code {font-size: 1rem}
+.remoteqr svg {width: 148px; height: 148px; background: #fff; border-radius: 8px}
 .mdefault {font-weight: 400; font-size: .78rem; color: var(--brand); border: 1px solid var(--brand); border-radius: 999px; padding: 0 7px; margin-left: 6px}
 .mhidden {display: none !important}
 button.mact {font: inherit; font-size: .85rem; padding: 2px 12px; border-radius: 6px; border: 1px solid var(--brand); color: var(--brand); background: transparent; cursor: pointer; white-space: nowrap}
@@ -2329,6 +2362,11 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     br_open = gr.Button("🧭 " + t("Open Joshua's browser"), size="sm", scale=0, min_width=240)
                     br_status = gr.HTML("")
             with gr.Column(elem_classes=["mzone", "mz0"]):
+                gr.HTML("<h2 class='msec'>" + t("Access from anywhere") + "</h2><div class='msub'>" + t("Use Joshua from your other computers, phone or tablet, wherever you are, through Tailscale: a free app that links your own devices in a private network. Nothing is opened to the internet.") + "</div>")
+                remote_on = gr.Checkbox(remote_setting(), label=t("Let my devices on Tailscale reach Joshua"))
+                remote_box = gr.HTML("")
+                remote_check = gr.Button(t("Check again"), size="sm", scale=0, min_width=160)
+            with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Code") + "</h2>")
                 net = gr.Checkbox(True, label="🌐 " + t("Internet for code"), info=t("Lets code go online and install packages"))
                 timeout = gr.Slider(10, 600, value=120, step=10, label=t("Code time limit (seconds)"))
@@ -2521,6 +2559,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     mem_btn_open.click(mem_view, mem_topic, [mem_topic, mem_text])
     set_btn.click(api_panel, outputs=[api_info, api_example])
     learn.change(learn_setting, learn)
+    remote_on.change(lambda on: (remote_setting(on), remote.switch(on, PORT), remote_html())[2], remote_on, remote_box)
+    remote_check.click(lambda: (remote.switch(remote_setting(), PORT), remote_html())[1], outputs=remote_box)
+    set_btn.click(remote_html, outputs=remote_box)
     br_open.click(lambda: "" if browser.show() == "ok" else "<span class='cloudstat'>" + t("The browser couldn't open.") + "</span>", outputs=br_status)
     tools_on.change(lambda on: tools_off([k for k in TOOL_GROUPS if k not in on]), tools_on)
     api_lan_box.input(api_lan, api_lan_box, [api_info, api_example])
@@ -2659,4 +2700,6 @@ ICON = (pathlib.Path(__file__).parent / "icon.png").resolve()
 APP_HEAD = (f"<link rel='apple-touch-icon' href='/gradio_api/file={ICON}'>"  # the icon Safari uses for "Add to Dock"
             "<meta name='apple-mobile-web-app-title' content='Joshua'><meta name='application-name' content='Joshua'>")
 SERVICE = os.environ.get("JOSHUA_SERVICE")  # set when Joshua runs in the background from login (launchd / systemd)
+if remote_setting():
+    remote.switch(True, PORT)  # your devices on Tailscale can reach Joshua again after a restart
 demo.launch(inbrowser=not (SERVICE or os.environ.get("JOSHUA_NO_OPEN")), favicon_path=str(ICON), allowed_paths=[str(ROOT), str(ICON), str(pathlib.Path.home())], css=CSS, theme=THEME, head=APP_HEAD + "<link href='https://fonts.googleapis.com/css2?family=VT323&family=Figtree:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:opsz,wght@6..72,500&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap' rel='stylesheet'>")

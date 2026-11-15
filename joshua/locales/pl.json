@@ -457,5 +457,19 @@
  "Use websites in its own browser (Firefox)": "Korzystać ze stron we własnej przeglądarce (Firefox)",
  "**Joshua's browser** is a Firefox window of its own, separate from yours. To let Joshua work on a site where you need an account, open the window, go to the site and sign in yourself: the sign-in is kept there, also after a restart. Joshua never types passwords. Remember that with a cloud model, the pages Joshua reads are sent to that model.": "**Przeglądarka Joshuy** to jego własne okno Firefoksa, oddzielne od twojego. Aby Joshua pracował na stronie wymagającej konta, otwórz okno, wejdź na stronę i zaloguj się sam: logowanie zostaje tam zapisane, także po ponownym uruchomieniu. Joshua nigdy nie wpisuje haseł. Pamiętaj, że przy modelu w chmurze strony czytane przez Joshuę trafiają do tego modelu.",
  "Open Joshua's browser": "Otwórz przeglądarkę Joshuy",
- "The browser couldn't open.": "Nie udało się otworzyć przeglądarki."
+ "The browser couldn't open.": "Nie udało się otworzyć przeglądarki.",
+ "Tailscale isn't installed on this computer.": "Tailscale nie jest zainstalowany na tym komputerze.",
+ "Download it from <a href='https://tailscale.com/download' target='_blank' rel='noopener'>tailscale.com/download</a> and install it.": "Pobierz go z <a href='https://tailscale.com/download' target='_blank' rel='noopener'>tailscale.com/download</a> i zainstaluj.",
+ "Open it and sign in (a free personal account is enough).": "Otwórz go i zaloguj się (wystarczy darmowe konto osobiste).",
+ "Come back here and press Check again.": "Wróć tutaj i naciśnij Sprawdź ponownie.",
+ "Tailscale is installed but not connected: open it from the menu bar and sign in, then press Check again.": "Tailscale jest zainstalowany, ale nie połączony: otwórz go z paska menu i zaloguj się, potem naciśnij Sprawdź ponownie.",
+ "Tailscale is connected as <b>{name}</b>. Switch on access to reach Joshua from your other devices.": "Tailscale jest połączony jako <b>{name}</b>. Włącz dostęp, aby korzystać z Joshuy na innych urządzeniach.",
+ "Access is on, but Joshua couldn't listen on the Tailscale address. Press Check again in a moment.": "Dostęp jest włączony, ale Joshua nie mógł nasłuchiwać na adresie Tailscale. Naciśnij za chwilę Sprawdź ponownie.",
+ "Joshua can be reached at:": "Joshua jest dostępny pod adresem:",
+ "On each device you want to use: install Tailscale, sign in with the same account, then open this address in the browser. A phone can scan the code.": "Na każdym urządzeniu, którego chcesz używać: zainstaluj Tailscale, zaloguj się tym samym kontem i otwórz ten adres w przeglądarce. Telefon może zeskanować kod.",
+ "This computer has to stay on and awake: in System Settings, turn on \"Prevent automatic sleeping when the display is off\".": "Ten komputer musi być włączony i nie może usypiać: w Ustawieniach systemowych włącz „Zapobiegaj automatycznemu usypianiu, gdy ekran jest wyłączony”.",
+ "Access from anywhere": "Dostęp z dowolnego miejsca",
+ "Use Joshua from your other computers, phone or tablet, wherever you are, through Tailscale: a free app that links your own devices in a private network. Nothing is opened to the internet.": "Korzystaj z Joshuy na innych komputerach, telefonie lub tablecie, gdziekolwiek jesteś, przez Tailscale: darmową aplikację, która łączy twoje urządzenia w prywatną sieć. Nic nie jest otwierane na internet.",
+ "Let my devices on Tailscale reach Joshua": "Pozwól moim urządzeniom w Tailscale łączyć się z Joshuą",
+ "Check again": "Sprawdź ponownie"
 }

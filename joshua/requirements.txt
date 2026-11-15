@@ -10,3 +10,4 @@ fpdf2
 pypdf
 langdetect @ https://ask.joshua.earth/wheels/langdetect-1.0.9-py3-none-any.whl  # ready-built: no compiler needed on the Mac
 playwright
+segno
