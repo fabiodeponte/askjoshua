@@ -221,6 +221,19 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
     </div>
   </section>
 
+  <section class="stack" id="anywhere">
+    <span class="label">Away from home</span>
+    <h2>Joshua from anywhere</h2>
+    <p class="col">Joshua runs on your computer, but you can use it from your other devices too: a laptop on a trip, the office computer, your phone. They reach it through <a href="https://tailscale.com" rel="noopener">Tailscale</a>, a free app that links your own devices in a private, encrypted network. Nothing is opened to the internet: only devices signed in to your Tailscale account can find Joshua, and your chats stay on your computer.</p>
+    <ol class="steps">
+      <li><strong>On the computer with Joshua</strong>Install Tailscale from <a href="https://tailscale.com/download" rel="noopener">tailscale.com/download</a>, open it and sign in. A free personal account is enough.</li>
+      <li><strong>Switch it on in Joshua</strong>In Settings, under Access from anywhere, tick “Let my devices on Tailscale reach Joshua”. Joshua shows its address and a QR code.</li>
+      <li><strong>On your other devices</strong>Install Tailscale and sign in with the same account.</li>
+      <li><strong>Open the address</strong>Type it in the browser, or scan the QR code with your phone. Joshua opens as it does at home.</li>
+    </ol>
+    <p class="col callout">The computer with Joshua has to stay on and awake. On a Mac: System Settings, Battery or Energy, “Prevent automatic sleeping when the display is off”.</p>
+  </section>
+
   <section class="stack" id="teach">
     <h2>Fine-tuning</h2>
     <h3 class="sub">Teach Joshua your style</h3>

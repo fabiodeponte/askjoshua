@@ -355,5 +355,14 @@
  "Locally <em>grown</em> AI.": "<em>土生土长</em>的 AI。",
  "Your AI, on your computer": "你的 AI，在你自己的电脑上",
  "Joshua is made by <a href=\"https://fabiodeponte.eu/\" rel=\"noopener\">Fabio De Ponte</a>. One person, a few ordinary computers, and a great deal of open-source software.": "Joshua 由 <a href=\"https://fabiodeponte.eu/\" rel=\"noopener\">Fabio De Ponte</a> 制作。一个人，几台普通的电脑，以及大量的开源软件。",
- "<a href=\"#principles\">Principles</a> <a href=\"#practice\">In practice</a> <a href=\"#yattaphone\">Joshua and the Yattaphone</a> <a href=\"#join\">Join</a>": "<a href=\"#principles\">原则</a> <a href=\"#practice\">实践</a> <a href=\"#yattaphone\">Joshua 与 Yattaphone</a> <a href=\"#join\">加入</a>"
+ "<a href=\"#principles\">Principles</a> <a href=\"#practice\">In practice</a> <a href=\"#yattaphone\">Joshua and the Yattaphone</a> <a href=\"#join\">Join</a>": "<a href=\"#principles\">原则</a> <a href=\"#practice\">实践</a> <a href=\"#yattaphone\">Joshua 与 Yattaphone</a> <a href=\"#join\">加入</a>",
+ "Joshua": "Joshua",
+ "Away from home": "离家在外",
+ "Joshua from anywhere": "随处使用 Joshua",
+ "Joshua runs on your computer, but you can use it from your other devices too: a laptop on a trip, the office computer, your phone. They reach it through <a href=\"https://tailscale.com\" rel=\"noopener\">Tailscale</a>, a free app that links your own devices in a private, encrypted network. Nothing is opened to the internet: only devices signed in to your Tailscale account can find Joshua, and your chats stay on your computer.": "Joshua 运行在你的电脑上，但你也可以在其他设备上使用它：旅途中的笔记本、办公室的电脑、你的手机。它们通过 <a href=\"https://tailscale.com\" rel=\"noopener\">Tailscale</a> 连接到它，这是一个免费应用，把你自己的设备连成一个加密的私有网络。不会向互联网开放任何东西：只有登录了你的 Tailscale 账号的设备才能找到 Joshua，你的对话留在你的电脑上。",
+ "<strong>On the computer with Joshua</strong>Install Tailscale from <a href=\"https://tailscale.com/download\" rel=\"noopener\">tailscale.com/download</a>, open it and sign in. A free personal account is enough.": "<strong>在装有 Joshua 的电脑上</strong>从 <a href=\"https://tailscale.com/download\" rel=\"noopener\">tailscale.com/download</a> 安装 Tailscale，打开并登录。免费的个人账号就够了。",
+ "<strong>Switch it on in Joshua</strong>In Settings, under Access from anywhere, tick “Let my devices on Tailscale reach Joshua”. Joshua shows its address and a QR code.": "<strong>在 Joshua 中打开</strong>在设置的“随处访问”下，勾选“允许我在 Tailscale 上的设备访问 Joshua”。Joshua 会显示它的地址和一个二维码。",
+ "<strong>On your other devices</strong>Install Tailscale and sign in with the same account.": "<strong>在其他设备上</strong>安装 Tailscale，并用同一个账号登录。",
+ "<strong>Open the address</strong>Type it in the browser, or scan the QR code with your phone. Joshua opens as it does at home.": "<strong>打开地址</strong>在浏览器中输入，或用手机扫描二维码。Joshua 会像在家里一样打开。",
+ "The computer with Joshua has to stay on and awake. On a Mac: System Settings, Battery or Energy, “Prevent automatic sleeping when the display is off”.": "装有 Joshua 的电脑必须保持开机和唤醒。在 Mac 上：系统设置，电池或能源，“显示器关闭时防止自动进入睡眠”。"
 }
