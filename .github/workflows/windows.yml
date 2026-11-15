@@ -5,6 +5,8 @@ on:
   push:
     branches: [ci-windows]
   workflow_dispatch:
+permissions:
+  contents: write   # the window test saves its pictures to the ci-shots branch
 jobs:
   install-and-try:
     runs-on: windows-latest
@@ -45,3 +47,42 @@ jobs:
             $f = Split-Path $p -Leaf
             if (Test-Path $p) { $t = (Get-Content $p -Tail 40) -join "%0A"; Write-Host "::notice title=$f::$t" }
           }
+
+  window-installer:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package Joshua as the site would serve it
+        shell: pwsh
+        run: tar.exe -czf "$env:RUNNER_TEMP\joshua.tar.gz" --exclude=__pycache__ joshua
+      - name: Run "Install Joshua.exe"; in test mode it answers each question with its default and saves pictures of its window
+        shell: pwsh
+        env:
+          JOSHUA_MODEL: qwen3:0.6b
+        run: |
+          New-Item -ItemType Directory -Force shots | Out-Null
+          $env:JOSHUA_TEST_SNAPSHOTS = "$PWD\shots"
+          $env:JOSHUA_INSTALL_URL = "$PWD\install.ps1"
+          $env:JOSHUA_URL = "$env:RUNNER_TEMP\joshua.tar.gz"
+          $p = Start-Process -FilePath "installer\windows\Install Joshua.exe" -PassThru
+          if (-not $p.WaitForExit(2400000)) { $p.Kill(); throw "the window didn't finish in 40 minutes" }
+          Write-Host "::notice title=Install Joshua.exe::exit code $($p.ExitCode), $((Get-ChildItem shots).Count) pictures"
+          if ($p.ExitCode -ne 0) { throw "the installation failed" }
+      - name: Try Joshua
+        shell: pwsh
+        run: |
+          $py = "$HOME\AskJoshua\venv\Scripts\python.exe"
+          & $py -m playwright install chromium | Out-Null
+          $env:PYTHONUTF8 = "1"
+          & $py tests\windows_check.py
+      - name: Save the pictures to the ci-shots branch
+        if: always()
+        shell: pwsh
+        run: |
+          git config user.name "joshua-ci"; git config user.email "ci@joshua.earth"
+          git checkout --orphan ci-shots
+          git rm -rq --cached .
+          git add -f shots
+          git commit -qm "pictures of the Windows installer window"
+          git push -f origin ci-shots

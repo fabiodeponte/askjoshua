@@ -10,6 +10,7 @@
 #   5. adds Joshua to the Start menu, and if you want, starts it when you sign in
 # Run it again at any time to change your choices; it skips what is already there.
 #
+# The "Install Joshua" program (installer/windows/InstallJoshua.cs) runs this same script with JOSHUA_GUI=1 and shows it in a window.
 # Settings for unattended installs (used by Joshua's own tests): JOSHUA_YES=1 answers every question with its default,
 # JOSHUA_MODEL picks the model, JOSHUA_URL the Joshua package to install.
 
@@ -30,6 +31,12 @@ function Die($t) { Write-Host ""; Write-Host "X $t" -ForegroundColor Red; throw 
 function Dim($t) { Write-Host "  $t" -ForegroundColor DarkGray }
 function Ask($q, $default) {  # returns $true for yes
     if ($env:JOSHUA_YES) { return ($default -eq "y") }
+    if ($env:JOSHUA_GUI) {  # the "Install Joshua" window shows the question with Yes and No buttons, and writes back y or n
+        [Console]::Out.WriteLine("@@ASK|$default|$q"); [Console]::Out.Flush()
+        $a = [Console]::In.ReadLine()
+        if (-not $a) { $a = $default }
+        return ($a -match "^[YySs]")
+    }
     $hint = if ($default -eq "y") { "[Y/n]" } else { "[y/N]" }
     $a = Read-Host "  $q $hint"
     if (-not $a) { $a = $default }
