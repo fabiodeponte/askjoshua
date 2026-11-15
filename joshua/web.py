@@ -126,7 +126,8 @@ Ollama says it never logs or trains on cloud prompts. That is a promise you are 
 
 
 def ollama_bin():
-    return shutil.which("ollama") or "/Applications/Ollama.app/Contents/Resources/ollama"
+    import web_ollama
+    return web_ollama.path()
 
 
 def media(vision, audio=False):
@@ -270,7 +271,7 @@ def memory_budget():
                 return int(out.split()[0]) / 1024
         except Exception:
             pass
-    return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30
+    return agent.total_ram()
 
 
 def _model_tags(name):
@@ -469,6 +470,14 @@ def restart():
     if os.environ.get("JOSHUA_SERVICE"):  # running from login: just quit, and the system starts it again
         threading.Timer(1, lambda: os._exit(0)).start()
         return True
+    if agent.WIN:  # Windows: start.cmd starts it again in a moment, from a separate process
+        start = pathlib.Path.home() / "AskJoshua" / "start.cmd"
+        if start.exists():
+            subprocess.Popen(["cmd", "/c", f'ping -n 4 127.0.0.1 >nul & "{start}"'], env={**os.environ, "JOSHUA_STAY_HIDDEN": "1"},
+                             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            threading.Timer(1, lambda: os._exit(0)).start()
+            return True
+        return False
     start = pathlib.Path.home() / "AskJoshua" / "start.sh"
     if start.exists():  # start again in a moment, from a separate process, then quit this one
         subprocess.Popen(["/bin/sh", "-c", f"sleep 3; '{start}'"], env={**os.environ, "JOSHUA_NO_OPEN": "1"}, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1261,7 +1270,10 @@ def open_folder(cid):
     """Shows the chat's files folder (or its project folder) in Finder, or the file manager on Linux."""
     if cid:
         wdir(cid).mkdir(parents=True, exist_ok=True)
-        subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(wdir(cid))])
+        if agent.WIN:
+            os.startfile(str(wdir(cid)))
+        else:
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(wdir(cid))])
 
 
 def zip_files(cid):
@@ -1355,7 +1367,9 @@ def machine():
             chip = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout.strip()
             ram = int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True).stdout) // 2**30
             return f"{chip}, {ram} GB, macOS {platform.mac_ver()[0]}"
-        ram = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") // 2**30
+        ram = round(agent.total_ram())
+        if agent.WIN:
+            return f"Windows {platform.release()} {platform.machine()}, {ram} GB"
         return f"Linux {platform.machine()}, {ram} GB"
     except Exception:
         return ""
@@ -1393,6 +1407,9 @@ def delete_chat(cid):
     try:
         if agent.MAC:
             shutil.move(str(ROOT / cid), str(pathlib.Path.home() / ".Trash" / dest))
+        elif agent.WIN:  # the Recycle Bin, through Windows' own file operations
+            subprocess.run(["powershell", "-NoProfile", "-Command", "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory("
+                            + json.dumps(str(ROOT / cid)) + ", 'OnlyErrorDialogs', 'SendToRecycleBin')"], check=True, timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
         else:  # the Linux desktop Trash: the files, plus a note saying where they came from
             trash = pathlib.Path.home() / ".local" / "share" / "Trash"
             (trash / "files").mkdir(parents=True, exist_ok=True), (trash / "info").mkdir(parents=True, exist_ok=True)

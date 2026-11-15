@@ -144,8 +144,9 @@ def resources():
         ram = int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True).stdout or 0) / 2**30
         chip = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True).stdout.strip()
     else:
-        ram = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30
-        chip = next((l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")), platform.machine())
+        import agent
+        ram = agent.total_ram()
+        chip = next((l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")), platform.machine()) if os.path.exists("/proc/cpuinfo") else platform.processor() or platform.machine()
         chip += "".join(f" · {n} ({m:.0f} GB)" for n, m in gpus()[:1])
     return {"ram": round(ram), "chip": chip or "unknown", "free": round(shutil.disk_usage(HERE).free / 2**30, 1)}
 
@@ -503,7 +504,8 @@ def borrowed(entry):
 
 
 def ollama_bin():
-    return shutil.which("ollama") or "/Applications/Ollama.app/Contents/Resources/ollama"
+    import web_ollama
+    return web_ollama.path()
 
 
 def install(name):

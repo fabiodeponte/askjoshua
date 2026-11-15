@@ -1,0 +1,39 @@
+# Installs Joshua on a fresh Windows computer and checks that it works.
+# Runs when something is pushed to the ci-windows branch, or by hand.
+name: windows
+on:
+  push:
+    branches: [ci-windows]
+  workflow_dispatch:
+jobs:
+  install-and-try:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package Joshua as the site would serve it
+        shell: pwsh
+        run: tar.exe -czf "$env:RUNNER_TEMP\joshua.tar.gz" --exclude=__pycache__ joshua
+      - name: Run the installer, answering every question with its default
+        shell: powershell   # Windows PowerShell 5.1, the one every Windows computer has
+        env:
+          JOSHUA_YES: "1"
+          JOSHUA_MODEL: qwen3:0.6b
+        run: |
+          $env:JOSHUA_URL = "$env:RUNNER_TEMP\joshua.tar.gz"
+          & .\install.ps1
+      - name: Try Joshua
+        shell: pwsh
+        run: |
+          $py = "$HOME\AskJoshua\venv\Scripts\python.exe"
+          & $py -m playwright install chromium | Out-Null
+          $env:PYTHONUTF8 = "1"
+          & $py tests\windows_check.py
+      - name: Logs
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($f in "joshua.log", "joshua-errors.log") {
+            $p = "$HOME\AskJoshua\$f"
+            if (Test-Path $p) { $t = (Get-Content $p -Tail 40) -join "%0A"; Write-Host "::notice title=$f::$t" }
+          }

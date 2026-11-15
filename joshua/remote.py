@@ -7,7 +7,8 @@ open to the internet or to the local Wi-Fi.
 """
 import json, pathlib, shutil, socket, subprocess, sys, threading, time
 
-PLACES = ["/Applications/Tailscale.app/Contents/MacOS/Tailscale", "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale", "/usr/bin/tailscale"]
+PLACES = ["/Applications/Tailscale.app/Contents/MacOS/Tailscale", "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale", "/usr/bin/tailscale",
+          "C:/Program Files/Tailscale/tailscale.exe"]
 
 
 def cli():

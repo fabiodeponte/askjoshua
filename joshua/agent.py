@@ -1,3 +1,4 @@
+import tempfile
 import datetime, difflib, json, os, pathlib, re, shutil, subprocess, sys, threading
 import docx, lxml.html, ollama, requests, trafilatura
 from langdetect import DetectorFactory, detect
@@ -11,10 +12,27 @@ CONFIG = json.loads(CONFIG_FILE.read_text()) if CONFIG_FILE.exists() else {}
 MODEL = CONFIG.get("model", "qwen3-vl")  # thinking version, used when deep thinking is on
 FAST = CONFIG.get("fast", "qwen3-vl:8b-instruct")  # instruct version, the default
 MAC = sys.platform == "darwin"
+WIN = sys.platform == "win32"
+
+
+def total_ram():
+    """The computer's memory in GB, on macOS, Linux and Windows."""
+    if WIN:
+        import ctypes
+
+        class M(ctypes.Structure):
+            _fields_ = [("len", ctypes.c_ulong), ("load", ctypes.c_ulong), ("total", ctypes.c_ulonglong), ("free", ctypes.c_ulonglong),
+                        ("pt", ctypes.c_ulonglong), ("pf", ctypes.c_ulonglong), ("vt", ctypes.c_ulonglong), ("vf", ctypes.c_ulonglong), ("ve", ctypes.c_ulonglong)]
+        m = M(); m.len = ctypes.sizeof(M)
+        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+        return m.total / 2**30
+    if MAC:
+        return int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True).stdout or 0) / 2**30
+    return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30
 HERE = pathlib.Path(__file__).parent
 # A font with accents and non-Latin letters for PDFs: Arial Unicode on a Mac, DejaVu Sans on Linux.
 FONT = next((f for f in ["/System/Library/Fonts/Supplemental/Arial Unicode.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                         "/usr/share/fonts/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf"] if os.path.exists(f)), None)
+                         "/usr/share/fonts/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf"] if os.path.exists(f)), None)
 DEFAULT_WORK = (pathlib.Path(__file__).parent / "workspace").resolve()
 CTX = threading.local()
 
@@ -109,10 +127,12 @@ def run_python(code: str) -> str:
     elif shutil.which("bwrap"):  # Linux: bubblewrap shows the code a read-only copy of the system, with only the workspace writable
         cmd = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp", "--bind", str(work), str(work),
                "--die-with-parent", "--unshare-pid"] + ([] if CTX.net else ["--unshare-net"]) + [sys.executable, "-c", code]
+    elif WIN:  # Windows has no simple sandbox: the code runs as you, with a note saying so
+        cmd, note = [sys.executable, "-c", code], "\n(Note: on Windows this code runs without a sandbox.)"
     else:
         cmd, note = [sys.executable, "-c", code], "\n(Note: bubblewrap is not installed, so this code ran without a sandbox.)"
     try:
-        r = subprocess.run(cmd, cwd=work, capture_output=True, text=True, timeout=CTX.timeout, env=dict(os.environ, MPLCONFIGDIR="/tmp"))
+        r = subprocess.run(cmd, cwd=work, capture_output=True, text=True, timeout=CTX.timeout, env=dict(os.environ, MPLCONFIGDIR=tempfile.gettempdir(), PYTHONIOENCODING="utf-8"))
     except subprocess.TimeoutExpired:
         return f"Stopped: the code ran longer than {CTX.timeout} seconds."
     return ((r.stdout + r.stderr)[-4000:] or "(no output)") + note
