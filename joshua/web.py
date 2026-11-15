@@ -1922,7 +1922,44 @@ table.mrank td.mnote, table.mrank .mdim {color: var(--dim); font-size: .85rem}
 #chat .message-row:hover + .message-buttons, #chat .message-buttons:hover, #chat .message-row:last-of-type ~ .message-buttons {opacity: 1}
 #sidetoggle {position: absolute; z-index: 20; top: 10px; left: 10px; width: 32px !important; min-width: 0 !important; height: 32px; padding: 0 !important; font-size: 1rem !important; border: none !important; background: transparent !important; box-shadow: none !important; opacity: .55}
 #sidetoggle:hover {opacity: 1; background: color-mix(in srgb, var(--ink) 8%, transparent) !important}
-@media (max-width: 760px) {#leftcol {flex-basis: 240px !important; width: 240px !important}}
+/* ---------- phones and narrow windows: the chat takes the whole screen, the side column slides over it from ☰ ---------- (Gradio rewrites rules inside @media, so a class on body marks a narrow screen instead) */
+body.narrow:not(#a):not(#b) .gradio-container, body.narrow:not(#a):not(#b) .gradio-container > .main, body.narrow:not(#a):not(#b) .gradio-container .wrap.contain {padding: 0 !important; margin: 0 !important; max-width: 100vw !important}
+body.narrow:not(#a):not(#b):not(.mside) #leftcol {display: none !important}
+body.narrow.mside:not(#a):not(#b) #leftcol {display: flex !important; position: fixed !important; inset: 0 !important; z-index: 900 !important; width: 100vw !important; max-width: 100vw !important; flex-basis: auto !important; height: 100dvh !important; max-height: 100dvh !important; border-radius: 0 !important; padding: 56px 16px 24px !important; overflow-y: auto !important}
+body.narrow.noside #leftcol {display: none}
+body.narrow:not(#a):not(#b) #sidetoggle {position: fixed !important; top: 10px !important; left: 10px !important; z-index: 950 !important; font-size: 1.25rem !important; width: 40px !important; height: 40px !important; opacity: .85}
+body.narrow:not(#a):not(#b) #chatcol, body.narrow:not(#a):not(#b) #modelspage, body.narrow:not(#a):not(#b) #schedpanel, body.narrow:not(#a):not(#b) #tune, body.narrow:not(#a):not(#b) #mempage, body.narrow:not(#a):not(#b) #setpage {min-width: 0 !important; width: 100vw !important; max-width: 100vw !important; flex: 1 1 100% !important; padding: 8px 10px 6px !important; border-radius: 0 !important}
+body.narrow:not(#a):not(#b) #chatcol {height: 100dvh !important; max-height: 100dvh !important}
+body.narrow:not(#a):not(#b) #chatbar {padding-left: 48px !important; min-height: 40px !important}
+body.narrow:not(#a):not(#b) #chat {min-height: 0 !important}
+body.narrow:not(#a):not(#b) #chat .message-row, body.narrow:not(#a):not(#b) #chat .message {max-width: 100% !important}
+body.narrow:not(#a):not(#b) #chat .message-row.bot-row {margin-left: 0 !important; margin-right: 0 !important; padding-left: 0 !important; padding-right: 0 !important; width: 100% !important}
+body.narrow:not(#a):not(#b) #chat .message-row.user-row {max-width: 85% !important}
+body.narrow:not(#a):not(#b) #chat .message-wrap {padding-left: 4px !important; padding-right: 4px !important}
+body.narrow:not(#a):not(#b) #chat .bubble-wrap {padding: 10px 6px !important}
+body.narrow:not(#a):not(#b) #chat .placeholder h3, body.narrow:not(#a):not(#b) #chat .placeholder-content h3 {font-size: 1.5rem !important; line-height: 1.25 !important}
+body.narrow:not(#a):not(#b) #promptrow {gap: 6px !important; flex-wrap: nowrap !important}
+body.narrow:not(#a):not(#b) #promptrow > .block:first-child, body.narrow:not(#a):not(#b) #promptrow > div:first-child {min-width: 0 !important; flex: 1 1 auto !important}
+body.narrow:not(#a):not(#b) #stop {min-width: 0 !important; flex: 0 0 auto !important; padding: 0 10px !important}
+body.narrow:not(#a):not(#b) #modelrow {flex-wrap: wrap !important; padding-right: 0 !important; margin-top: 0 !important; gap: 4px 10px !important; row-gap: 2px !important}
+body.narrow:not(#a):not(#b) #modelrow > #working {flex: 1 1 100% !important}
+body.narrow:not(#a):not(#b) #modelrow > #cloudbadge {order: 2; flex: 1 1 0 !important; min-width: 0; font-size: .75rem; white-space: nowrap; text-align: right}
+body.narrow:not(#a):not(#b) #cloudbadge .cloudbadge {white-space: nowrap !important; font-size: .75rem !important; padding: 0 2px !important}
+body.narrow:not(#a):not(#b) #modelrow #model::before {content: none}
+body.narrow:not(#a):not(#b) #modelrow > #working {order: 3}
+body.narrow:not(#a):not(#b) #modelrow > #model {order: 1}
+body.narrow:not(#a):not(#b) #modelrow label, body.narrow:not(#a):not(#b) #modelrow .label {display: none !important}
+body.narrow:not(#a):not(#b) table.mrank, body.narrow:not(#a):not(#b) table.mrank tbody {display: block; width: 100%}
+body.narrow:not(#a):not(#b) table.mrank thead, body.narrow:not(#a):not(#b) table.mrank tr:has(th) {display: none !important}
+body.narrow:not(#a):not(#b) table.mrank tr {display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 30%, transparent) !important}
+body.narrow:not(#a):not(#b) table.mrank td {display: block; padding: 0 !important; border: none !important; white-space: normal}
+body.narrow:not(#a):not(#b) table.mrank td:first-child {flex: 1 1 100%}
+body.narrow:not(#a):not(#b) table.mrank td.mbtns {flex: 0 1 auto; margin-left: auto}
+body.narrow:not(#a):not(#b) table.mrank tr {gap: 4px 8px}
+body.narrow:not(#a):not(#b) #modelspage .mzone, body.narrow:not(#a):not(#b) #setpage .mzone {padding: 14px 12px !important}
+body.narrow:not(#a):not(#b) #schedtitle {font-size: 1.2rem !important}
+body.narrow:not(#a):not(#b) #cmenu {max-width: calc(100vw - 16px)}
+
 
 /* ---- Modern: the conversation in a calm reading column, the composer below it ---- */
 body[data-screen^="modern"]:not(#a):not(#b) #chat {background: transparent !important; border: none !important; box-shadow: none !important}
@@ -2713,7 +2750,19 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     demo.load(None, None, screen, js="() => { let v = 'modern'; try { v = localStorage.getItem('joshua-screen2') || 'modern' } catch (e) {} document.body.dataset.screen = v; return v }")
     textsize.change(None, textsize, None, js="(v) => { document.documentElement.style.fontSize = (16 * v) + 'px'; try { localStorage.setItem('joshua-zoom', v) } catch (e) {} }")
     demo.load(None, None, textsize, js="() => { let v = '1'; try { v = localStorage.getItem('joshua-zoom') || '1' } catch (e) {} document.documentElement.style.fontSize = (16 * v) + 'px'; return v }")
-    sidetoggle.click(None, None, None, js="() => { const h = document.body.classList.toggle('noside'); try { localStorage.setItem('joshua-noside', h ? '1' : '') } catch (e) {} }")
+    sidetoggle.click(None, None, None, js="""() => {
+        if (document.body.classList.contains('narrow')) { document.body.classList.toggle('mside'); return }  // a phone: the side column slides over the chat
+        const h = document.body.classList.toggle('noside'); try { localStorage.setItem('joshua-noside', h ? '1' : '') } catch (e) {} }""")
+    demo.load(None, None, None, js="""() => {  // a phone or a narrow window: the body gets the class 'narrow', and choosing a chat or a page closes the side column
+        const fit = () => { const n = innerWidth <= 760; document.body.classList.toggle('narrow', n); if (n) document.body.classList.remove('noside'); else document.body.classList.remove('mside');
+          const ta = document.querySelector('#promptrow textarea');  // the message box measured itself in the old layout: measure again
+          if (ta) setTimeout(() => { ta.style.height = ''; ta.dispatchEvent(new Event('input', {bubbles: true})); }, 50); };
+        fit(); addEventListener('resize', fit);
+        document.addEventListener('click', (e) => {
+          if (!document.body.classList.contains('narrow') || !document.body.classList.contains('mside')) return;
+          if (e.target.closest('.cmore')) return;
+          if (e.target.closest('#convs label, #newchat, #panels button, #membtn, #setbtn, #modelsbtn, #tunebtn')) setTimeout(() => document.body.classList.remove('mside'), 150);
+        }, true); }""")
     demo.load(None, None, None, js="() => { try { if (localStorage.getItem('joshua-noside')) document.body.classList.add('noside') } catch (e) {} }")
 
 ICON = (pathlib.Path(__file__).parent / "icon.png").resolve()
