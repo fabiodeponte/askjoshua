@@ -746,6 +746,18 @@ def split_think(raw):
     return raw, ""
 
 
+def pictures():
+    """Pictures in the workspace and its first-level folders, with when they were last changed."""
+    work, found = getattr(agent.CTX, "work", None), {}
+    if not work or not work.is_dir():
+        return found
+    for d in [work] + [x for x in work.iterdir() if x.is_dir() and not x.name.startswith(".")][:50]:
+        for f in d.iterdir():
+            if f.suffix.lower() in IMAGES and f.is_file():
+                found[str(f)] = f.stat().st_mtime
+    return found
+
+
 def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
     for _ in range(25):
         content, thought, calls, live = "", "", [], []
@@ -774,6 +786,7 @@ def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
             last = shown[-1] if shown else None  # the same tool called again right away goes in the same box: "🔎 web_search ×4"
             group = last if isinstance(last, dict) and isinstance(last.get("content"), str) and (last.get("metadata") or {}).get("title") == box["metadata"]["title"] else None
             yield shown if group else shown + [box]
+            before = pictures()
             try:
                 result = str(toolset[name](**args))
             except Exception as e:
@@ -786,7 +799,10 @@ def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
                 shown.append(box)
             if name in ("generate_image", "edit_image") and getattr(agent.CTX, "last_image", None):
                 shown.append({"role": "assistant", "content": {"path": agent.CTX.last_image}})
+                before[agent.CTX.last_image] = float("inf")  # already shown
                 agent.CTX.last_image = None
+            new = [f for f, when in pictures().items() if when > before.get(f, 0)]  # pictures the tool made or changed (a chart from Python, a saved image…)
+            shown += [{"role": "assistant", "content": {"path": f}} for f in sorted(new)[:8]]
             called.append(name)
             yield shown
             msgs.append({"role": "tool", "tool_name": name, "content": result})
