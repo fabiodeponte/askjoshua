@@ -162,9 +162,13 @@ Ok "running"
 
 Step "Python"
 $Uv = Join-Path $HOME ".local\bin\uv.exe"
-if (-not (Test-Path $Uv)) {
-    $env:UV_NO_MODIFY_PATH = "1"
-    Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression | Out-Null
+if (-not (Test-Path $Uv)) {  # uv's own release, unpacked here (its install script refuses to run where PowerShell scripts are forbidden)
+    $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "aarch64" } else { "x86_64" }
+    $zip = Join-Path $env:TEMP "uv.zip"
+    Invoke-WebRequest -Uri "https://github.com/astral-sh/uv/releases/latest/download/uv-$arch-pc-windows-msvc.zip" -OutFile $zip -UseBasicParsing
+    New-Item -ItemType Directory -Force -Path (Split-Path $Uv) | Out-Null
+    Expand-Archive -Path $zip -DestinationPath (Split-Path $Uv) -Force
+    Remove-Item $zip -ErrorAction SilentlyContinue
 }
 if (-not (Test-Path $Uv)) { Die "Couldn't install uv (the Python installer)." }
 $Py = Join-Path $HomeDir "venv\Scripts\python.exe"
