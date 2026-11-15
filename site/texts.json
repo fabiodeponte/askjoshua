@@ -163,7 +163,7 @@
  "<a class=\"download\" download=\"\" href=\"/Install-Joshua.exe\">Download for Windows</a> <span class=\"fine\">Install Joshua.exe · the same, for Windows 10 and 11, no administrator rights needed</span>",
  "The first time, Windows says it protected your PC",
  "The installer isn't signed with a Microsoft certificate yet, so Windows SmartScreen stops it the first time. Its code is public <a href=\"https://github.com/fabiodeponte/askjoshua\">on GitHub</a>. To open it, click <b>More info</b>, then <b>Run anyway</b>. If your browser warns about the download, choose <b>Keep</b>.",
- "Or paste this in PowerShell (open the Start menu and type PowerShell):",
+ "Or paste this in PowerShell or in the Command Prompt (open the Start menu and type PowerShell):",
  "<b>Requirements:</b> No administrator rights needed. 8 GB of memory, 10–20 GB of free disk; an NVIDIA graphics card makes it much faster. On Windows, images and fine-tuning aren't available yet, and the code Joshua writes runs without a sandbox.",
  "Free and open, on every system.",
  "Install",

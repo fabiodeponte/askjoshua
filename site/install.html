@@ -244,9 +244,9 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
           <summary>The first time, Windows says it protected your PC</summary>
           <p>The installer isn't signed with a Microsoft certificate yet, so Windows SmartScreen stops it the first time. Its code is public <a href="https://github.com/fabiodeponte/askjoshua">on GitHub</a>. To open it, click <b>More info</b>, then <b>Run anyway</b>. If your browser warns about the download, choose <b>Keep</b>.</p>
         </details>
-        <p class="or">Or paste this in PowerShell (open the Start menu and type PowerShell):</p>
+        <p class="or">Or paste this in PowerShell or in the Command Prompt (open the Start menu and type PowerShell):</p>
         <div class="install" role="group" aria-label="Install command for Windows">
-          <code id="cmdwin">irm https://ask.joshua.earth/install.ps1 | iex</code>
+          <code id="cmdwin">powershell -c "irm https://ask.joshua.earth/install.ps1 | iex"</code>
           <button type="button" class="copy" data-for="cmdwin">Copy</button>
         </div>
         <p class="fine"><b>Requirements:</b> No administrator rights needed. 8 GB of memory, 10–20 GB of free disk; an NVIDIA graphics card makes it much faster. On Windows, images and fine-tuning aren't available yet, and the code Joshua writes runs without a sandbox.</p>
