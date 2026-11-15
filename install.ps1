@@ -23,12 +23,31 @@ $HomeDir = Join-Path $HOME "AskJoshua"
 $App = Join-Path $HomeDir "joshua"
 $Url = "http://127.0.0.1:7860"
 
-function Say($t) { Write-Host $t }
-function Step($t) { Write-Host ""; Write-Host "> $t" -ForegroundColor White }
-function Ok($t) { Write-Host "  OK  $t" -ForegroundColor Green }
-function Warn($t) { Write-Host "  !   $t" -ForegroundColor Yellow }
-function Die($t) { Write-Host ""; Write-Host "X $t" -ForegroundColor Red; throw $t }
-function Dim($t) { Write-Host "  $t" -ForegroundColor DarkGray }
+# How it prints. In a console: words wrapped at the window's edge, readable colours on PowerShell's blue, a few drawn symbols.
+# In the "Install Joshua" window (JOSHUA_GUI): plain lines, which the window lays out itself.
+$Gui = [bool]$env:JOSHUA_GUI
+$Width = 100
+if (-not $Gui) { try { $w = $Host.UI.RawUI.WindowSize.Width; if ($w -gt 30) { $Width = [math]::Min($w - 2, 110) } } catch {} }
+function Wrap($text, $first, $rest) {  # the lines of $text, the first starting with $first, the others with $rest
+    $lines = @(); $line = $first
+    foreach ($word in ($text -split "\s+")) {
+        if ($word -eq "") { continue }
+        if ($line.Length + $word.Length + 1 -gt $Width -and $line.Trim().Length -gt 0) { $lines += $line.TrimEnd(); $line = $rest }
+        if ($line -eq $first -or $line -eq $rest) { $line += $word } else { $line += " " + $word }
+    }
+    $lines += $line.TrimEnd(); return $lines
+}
+function Out($first, $rest, $text, $color) {
+    if ($Gui) { Write-Host ($first + $text); return }
+    foreach ($l in (Wrap $text $first $rest)) { Write-Host $l -ForegroundColor $color }
+}
+$Mark = if ($Gui) { ">" } else { [string][char]0x25B8 }   # the step marker the window looks for is ">"
+function Say($t) { Out "  " "  " $t "White" }
+function Dim($t) { Out "  " "  " $t "Gray" }
+function Step($t) { Write-Host ""; Write-Host "$Mark $t" -ForegroundColor Cyan }
+function Ok($t) { Out "  OK  " "      " $t "Green" }
+function Warn($t) { Out "  !   " "      " $t "Yellow" }
+function Die($t) { Write-Host ""; Out "X " "  " $t "Red"; throw $t }
 function Ask($q, $default) {  # returns $true for yes
     if ($env:JOSHUA_YES) { return ($default -eq "y") }
     if ($env:JOSHUA_GUI) {  # the "Install Joshua" window shows the question with Yes and No buttons, and writes back y or n
@@ -38,21 +57,28 @@ function Ask($q, $default) {  # returns $true for yes
         return ($a -match "^[YySs]")
     }
     $hint = if ($default -eq "y") { "[Y/n]" } else { "[y/N]" }
-    $a = Read-Host "  $q $hint"
+    Write-Host ""
+    Write-Host "  $q $hint " -ForegroundColor Yellow -NoNewline
+    $a = Read-Host
     if (-not $a) { $a = $default }
     return ($a -match "^[YySs]")
 }
 function Write-Utf8($path, $text) { [IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding $false)) }   # no BOM: Python reads it as plain UTF-8
 
-Write-Host @"
-
-     JJJJJ  OOO   SSSS H   H U   U  AAA
-       J   O   O S     H   H U   U A   A
-       J   O   O  SSS  HHHHH U   U AAAAA
-    J  J   O   O     S H   H U   U A   A
-     JJ     OOO  SSSS  H   H  UUU  A   A
-        your AI, on your computer, under your control
-"@
+# The name in big letters, drawn with block characters
+$letters = @{
+    J = @("  ###", "    #", "    #", "#   #", " ### "); O = @(" ### ", "#   #", "#   #", "#   #", " ### ")
+    S = @(" ####", "#    ", " ### ", "    #", "#### "); H = @("#   #", "#   #", "#####", "#   #", "#   #")
+    U = @("#   #", "#   #", "#   #", "#   #", " ### "); A = @(" ### ", "#   #", "#####", "#   #", "#   #")
+}
+$block = if ($Gui) { "#" } else { [string][char]0x2588 }
+Write-Host ""
+for ($row = 0; $row -lt 5; $row++) {
+    $line = "  " + ((@("J", "O", "S", "H", "U", "A") | ForEach-Object { $letters[$_][$row].Replace("#", $block) }) -join "  ")
+    Write-Host $line -ForegroundColor Green
+}
+Write-Host ""
+Write-Host "  your AI, on your computer, under your control" -ForegroundColor Gray
 
 # ---------- 1. the computer ----------
 Step "Checking your computer"
