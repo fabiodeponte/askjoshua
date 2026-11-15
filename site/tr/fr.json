@@ -381,5 +381,14 @@
  "Joshua is an assistant that runs entirely on your own computer: a Mac, a Windows PC or a Linux PC. It searches the web, reads your files, writes code, makes pictures and learns how you like answers, without sending your life to anyone's servers.": "Joshua est un assistant qui fonctionne entièrement sur votre ordinateur : un Mac, un PC Windows ou un PC Linux. Il cherche sur le web, lit vos fichiers, écrit du code, crée des images et apprend comment vous aimez vos réponses, sans envoyer votre vie sur les serveurs de qui que ce soit.",
  "<a class=\"download\" href=\"install.html\">Download</a> <span class=\"fine\">Free and open · Mac, Windows or Linux</span>": "<a class=\"download\" href=\"install.html\">Télécharger</a> <span class=\"fine\">Gratuit et ouvert · Mac, Windows ou Linux</span>",
  "Ask Joshua: a private AI assistant that runs entirely on your own computer: Mac, Windows or Linux. Your questions, your files, your model.": "Ask Joshua : un assistant IA privé qui fonctionne entièrement sur votre ordinateur : Mac, Windows ou Linux. Vos questions, vos fichiers, votre modèle.",
- "How to install Joshua on a Mac, a Windows PC or a Linux PC: one command, a few questions, about 20 minutes.": "Comment installer Joshua sur un Mac, un PC Windows ou un PC Linux : une commande, quelques questions, environ 20 minutes."
+ "How to install Joshua on a Mac, a Windows PC or a Linux PC: one command, a few questions, about 20 minutes.": "Comment installer Joshua sur un Mac, un PC Windows ou un PC Linux : une commande, quelques questions, environ 20 minutes.",
+ "Paste this in a terminal:": "Collez ceci dans un terminal :",
+ "A 64-bit PC with 8 GB of memory and 10–40 GB of free disk. An NVIDIA graphics card makes it much faster, and is needed for images and fine-tuning.": "Un PC 64 bits avec 8 Go de mémoire et 10–40 Go libres sur le disque. Une carte graphique NVIDIA le rend bien plus rapide, et elle est nécessaire pour les images et le fine-tuning.",
+ "Mac": "Mac",
+ "Or paste this in Terminal:": "Ou collez ceci dans le Terminal :",
+ "A Mac with Apple Silicon (M1 or later), 8 GB of memory, 10–40 GB of free disk. On an Intel Mac Joshua works with cloud models only.": "Un Mac avec Apple Silicon (M1 ou plus récent), 8 Go de mémoire, 10–40 Go libres sur le disque. Sur un Mac Intel, Joshua fonctionne uniquement avec les modèles cloud.",
+ "Or paste this in PowerShell (open the Start menu and type PowerShell):": "Ou collez ceci dans PowerShell (ouvrez le menu Démarrer et tapez PowerShell) :",
+ "Free and open, on every system.": "Gratuit et ouvert, sur tous les systèmes.",
+ "Install command for Linux": "Commande d'installation pour Linux",
+ "Install command for Mac": "Commande d'installation pour Mac"
 }

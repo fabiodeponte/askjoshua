@@ -175,6 +175,9 @@ h1.page em { font-style: normal; color: var(--rust) }
 .opennote ol { margin: .6em 0 0 1.2em; padding: 0 }
 .opennote li { margin: .35em 0 }
 .or { margin-top: 1.4em !important; color: var(--dim) }
+.os { display: flex; flex-direction: column; gap: 12px; padding-top: 22px; border-top: 1px dashed color-mix(in srgb, var(--ink) 30%, transparent); max-width: 100% }
+.os .or { margin-top: .4em !important }
+h2.osname { font: 2.2rem/1 var(--display); letter-spacing: .08em; text-transform: uppercase; margin: 0; color: var(--rust) }
 h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
 .brand { display: inline-block; white-space: nowrap; color: var(--brand); text-shadow: none }
 .brand .logo { width: 1.9em; height: 1.9em; vertical-align: -.26em; margin: -.35em -.62em 0 -.29em }
@@ -198,39 +201,58 @@ h3.sub { font-size: clamp(1.6rem, 3vw, 2.1rem); color: var(--ink) }
   <header class="stack">
     <span class="label">Download</span>
     <h1 class="page">Install<br><em>Joshua</em></h1>
-      <div class="cta">
-        <a class="download" href="/Install-Joshua.dmg" download>Download for Mac</a>
-        <span class="fine">Install Joshua.dmg · a window that asks a few questions and installs everything</span>
-      </div>
-      <div class="cta">
-        <a class="download" href="/Install-Joshua.exe" download>Download for Windows</a>
-        <span class="fine">Install Joshua.exe · the same, for Windows 10 and 11, no administrator rights needed</span>
-      </div>
-      <details class="opennote">
-        <summary>The first time, Windows says it protected your PC</summary>
-        <p>The installer isn't signed with a Microsoft certificate yet, so Windows SmartScreen stops it the first time. Its code is public <a href="https://github.com/fabiodeponte/askjoshua">on GitHub</a>. To open it, click <b>More info</b>, then <b>Run anyway</b>. If your browser warns about the download, choose <b>Keep</b>.</p>
-      </details>
-      <details class="opennote">
-        <summary>The first time, macOS says it can't verify the app</summary>
-        <p>The installer isn't signed with an Apple certificate yet, so macOS stops it the first time. Its code is public <a href="https://github.com/fabiodeponte/askjoshua">on GitHub</a>. To open it:</p>
-        <ol>
-          <li>Double-click <b>Install Joshua</b>. When macOS says it can't verify it, click <b>Done</b>.</li>
-          <li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to <b>Security</b> and click <b>Open Anyway</b>, then enter your password. The button stays there for about an hour.</li>
-          <li>Install Joshua opens. From then on it opens with a double-click.</li>
-        </ol>
-      </details>
-      <p class="or">Or, on a Mac or a Linux PC, paste this in Terminal:</p>
-      <div class="install" role="group" aria-label="Install command">
-        <code id="cmd">curl -fsSL https://ask.joshua.earth/install.sh | bash</code>
-        <button type="button" id="copy" class="copy" data-for="cmd">Copy</button>
-      </div>
-      <p class="fine">Paste it in a terminal. A Mac with Apple Silicon (M1 or later) or a Linux PC, 8 GB of memory, 10–40 GB of free disk. On Linux an NVIDIA graphics card makes it much faster. Free and open.</p>
-      <p class="or">On Windows 10 or 11, paste this in PowerShell (open the Start menu and type PowerShell):</p>
-      <div class="install" role="group" aria-label="Install command for Windows">
-        <code id="cmdwin">irm https://ask.joshua.earth/install.ps1 | iex</code>
-        <button type="button" class="copy" data-for="cmdwin">Copy</button>
-      </div>
-      <p class="fine">No administrator rights needed. 8 GB of memory, 10–20 GB of free disk; an NVIDIA graphics card makes it much faster. On Windows, images and fine-tuning aren't available yet, and the code Joshua writes runs without a sandbox.</p>
+      <section class="os" id="linux">
+        <h2 class="osname">Linux</h2>
+        <p class="or">Paste this in a terminal:</p>
+        <div class="install" role="group" aria-label="Install command for Linux">
+          <code id="cmd">curl -fsSL https://ask.joshua.earth/install.sh | bash</code>
+          <button type="button" id="copy" class="copy" data-for="cmd">Copy</button>
+        </div>
+        <p class="fine">A 64-bit PC with 8 GB of memory and 10–40 GB of free disk. An NVIDIA graphics card makes it much faster, and is needed for images and fine-tuning.</p>
+      </section>
+
+      <section class="os" id="mac">
+        <h2 class="osname">Mac</h2>
+        <div class="cta">
+          <a class="download" href="/Install-Joshua.dmg" download>Download for Mac</a>
+          <span class="fine">Install Joshua.dmg · a window that asks a few questions and installs everything</span>
+        </div>
+        <details class="opennote">
+          <summary>The first time, macOS says it can't verify the app</summary>
+          <p>The installer isn't signed with an Apple certificate yet, so macOS stops it the first time. Its code is public <a href="https://github.com/fabiodeponte/askjoshua">on GitHub</a>. To open it:</p>
+          <ol>
+            <li>Double-click <b>Install Joshua</b>. When macOS says it can't verify it, click <b>Done</b>.</li>
+            <li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to <b>Security</b> and click <b>Open Anyway</b>, then enter your password. The button stays there for about an hour.</li>
+            <li>Install Joshua opens. From then on it opens with a double-click.</li>
+          </ol>
+        </details>
+        <p class="or">Or paste this in Terminal:</p>
+        <div class="install" role="group" aria-label="Install command for Mac">
+          <code id="cmdmac">curl -fsSL https://ask.joshua.earth/install.sh | bash</code>
+          <button type="button" class="copy" data-for="cmdmac">Copy</button>
+        </div>
+        <p class="fine">A Mac with Apple Silicon (M1 or later), 8 GB of memory, 10–40 GB of free disk. On an Intel Mac Joshua works with cloud models only.</p>
+      </section>
+
+      <section class="os" id="windows">
+        <h2 class="osname">Windows</h2>
+        <div class="cta">
+          <a class="download" href="/Install-Joshua.exe" download>Download for Windows</a>
+          <span class="fine">Install Joshua.exe · the same, for Windows 10 and 11, no administrator rights needed</span>
+        </div>
+        <details class="opennote">
+          <summary>The first time, Windows says it protected your PC</summary>
+          <p>The installer isn't signed with a Microsoft certificate yet, so Windows SmartScreen stops it the first time. Its code is public <a href="https://github.com/fabiodeponte/askjoshua">on GitHub</a>. To open it, click <b>More info</b>, then <b>Run anyway</b>. If your browser warns about the download, choose <b>Keep</b>.</p>
+        </details>
+        <p class="or">Or paste this in PowerShell (open the Start menu and type PowerShell):</p>
+        <div class="install" role="group" aria-label="Install command for Windows">
+          <code id="cmdwin">irm https://ask.joshua.earth/install.ps1 | iex</code>
+          <button type="button" class="copy" data-for="cmdwin">Copy</button>
+        </div>
+        <p class="fine">No administrator rights needed. 8 GB of memory, 10–20 GB of free disk; an NVIDIA graphics card makes it much faster. On Windows, images and fine-tuning aren't available yet, and the code Joshua writes runs without a sandbox.</p>
+      </section>
+
+      <p class="fine">Free and open, on every system.</p>
       <p class="fine" id="installs" hidden data-text="Installed {n} times since {date}."></p>
   </header>
 

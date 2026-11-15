@@ -381,5 +381,14 @@
  "Joshua is an assistant that runs entirely on your own computer: a Mac, a Windows PC or a Linux PC. It searches the web, reads your files, writes code, makes pictures and learns how you like answers, without sending your life to anyone's servers.": "Joshua 是一个完全运行在你电脑上的助手，Mac、Windows 或 Linux 电脑都可以。它能上网搜索、读取你的文件、写代码、生成图片，并学会你喜欢的回答方式，而不会把你的生活发送到任何人的服务器上。",
  "<a class=\"download\" href=\"install.html\">Download</a> <span class=\"fine\">Free and open · Mac, Windows or Linux</span>": "<a class=\"download\" href=\"install.html\">下载</a> <span class=\"fine\">免费、开源 · Mac、Windows 或 Linux</span>",
  "Ask Joshua: a private AI assistant that runs entirely on your own computer: Mac, Windows or Linux. Your questions, your files, your model.": "Ask Joshua：完全运行在你电脑上的私人 AI 助手，支持 Mac、Windows 和 Linux。你的问题、你的文件、你的模型。",
- "How to install Joshua on a Mac, a Windows PC or a Linux PC: one command, a few questions, about 20 minutes.": "如何在 Mac、Windows 或 Linux 电脑上安装 Joshua：一条命令，几个问题，大约 20 分钟。"
+ "How to install Joshua on a Mac, a Windows PC or a Linux PC: one command, a few questions, about 20 minutes.": "如何在 Mac、Windows 或 Linux 电脑上安装 Joshua：一条命令，几个问题，大约 20 分钟。",
+ "Paste this in a terminal:": "把这行粘贴到终端中：",
+ "A 64-bit PC with 8 GB of memory and 10–40 GB of free disk. An NVIDIA graphics card makes it much faster, and is needed for images and fine-tuning.": "64 位电脑，8 GB 内存，10–40 GB 可用磁盘空间。NVIDIA 显卡会让它快很多，图像生成和微调也需要它。",
+ "Mac": "Mac",
+ "Or paste this in Terminal:": "或者把这行粘贴到“终端”中：",
+ "A Mac with Apple Silicon (M1 or later), 8 GB of memory, 10–40 GB of free disk. On an Intel Mac Joshua works with cloud models only.": "搭载 Apple 芯片（M1 或更新）的 Mac，8 GB 内存，10–40 GB 可用磁盘空间。在 Intel Mac 上，Joshua 只能使用云端模型。",
+ "Or paste this in PowerShell (open the Start menu and type PowerShell):": "或者把这行粘贴到 PowerShell 中（打开开始菜单，输入 PowerShell）：",
+ "Free and open, on every system.": "免费、开源，适用于所有系统。",
+ "Install command for Linux": "Linux 安装命令",
+ "Install command for Mac": "Mac 安装命令"
 }

@@ -381,5 +381,14 @@
  "Joshua is an assistant that runs entirely on your own computer: a Mac, a Windows PC or a Linux PC. It searches the web, reads your files, writes code, makes pictures and learns how you like answers, without sending your life to anyone's servers.": "Joshua è un assistente che gira interamente sul tuo computer: un Mac, un PC Windows o un PC Linux. Cerca sul web, legge i tuoi file, scrive codice, crea immagini e impara come ti piacciono le risposte, senza mandare la tua vita sui server di nessuno.",
  "<a class=\"download\" href=\"install.html\">Download</a> <span class=\"fine\">Free and open · Mac, Windows or Linux</span>": "<a class=\"download\" href=\"install.html\">Scarica</a> <span class=\"fine\">Gratuito e aperto · Mac, Windows o Linux</span>",
  "Ask Joshua: a private AI assistant that runs entirely on your own computer: Mac, Windows or Linux. Your questions, your files, your model.": "Ask Joshua: un assistente AI privato che gira interamente sul tuo computer: Mac, Windows o Linux. Le tue domande, i tuoi file, il tuo modello.",
- "How to install Joshua on a Mac, a Windows PC or a Linux PC: one command, a few questions, about 20 minutes.": "Come installare Joshua su un Mac, un PC Windows o un PC Linux: un comando, qualche domanda, circa 20 minuti."
+ "How to install Joshua on a Mac, a Windows PC or a Linux PC: one command, a few questions, about 20 minutes.": "Come installare Joshua su un Mac, un PC Windows o un PC Linux: un comando, qualche domanda, circa 20 minuti.",
+ "Paste this in a terminal:": "Incolla questo in un terminale:",
+ "A 64-bit PC with 8 GB of memory and 10–40 GB of free disk. An NVIDIA graphics card makes it much faster, and is needed for images and fine-tuning.": "Un PC a 64 bit con 8 GB di memoria e 10–40 GB liberi sul disco. Una scheda grafica NVIDIA lo rende molto più veloce, ed è necessaria per immagini e fine-tuning.",
+ "Mac": "Mac",
+ "Or paste this in Terminal:": "Oppure incolla questo nel Terminale:",
+ "A Mac with Apple Silicon (M1 or later), 8 GB of memory, 10–40 GB of free disk. On an Intel Mac Joshua works with cloud models only.": "Un Mac con Apple Silicon (M1 o successivo), 8 GB di memoria, 10–40 GB liberi sul disco. Su un Mac Intel Joshua funziona solo con i modelli cloud.",
+ "Or paste this in PowerShell (open the Start menu and type PowerShell):": "Oppure incolla questo in PowerShell (apri il menu Start e scrivi PowerShell):",
+ "Free and open, on every system.": "Gratuito e aperto, su ogni sistema.",
+ "Install command for Linux": "Comando di installazione per Linux",
+ "Install command for Mac": "Comando di installazione per Mac"
 }
