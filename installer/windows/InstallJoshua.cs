@@ -152,7 +152,8 @@ class Installer : Form
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
         };
         info.EnvironmentVariables["JOSHUA_GUI"] = "1";
-        info.EnvironmentVariables.Remove("JOSHUA_YES");  // in this window the questions are answered with the buttons (or, in a test, by the test)
+        info.EnvironmentVariables.Remove("JOSHUA_YES");
+        info.EnvironmentVariables.Remove("PSModulePath");  // started from PowerShell 7, this would point Windows PowerShell at modules it can't load  // in this window the questions are answered with the buttons (or, in a test, by the test)
         process = new Process { StartInfo = info, EnableRaisingEvents = true };
         process.OutputDataReceived += (s, e) => { if (e.Data != null) BeginInvoke((Action)(() => Line(e.Data))); };
         process.ErrorDataReceived += (s, e) => { if (e.Data != null) BeginInvoke((Action)(() => Line(e.Data))); };
