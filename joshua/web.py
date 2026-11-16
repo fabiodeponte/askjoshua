@@ -1,4 +1,4 @@
-import os, sys
+import functools, os, sys
 if os.environ.get("JOSHUA_LOG"):  # started without a window (Windows): what Joshua prints goes to this file instead
     sys.stdout = sys.stderr = open(os.environ["JOSHUA_LOG"], "a", buffering=1, encoding="utf-8", errors="replace")
 import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, subprocess, sys, threading, time, zipfile, urllib.parse
@@ -655,6 +655,7 @@ TOOL_GROUPS = {"web_search": ("🔎 " + t("Web search"), ["web_search"]), "read_
                "run_python": ("🐍 " + t("Run Python (sandboxed)"), ["run_python"]), "install_package": ("📦 " + t("Install packages"), ["install_package"]),
                "list_files": ("🗂️ " + t("Browse folders"), ["list_files"]), "files": ("📂 " + t("Read & 💾 write files (text, Word, PDF)"), ["read_file", "write_file"]),
                "get_datetime": ("🕒 " + t("Date and time"), ["get_datetime"]), "look_at_image": ("🖼️ " + t("Look at images"), ["look_at_image"]),
+               "transcribe": ("🎙️ " + t("Transcribe audio and video (on this computer)"), ["transcribe"]),
                **({"generate_image": ("🎨 " + t("Generate images"), ["generate_image"]), "edit_image": ("🖌️ " + t("Edit your photos"), ["edit_image"])} if "edit_image" in tools else {}),
                "browser": ("🧭 " + t("Use websites in its own browser (Firefox)"), sorted(agent.BROWSER_TOOLS)),
                "memory": ("🧠 " + t("Remember & forget"), sorted(agent.MEMORY_TOOLS))}
@@ -706,7 +707,9 @@ def conv_choices():
     convs = [(load(p.name), p.name) for p in ROOT.iterdir() if (p / "chat.json").exists()]
     order = sorted(convs, key=lambda x: (not x[0].get("pinned"), x[0].get("pin_order", 0), -x[0]["updated"]))  # pinned chats first, in your order; then the most recent
     # PIN is an invisible character: the page script sees it and draws the green pin
-    return [((PIN if c.get("pinned") else "") + ("⏳ " if busy(cid) else "") + (c["title"] or t("New chat")), cid) for c, cid in order]
+    icons = {k: d.get("icon", "") for k, d in desks.desks()}  # a chat at a desk shows the desk's icon
+    return [((PIN if c.get("pinned") else "") + ("⏳ " if busy(cid) else "") + (icons.get(c.get("opts", {}).get("desk"), "") + " " if icons.get(c.get("opts", {}).get("desk")) else "")
+             + (c["title"] or t("New chat")), cid) for c, cid in order]
 
 
 PIN = "\u2063"
@@ -2615,6 +2618,16 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     br_open = gr.Button("🧭 " + t("Open Joshua's browser"), size="sm", scale=0, min_width=240)
                     br_status = gr.HTML("")
             with gr.Column(elem_classes=["mzone", "mz0"]):
+                gr.HTML("<h2 class='msec'>" + t("Desks") + "</h2><div class='msub'>" + t("A desk sets Joshua up for one kind of work: you choose it under the message box. Here you can rewrite what Joshua is told at each desk, in any language. Your version is kept on this computer and updates never overwrite it; \"Restore the default\" brings back Joshua's own.") + "</div>")
+                desk_boxes = []
+                for desk_id, d in desks.desks():
+                    box_ = gr.Textbox(d["instructions"], lines=10, max_lines=30, label=desks.label(desk_id, i18n.LANG), elem_classes="deskedit")
+                    with gr.Row():
+                        save_ = gr.Button(t("Save"), size="sm", scale=0, min_width=120)
+                        reset_ = gr.Button(t("Restore the default"), size="sm", scale=0, min_width=200)
+                        note_ = gr.HTML("<div class='cloudstat'>" + t("Your own version") + "</div>" if desks.edited(desk_id) else "")
+                    desk_boxes.append((desk_id, box_, save_, reset_, note_))
+            with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Access from anywhere") + "</h2><div class='msub'>" + t("Use Joshua from your other computers, phone or tablet, wherever you are, through Tailscale: a free app that links your own devices in a private network. Nothing is opened to the internet.") + "</div>")
                 remote_on = gr.Checkbox(remote_setting(), label=t("Let my devices on Tailscale reach Joshua"))
                 remote_box = gr.HTML("")
@@ -2812,6 +2825,19 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     t_pause.click(lambda n: task_action(n, "pause"), t_pick, [task_list, t_pick, t_controls])
     t_del.click(lambda n: task_action(n, "delete"), t_pick, [task_list, t_pick, t_controls], js="(n) => (n && confirm(" + JS_TEXT(t("Delete '{name}'? It won't run again.")) + ".replace('{name}', n))) ? n : null")
     OTHER = [models_panel, sched_panel, tune_panel]
+    def desk_save(desk_id, words):
+        desks.set_instructions(desk_id, words)
+        gr.Info(t("Saved: chats at this desk follow it from the next message."))
+        return "<div class='cloudstat'>" + t("Your own version") + "</div>" if desks.edited(desk_id) else ""
+
+    def desk_reset(desk_id):
+        desks.set_instructions(desk_id, "")
+        return desks.default_instructions(desk_id), ""
+
+    for desk_id, box_, save_, reset_, note_ in desk_boxes:
+        save_.click(functools.partial(desk_save, desk_id), box_, note_)
+        reset_.click(functools.partial(desk_reset, desk_id), outputs=[box_, note_])
+
     for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back)]:
         rest = [x for x in (mem_panel, set_panel) if x is not panel]
         btn.click(lambda: (gr.Column(visible=True),) + (gr.Column(visible=False),) * 6, outputs=[panel, chatcol, rightcol] + OTHER + rest)
@@ -2851,8 +2877,13 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     to_chat = lambda: (gr.Column(visible=True), gr.Column(visible=True)) + (gr.Column(visible=False),) * 5
     for e in (convs.input, new.click):  # a chat or New chat in the side column closes Models, Settings and the other pages
         e(to_chat, outputs=[chatcol, rightcol, models_panel, sched_panel, tune_panel, mem_panel, set_panel], show_progress="hidden")
-    for o in (thinking, goal, swarm, offline, agents, *team, desk):
+    for o in (thinking, goal, swarm, offline, agents, *team):
         o.input(save_opts, [cid, thinking, goal, swarm, offline, agents, *team, desk], show_progress="hidden")
+
+    def desk_set(c, *values):  # a chat moved to another desk: save it, and show the new icon in the list
+        save_opts(c, *values)
+        return gr.Radio(choices=conv_choices(), value=c) if c else gr.skip()
+    desk.input(desk_set, [cid, thinking, goal, swarm, offline, agents, *team, desk], convs, show_progress="hidden")
     project.submit(set_project, [project, cid], [files, cid, convs, project])
     files.upload(upload_files, [files, cid], [files, cid, convs])
     files.change(zip_files, cid, dlall, show_progress="hidden")

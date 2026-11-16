@@ -488,5 +488,11 @@
  "{inp} / {out} per M tokens": "{inp} / {out}／百万 token",
  "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to Ollama, not to Joshua.": "每百万 token 的美元价格：先是你发送的（输入），再是它写出的（输出）。付给 Ollama，而不是 Joshua。",
  "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.": "每百万 token 的美元价格：先是你发送的（输入），再是它写出的（输出）。付给 {company}。",
- "General": "通用"
+ "General": "通用",
+ "Desks": "工作台",
+ "A desk sets Joshua up for one kind of work: you choose it under the message box. Here you can rewrite what Joshua is told at each desk, in any language. Your version is kept on this computer and updates never overwrite it; \"Restore the default\" brings back Joshua's own.": "工作台让 Joshua 专注于某一类工作：在消息框下方选择。你可以在这里用任何语言改写 Joshua 在每个工作台收到的指令。你的版本保存在本机，更新绝不会覆盖它；“恢复默认”会换回 Joshua 自带的版本。",
+ "Restore the default": "恢复默认",
+ "Your own version": "你的版本",
+ "Saved: chats at this desk follow it from the next message.": "已保存：此工作台的对话从下一条消息起按此执行。",
+ "Transcribe audio and video (on this computer)": "转写音频和视频（在本机）"
 }

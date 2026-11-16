@@ -488,5 +488,11 @@
  "{inp} / {out} per M tokens": "{inp} / {out} par M tokens",
  "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to Ollama, not to Joshua.": "Dollars par million de tokens : d'abord ce que vous envoyez (entrée), puis ce qu'il écrit (sortie). Payés à Ollama, pas à Joshua.",
  "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.": "Dollars par million de tokens : d'abord ce que vous envoyez (entrée), puis ce qu'il écrit (sortie). Payés à {company}.",
- "General": "Général"
+ "General": "Général",
+ "Desks": "Bureaux",
+ "A desk sets Joshua up for one kind of work: you choose it under the message box. Here you can rewrite what Joshua is told at each desk, in any language. Your version is kept on this computer and updates never overwrite it; \"Restore the default\" brings back Joshua's own.": "Un bureau prépare Joshua pour un type de travail : vous le choisissez sous la zone de message. Ici vous pouvez réécrire ce qui est dit à Joshua à chaque bureau, dans n'importe quelle langue. Votre version reste sur cet ordinateur et les mises à jour ne l'écrasent jamais ; « Rétablir l'original » remet celle de Joshua.",
+ "Restore the default": "Rétablir l'original",
+ "Your own version": "Votre version",
+ "Saved: chats at this desk follow it from the next message.": "Enregistré : les discussions de ce bureau le suivent dès le prochain message.",
+ "Transcribe audio and video (on this computer)": "Transcrire l'audio et la vidéo (sur cet ordinateur)"
 }

@@ -107,6 +107,19 @@ def _():
     return r.stdout
 
 
+@check("Transcription on this computer (a short English recording)")
+def _():
+    import tempfile
+    ws = pathlib.Path(tempfile.mkdtemp())
+    wav = ws / "test.wav"
+    say = "Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.SetOutputToWaveFile('" + str(wav) + "'); $s.Speak('The city council approved the budget with twenty two votes in favour and ten against.'); $s.Dispose()"
+    subprocess.run(["powershell", "-NoProfile", "-Command", say], check=True, timeout=60)
+    code = "import agent, sys; agent.set_workspace(sys.argv[1]); print(agent.transcribe('test.wav', 'en'))"
+    r = subprocess.run([sys.executable, "-c", code, str(ws)], cwd=APP, capture_output=True, text=True, timeout=1500, encoding="utf-8")
+    assert "budget" in r.stdout.lower(), r.stdout[-1500:] + r.stderr[-1500:]
+    return r.stdout[:600]
+
+
 @check("Code tool (run_python)")
 def _():
     r = subprocess.run([sys.executable, "-c", "import agent; print(agent.run_python('print(6*7, \"àèì\")'))"], cwd=APP, capture_output=True, text=True, timeout=120)

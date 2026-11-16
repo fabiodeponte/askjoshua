@@ -1,5 +1,5 @@
 import tempfile
-import datetime, difflib, json, os, pathlib, re, shutil, subprocess, sys, threading
+import datetime, difflib, json, os, pathlib, re, shutil, subprocess, sys, threading, time
 import docx, lxml.html, ollama, requests, trafilatura
 from langdetect import DetectorFactory, detect
 DetectorFactory.seed = 0
@@ -630,6 +630,31 @@ def edit_image(instruction: str, images: str, name: str = "") -> str:
 tools = {f.__name__: f for f in [web_search, read_page, run_python, install_package, list_files, read_file, write_file, get_datetime, look_at_image, generate_image, edit_image, remember, forget, read_memory]}
 if not IMAGES_OK:  # image generation was not installed
     tools.pop("generate_image"), tools.pop("edit_image")
+def transcribe(name: str, language: str = "") -> str:
+    """Transcribe an audio or video file in the workspace (interview, press conference, voice note) on this computer, with timestamps. Nothing is sent anywhere. Saves the full transcript as a .md file next to it and returns it. language: optional two-letter code (it, en, fr…) if known; otherwise it is detected. The first use downloads the speech model (about 1.6 GB); an hour of audio takes from one to several minutes."""
+    import transcribe as tr
+    p = _path(name)
+    if not p.exists():
+        return f"There is no {name} in the workspace."
+    if p.suffix.lower() not in tr.AUDIO:
+        return f"{name} doesn't look like an audio or video file."
+    t0 = time.time()
+    try:
+        segments, lang = tr.run(p, language)
+    except Exception as e:
+        return f"Couldn't transcribe {name}: {e}"
+    lines = [f"[{tr._stamp(a)}] {txt}" for a, b, txt in segments if txt]
+    out = p.with_name(p.stem + ".transcript.md")
+    out.write_text(f"# {p.name}\n\n" + "\n\n".join(lines) + "\n", encoding="utf-8")
+    took = int(time.time() - t0)
+    head = f"Transcript of {name} ({tr._stamp(segments[-1][1]) if segments else '0:00'} of audio, language {lang}, done in {took // 60} min {took % 60} s), saved as {out.name}:\n\n"
+    body = "\n".join(lines)
+    return head + (body if len(body) < 15000 else body[:15000] + f"\n\n[… the rest is in {out.name}; read it with read_file]")
+
+
+
+tools["transcribe"] = transcribe
+
 import browser  # Joshua's own browser window, to use sites that need clicking and typing
 tools.update({f.__name__: f for f in browser.TOOLS})
 BROWSER_TOOLS = {f.__name__ for f in browser.TOOLS}
