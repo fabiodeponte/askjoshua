@@ -64,7 +64,7 @@ def _():
                     break
         assert answer, "no answer from the model in 4 minutes"
         out = [f"answer in {time.time() - t0:.0f}s: {answer[:200]}"]
-        for name, sel in (("Models", "table.mrank tr"), ("Settings", "#toolson label"), ("Memory", "#memtopic")):
+        for name, sel in (("Models", "table.mrank tr"), ("Settings", "#toolson label"), ("Background", "#memtopic")):
             p.get_by_role("button", name=name).first.click()
             p.wait_for_timeout(8000 if name == "Models" else 3000)
             n = p.locator(sel).count()
