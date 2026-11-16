@@ -5,7 +5,7 @@ import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, su
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, providers, ranking, remote, tune_ui
+import agent, apple, browser, desks, providers, ranking, remote, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -679,12 +679,20 @@ def wdir(cid):
 
 def load(cid):
     p = ROOT / cid / "chat.json"
-    return json.loads(p.read_text()) if p.exists() else {"title": "", "updated": 0, "display": [], "llm": []}
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {"title": "", "updated": 0, "display": [], "llm": []}
+
+
+def write_chat(cid, conv):
+    """Write the chat whole, then swap it in: a chat read at the same moment is never half-written."""
+    p = ROOT / cid / "chat.json"
+    tmp = p.with_name(f"chat.{threading.get_ident()}.tmp")
+    tmp.write_text(json.dumps(conv, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, p)
 
 
 def save(cid, conv):
     conv["updated"] = time.time()
-    (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))
+    write_chat(cid, conv)
 
 
 def new_conv():
@@ -709,7 +717,7 @@ def pinned_ids():
 
 
 def write_conv(cid, conv):
-    (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))  # not save(): this doesn't move the chat to the top
+    write_chat(cid, conv)  # not save(): this doesn't move the chat to the top
 
 
 def reorder_pins(cid, order):
@@ -746,19 +754,35 @@ def team_menu(team=(), n=5):
     return [gr.Dropdown(choices=choices, value=v if v in values else "", visible=k < n) for k, v in enumerate(team)]
 
 
+def starters_html(desk_id):
+    """The empty chat's starter cards for a desk: each one puts a ready prompt in the message box."""
+    d = desks.get(desk_id)
+    if not d:
+        return ""
+    cards = "".join("<button class='starter' data-prompt='" + html.escape(desks.text(s["prompt"], i18n.LANG), quote=True) + "'><span class='sicon'>" + s.get("icon", "")
+                    + "</span>" + html.escape(desks.text(s["title"], i18n.LANG)) + "</button>" for s in d.get("starters", []))
+    return "<div class='starters'>" + cards + "</div>"
+
+
+def desk_choices():
+    return [("💬 " + t("General"), "")] + [(desks.label(k, i18n.LANG), k) for k, _ in desks.desks()]
+
+
 def chat_opts(cid):
     """This chat's own settings: deep thinking, goal mode, swarm, no internet, and the swarm's agents."""
     o = load(cid).get("opts", {}) if cid else {}
     n = int(o.get("agents", 5))
-    return tuple(gr.Checkbox(value=True if k == "thinking" else bool(o.get(k))) for k in OPTS) + (gr.Slider(value=n),) + tuple(team_menu(o.get("team", ()), n))
+    desk = o.get("desk", "") if desks.get(o.get("desk")) else ""
+    return (tuple(gr.Checkbox(value=True if k == "thinking" else bool(o.get(k))) for k in OPTS) + (gr.Slider(value=n),) + tuple(team_menu(o.get("team", ()), n))
+            + (gr.Radio(value=desk), starters_html(desk)))
 
 
 def save_opts(cid, *values):
     if cid and (ROOT / cid).exists():
         conv = load(cid)
-        flags, (n, *team) = values[:len(OPTS)], values[len(OPTS):]
-        conv["opts"] = dict(zip(OPTS, map(bool, flags)), agents=int(n), team=[v or "" for v in team])
-        (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))  # not save(): a setting doesn't move the chat to the top
+        flags, (n, *team), desk = values[:len(OPTS)], values[len(OPTS):-1], values[-1]
+        conv["opts"] = dict(zip(OPTS, map(bool, flags)), agents=int(n), team=[v or "" for v in team], desk=desk or "")
+        write_chat(cid, conv)  # not save(): a setting doesn't move the chat to the top
 
 
 def toggle_pin(cid):
@@ -1170,6 +1194,9 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     shown, msgs = conv["display"], conv["llm"]
     begin = len(shown)  # what this turn adds starts here
     off = {n for g in tools_off() for n in TOOL_GROUPS.get(g, ("", []))[1]}
+    at_desk = desks.get(conv.get("opts", {}).get("desk"))
+    if at_desk:  # a desk uses only its own tools: fewer tools, steadier small models
+        off |= {n for g, (_, names) in TOOL_GROUPS.items() if g not in at_desk["tools"] for n in names}
     base = {k: v for k, v in tools.items() if k not in off and (mem and not private or k not in agent.MEMORY_TOOLS) and not (offline and (k in ("web_search", "read_page") or k in agent.BROWSER_TOOLS))}
     toolset = dict(base, goal_done=goal_done, give_up=give_up) if goal else base
     rounds = int(rounds) if goal else 0 if swarm else 1
@@ -1274,14 +1301,14 @@ def busy(cid):
     return cid in JOBS and JOBS[cid].running
 
 
-def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem=False, *team):
+def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem=False, desk="", *team):
     message = message or {}
     text = (message.get("text") or "").strip()
     files = message.get("files") or []
     if not text and not files:
         return gr.skip(), *SKIP
     if busy(cid):  # like Claude: the message waits in line and goes when Joshua has finished
-        QUEUE.setdefault(cid, []).append((message, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, *team))
+        QUEUE.setdefault(cid, []).append((message, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, desk, *team))
         gr.Info(t("Queued: Joshua will send it when it has finished."))
         return gr.skip(), None, gr.skip(), gr.skip(), gr.skip()
     if model == ADD:  # the menu is still on "＋ Add a model…"
@@ -1295,7 +1322,7 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     cid = cid or new_conv()
     conv = load(cid)
     conv["model"] = choice
-    conv["opts"] = dict(zip(OPTS, map(bool, (thinking, goal, swarm, offline))), agents=int(agents), team=[v or "" for v in (list(team) + [""] * TEAM)[:TEAM]])
+    conv["opts"] = dict(zip(OPTS, map(bool, (thinking, goal, swarm, offline))), agents=int(agents), team=[v or "" for v in (list(team) + [""] * TEAM)[:TEAM]], desk=desk or "")
     if cloud and conv.get("cloud_notice") != model:  # say it once in the chat, each time a new cloud model is picked
         conv["cloud_notice"] = model
         where = (t("From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model, company=providers.company(model))
@@ -1321,7 +1348,9 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     where = f" Your workspace is the user's project folder {work}; use list_files to explore it and edit files with care." if conv.get("project") else ""
     online = " You have no internet access in this chat: you cannot search or read web pages, so answer from what you know and say when something may be out of date." if offline else "" if net else " Code you run has no internet access."
     online += f" The user writes in {language}: always reply in {language}." if language else ""
-    system = {"role": "system", "content": SYSTEM.format(now=agent.get_datetime()) + where + online + (GOAL_RULES if goal else "") + (agent.memory_prompt() if mem and (cloudmem or not cloud) else "")}
+    at_desk = desks.get(desk)
+    system = {"role": "system", "content": SYSTEM.format(now=agent.get_datetime()) + where + online + (GOAL_RULES if goal else "") + (agent.memory_prompt() if mem and (cloudmem or not cloud) else "")
+              + ("\n\n" + at_desk["instructions"] if at_desk else "")}
     if msgs and msgs[0]["role"] == "system":
         msgs[0] = system
     else:
@@ -1516,12 +1545,12 @@ def rename_save(cid, name):
     if cid and name:
         conv = load(cid)
         conv["title"] = name[:80]
-        (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))  # not save(): a new name doesn't move the chat to the top
+        write_chat(cid, conv)  # not save(): a new name doesn't move the chat to the top
     return gr.Textbox(visible=False), gr.Radio(choices=conv_choices(), value=cid)
 
 
 def delete_chat(cid):
-    nothing = (gr.skip(),) * (10 + TEAM)
+    nothing = (gr.skip(),) * (12 + TEAM)
     if not cid or not (ROOT / cid).exists():
         return nothing
     if busy(cid):
@@ -1666,7 +1695,7 @@ body:not(#a):not(#b):not(#c) #chatbar .opt {border: 1px solid color-mix(in srgb,
 #chatbar .opt:not(:has(input:checked)) {display: none !important}
 /* goal and swarm under the message box: small switches, filled when on */
 body:not(#a):not(#b):not(#c) #modelrow > .form:has(.modeopt) {display: flex !important; flex-direction: row !important; gap: 6px !important; flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; border: none !important; background: transparent !important; box-shadow: none !important; padding: 0 !important}
-body:not(#a):not(#b):not(#c) #modelrow > #cloudbadge {flex: 1 1 auto !important; min-width: 0 !important; text-align: right}
+body:not(#a):not(#b):not(#c) #modelrow > #cloudbadge {flex: 1 1 auto !important; min-width: max-content !important; text-align: right}
 body:not(#a):not(#b):not(#c) #modelrow .cloudbadge {white-space: nowrap !important; overflow: hidden; padding: 2px 0 0 !important}
 body:not(#a):not(#b):not(#c) #modelrow {gap: 8px !important}
 .cloudbadge > span + span::before {content: " · "; color: var(--dim)}
@@ -1686,6 +1715,18 @@ body:not([data-files="open"]) #chatopts {display: none !important}
 #chatopts {flex-grow: 0 !important; margin: 0 4px 8px !important; padding: 10px 12px !important; border-radius: 12px; background: color-mix(in srgb, var(--brand) 6%, var(--bg)) !important}
 #chatopts .fhead {font-weight: 600; color: var(--brand)}
 .cloudbadge .bicon {cursor: help; margin: 0 1px}
+#starters {flex: 0 0 auto !important; padding: 0 !important; background: transparent !important; border: none !important}
+#chatcol:not(:has(#chat .placeholder)) #starters {display: none !important}  /* only on an empty chat */
+.starters {display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0 auto 10px; max-width: 760px}
+button.starter {display: flex; align-items: center; gap: 8px; text-align: left; padding: 9px 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); background: color-mix(in srgb, var(--bg) 70%, white); color: var(--ink); font-size: .9rem; cursor: pointer}
+button.starter:hover {border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, transparent)}
+button.starter .sicon {font-size: 1.1rem}
+body:not(#a):not(#b):not(#c) #deskpick {flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; padding: 0 !important; border: none !important; background: transparent !important; box-shadow: none !important}
+body:not(#a):not(#b):not(#c) #deskpick .wrap {display: flex !important; flex-wrap: nowrap !important; gap: 4px !important}
+body:not(#a):not(#b):not(#c) #deskpick label {padding: 2px 10px !important; border-radius: 999px !important; border: 1px solid color-mix(in srgb, var(--line) 80%, transparent) !important; background: transparent !important; box-shadow: none !important; font-size: .82rem !important; min-height: 0 !important; cursor: pointer; color: var(--dim)}
+body:not(#a):not(#b):not(#c) #deskpick label.selected, body:not(#a):not(#b):not(#c) #deskpick label:has(input:checked) {border-color: color-mix(in srgb, var(--brand) 55%, transparent) !important; background: color-mix(in srgb, var(--brand) 12%, transparent) !important; color: var(--brand)}
+body:not(#a):not(#b):not(#c) #deskpick input {display: none !important}
+body.narrow:not(#a):not(#b) #deskpick {order: 0; flex: 1 1 100% !important}
 .cloudbadge .bcost {white-space: nowrap}
 .cloudbadge .bplace {cursor: help}
 .cloudbadge .bplace + span::before {content: " "}
@@ -1790,7 +1831,7 @@ body.noside #leftcol {display: none !important}
 #tune .prose ol, #tune .prose ul {padding-left: 1.6em !important}
 .ftstatus.ok {color: var(--ink) !important}
 #tune .legend, #tune [class*=legend] {display: none !important}
-#modelrow {flex-wrap: nowrap !important}
+#modelrow {flex-wrap: wrap !important; row-gap: 4px !important}
 #modelrow > #working {flex: 0 0 auto !important; width: auto !important; min-width: 0 !important}
 #modelrow > #cloudbadge {flex: 1 1 0 !important; width: auto !important; min-width: 8ch !important}
 #cloudbadge .cloudbadge {white-space: normal; overflow: visible; line-height: 1.25}  /* a narrow window wraps it onto a second line instead of cutting it */
@@ -2099,7 +2140,9 @@ body.narrow:not(#a):not(#b) #cloudbadge .cloudbadge {white-space: nowrap !import
 body.narrow:not(#a):not(#b) #modelrow #model::before {content: none}
 body.narrow:not(#a):not(#b) #modelrow > #working {order: 3}
 body.narrow:not(#a):not(#b) #modelrow > #model {order: 1}
-body.narrow:not(#a):not(#b) #modelrow > :not(.form) label, body.narrow:not(#a):not(#b) #modelrow > :not(.form) .label {display: none !important}
+body.narrow:not(#a):not(#b) #modelrow > :not(.form):not(#deskpick) label, body.narrow:not(#a):not(#b) #modelrow > :not(.form):not(#deskpick) .label {display: none !important}
+body.narrow:not(#a):not(#b) button.fbtn {width: 34px; height: 34px}
+body.narrow:not(#a):not(#b) #starters .starters {gap: 6px} body.narrow:not(#a):not(#b) button.starter {padding: 7px 11px; font-size: .85rem}
 body.narrow:not(#a):not(#b) #modelrow > .form:has(.modeopt) {order: 0; flex: 1 1 100% !important; justify-content: flex-start}
 body.narrow:not(#a):not(#b) table.mrank, body.narrow:not(#a):not(#b) table.mrank tbody {display: block; width: 100%}
 body.narrow:not(#a):not(#b) table.mrank thead, body.narrow:not(#a):not(#b) table.mrank tr:has(th) {display: none !important}
@@ -2680,18 +2723,21 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     openf = gr.Button("📂 " + t("Open folder"), size="sm")
                     dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
             chatbot = gr.Chatbot(height="100%", show_label=False, elem_id="chat", placeholder="### " + t("Hello. What would you like to do today?") + "\n" + t("Everything you write here is stored only on this computer."))
+            starters = gr.HTML("", elem_id="starters")  # the desk's starter cards, on the empty chat
             with gr.Row(equal_height=True, elem_id="promptrow"):
                 gr.HTML("<button class='fbtn' title='" + html.escape(t("Files and folder of this chat"), quote=True) + "'>" + FOLDER_SVG + "</button>", elem_id="fbtnwrap")
                 box = gr.MultimodalTextbox(file_count="multiple", placeholder=t("Message Joshua, or drop files here…"), show_label=False, scale=12)
                 stop = gr.Button("■ " + t("Stop"), scale=1, min_width=64, elem_id="stop")
-            with gr.Row(elem_id="modelrow"):  # under the message box: goal and swarm switches, what's happening, the model and what it can do
+            with gr.Row(elem_id="modelrow"):  # under the message box: the desk, goal and swarm switches, what's happening, the model and what it can do
+                desk = gr.Radio(desk_choices(), value="", show_label=False, container=False, elem_id="deskpick")
                 goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes=["opt", "modeopt"], elem_id="o_goal", info=t("Give a goal; it keeps working until done"))
                 swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes=["opt", "modeopt"], elem_id="o_swarm", info=t("Several agents answer in parallel, then one combines the best answer"))
                 working = gr.HTML("", elem_id="working")
                 cloudbadge = gr.HTML(badge(default_model()), elem_id="cloudbadge")
                 model = gr.Dropdown(choices=models(True), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200)
 
-    box.submit(send, [box, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, *team], [chatbot, box, cid, convs, files], concurrency_limit=None)
+    box.submit(send, [box, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, desk, *team], [chatbot, box, cid, convs, files], concurrency_limit=None)
+    desk.change(starters_html, desk, starters, show_progress="hidden")
     model.change(badge, model, cloudbadge)
 
     # "＋ Add a model…" in the menu: open the two panels on the right, fill their lists, then put the menu back on the model you had
@@ -2800,18 +2846,18 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     agents.change(lambda n: [gr.Dropdown(visible=k < n) for k in range(TEAM)], agents, team, show_progress="hidden")
     stop.click(stop_chat, cid, concurrency_limit=None)
     goal.change(lambda g: (gr.Column(visible=g), gr.MultimodalTextbox(placeholder=t("Describe a goal for Joshua to accomplish…") if g else t("Message Joshua, or drop files here…"))), goal, [goalpanel, box])
-    new.click(new_chat, outputs=[chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team])
-    convs.input(open_conv, convs, [chatbot, cid, files, project, model, thinking, goal, swarm, offline, agents, *team]).then(badge, model, cloudbadge)
+    new.click(new_chat, outputs=[chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters])
+    convs.input(open_conv, convs, [chatbot, cid, files, project, model, thinking, goal, swarm, offline, agents, *team, desk, starters]).then(badge, model, cloudbadge)
     to_chat = lambda: (gr.Column(visible=True), gr.Column(visible=True)) + (gr.Column(visible=False),) * 5
     for e in (convs.input, new.click):  # a chat or New chat in the side column closes Models, Settings and the other pages
         e(to_chat, outputs=[chatcol, rightcol, models_panel, sched_panel, tune_panel, mem_panel, set_panel], show_progress="hidden")
-    for o in (thinking, goal, swarm, offline, agents, *team):
-        o.input(save_opts, [cid, thinking, goal, swarm, offline, agents, *team], show_progress="hidden")
+    for o in (thinking, goal, swarm, offline, agents, *team, desk):
+        o.input(save_opts, [cid, thinking, goal, swarm, offline, agents, *team, desk], show_progress="hidden")
     project.submit(set_project, [project, cid], [files, cid, convs, project])
     files.upload(upload_files, [files, cid], [files, cid, convs])
     files.change(zip_files, cid, dlall, show_progress="hidden")
     openf.click(open_folder, cid)
-    chatbot.retry(retry, [cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, *team], [chatbot, box, cid, convs, files])
+    chatbot.retry(retry, [cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, desk, *team], [chatbot, box, cid, convs, files])
     files.delete(delete_file, cid, files)
     gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
     feedback.click(None, model, None, js="(m) => { window.open(" + json.dumps(FEEDBACK) + " + '&model=' + encodeURIComponent(m || ''), '_blank') }")
@@ -2820,7 +2866,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     ord_go.click(None, None, ord_val, js="() => window.joshuaOrder || ''").then(reorder_pins, [cid, ord_val], convs, show_progress="hidden")
     ren_go.click(None, None, ren_val, js="() => window.joshuaRename || ''").then(rename_save, [cid, ren_val], [renbox, convs], show_progress="hidden")
     renbox.submit(rename_save, [cid, renbox], [renbox, convs])
-    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
+    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
     tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
     tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models(True))), outputs=[tune_panel, chatcol, rightcol, model])
@@ -2897,6 +2943,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         new MutationObserver(mark).observe(document.body, {childList: true, subtree: true, characterData: true}); mark();
         document.addEventListener('click', (e) => {
           if (e.target.closest('.fbtn')) { document.body.dataset.files = document.body.dataset.files ? '' : 'open'; return; }  // the folder left of the message box
+          const sc = e.target.closest('button.starter');  // a desk's starter card: its prompt goes in the message box, ready to finish
+          if (sc) { const ta = document.querySelector('#promptrow textarea'); ta.value = sc.dataset.prompt; ta.dispatchEvent(new Event('input', {bubbles: true})); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); return; }
           const d = e.target.closest('.cmore');
           if (!d) { if (!e.target.closest('#cmenu')) close(); return; }
           if (d.classList.contains('cur')) { e.preventDefault(); open(d, !!document.querySelector('#convs label.selected')); return; }

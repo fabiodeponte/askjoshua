@@ -218,7 +218,7 @@ def from_chats(conv_dir, cids):
         if not p.exists():
             continue
         user, answer = None, ""
-        for m in json.loads(p.read_text())["llm"] + [{"role": "user", "content": None}]:
+        for m in json.loads(p.read_text(encoding="utf-8"))["llm"] + [{"role": "user", "content": None}]:
             if m["role"] == "user":
                 if user and answer:
                     rows.append([user, re.sub(r"\n+Sources?:\n.*", "", answer, flags=re.S).strip()])

@@ -487,5 +487,6 @@
  "free, on this computer": "kostenlos, auf diesem Computer",
  "{inp} / {out} per M tokens": "{inp} / {out} pro Mio. Tokens",
  "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to Ollama, not to Joshua.": "Dollar pro Million Tokens: zuerst was du sendest (Eingabe), dann was er schreibt (Ausgabe). Bezahlt an Ollama, nicht an Joshua.",
- "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.": "Dollar pro Million Tokens: zuerst was du sendest (Eingabe), dann was er schreibt (Ausgabe). Bezahlt an {company}."
+ "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.": "Dollar pro Million Tokens: zuerst was du sendest (Eingabe), dann was er schreibt (Ausgabe). Bezahlt an {company}.",
+ "General": "Allgemein"
 }

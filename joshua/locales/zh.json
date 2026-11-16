@@ -487,5 +487,6 @@
  "free, on this computer": "免费，在本机运行",
  "{inp} / {out} per M tokens": "{inp} / {out}／百万 token",
  "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to Ollama, not to Joshua.": "每百万 token 的美元价格：先是你发送的（输入），再是它写出的（输出）。付给 Ollama，而不是 Joshua。",
- "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.": "每百万 token 的美元价格：先是你发送的（输入），再是它写出的（输出）。付给 {company}。"
+ "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.": "每百万 token 的美元价格：先是你发送的（输入），再是它写出的（输出）。付给 {company}。",
+ "General": "通用"
 }
