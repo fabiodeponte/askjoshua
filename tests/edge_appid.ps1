@@ -39,3 +39,5 @@ Start-Sleep 15
 $pids = @(Get-Process msedge -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
 $out = [Probe]::Windows($pids) -join "%0A"
 Write-Host "::notice title=Edge app window::$out"
+$apps = (Get-StartApps | Where-Object { $_.Name -like "*Joshua*" } | ForEach-Object { "$($_.Name) -> $($_.AppID)" }) -join "%0A"
+Write-Host "::notice title=Start menu entry::$apps"

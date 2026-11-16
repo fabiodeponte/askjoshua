@@ -299,6 +299,41 @@ function New-Shortcut($path, $arguments) {
     if (Test-Path $ico) { $s.IconLocation = $ico }
     $s.Description = "Joshua, your AI on your computer"
     $s.Save()
+    Set-AppId $path
+}
+# Joshua's window is an Edge (or Chrome) app window, which Windows files under an ID made from the address: "MSEdge.127.0.0.1_/".
+# Giving the Start menu shortcut that same ID makes the taskbar treat the window as Joshua: pinned, it keeps Joshua's icon, not Edge's.
+$Browser = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+$AppId = if ($Browser) { "MSEdge.127.0.0.1_/" } else { "Chrome.127.0.0.1_/" }
+function Set-AppId($path) {
+    try {
+        if (-not ("JoshuaLink" -as [type])) {
+            Add-Type @"
+using System; using System.Runtime.InteropServices;
+public static class JoshuaLink {
+    [StructLayout(LayoutKind.Sequential, Pack = 4)] struct PK { public Guid f; public uint p; }
+    [StructLayout(LayoutKind.Explicit)] struct PV { [FieldOffset(0)] public ushort vt; [FieldOffset(8)] public IntPtr p; [FieldOffset(16)] public IntPtr pad; }
+    [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IPS { int GetCount(out uint c); int GetAt(uint i, out PK k); int GetValue(ref PK k, out PV v); int SetValue(ref PK k, ref PV v); int Commit(); }
+    [ComImport, Guid("0000010b-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IPF { void GetClassID(out Guid c); [PreserveSig] int IsDirty(); void Load([MarshalAs(UnmanagedType.LPWStr)] string f, uint mode); void Save([MarshalAs(UnmanagedType.LPWStr)] string f, bool remember); void SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string f); }
+    [ComImport, Guid("00021401-0000-0000-C000-000000000046")] class ShellLink { }
+    public static void Set(string lnk, string id) {
+        var link = new ShellLink();
+        ((IPF)link).Load(lnk, 2);  // read and write
+        var k = new PK { f = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), p = 5 };  // System.AppUserModel.ID
+        var v = new PV { vt = 31, p = Marshal.StringToCoTaskMemUni(id) };
+        var ps = (IPS)link;
+        Marshal.ThrowExceptionForHR(ps.SetValue(ref k, ref v));
+        Marshal.ThrowExceptionForHR(ps.Commit());
+        ((IPF)link).Save(lnk, true);
+        Marshal.FreeCoTaskMem(v.p);
+    }
+}
+"@
+        }
+        [JoshuaLink]::Set($path, $AppId)
+    } catch { Warn "couldn't give the shortcut Joshua's taskbar identity: pinned, it may show the browser's icon" }
 }
 New-Shortcut $StartMenu ""
 Ok "Joshua is in the Start menu"
