@@ -266,6 +266,7 @@ class Installer : Form
             installed = true;
             heading.Text = "Joshua is installed";
             status.Text = "Opening Joshua…";
+            main.Visible = false; close.Visible = false;
             bar.Value = Steps;
             if (TestDir != null) { Snapshot(); var p = StartJoshua(); if (p != null) p.WaitForExit(120000); Environment.Exit(0); }  // a test waits until Joshua is up
             Later(1500, OpenJoshua);
