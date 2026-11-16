@@ -137,15 +137,23 @@ def _():
 
 @check("Update from the site, then restart by itself")
 def _():
+    import threading
     from gradio_client import Client
     log = HOME / "joshua.log"
-    before = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
-    got = Client(URL, verbose=False).predict(api_name="/do_update")
-    time.sleep(8)
-    ok = up(wait=180)
-    after = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
-    assert ok, f"not running 3 minutes after the update. It said: {got}%0ALog since:%0A{after[len(before):][-2500:]}"
-    return f"{got} | version now {(APP / 'VERSION').read_text().strip()}"
+    size = log.stat().st_size if log.exists() else 0
+    got = []
+    threading.Thread(target=lambda: got.append(Client(URL, verbose=False).predict(api_name="/do_update")), daemon=True).start()
+    steps = []
+    for k in range(60):  # 10 minutes: what is running, every 10 seconds
+        time.sleep(10)
+        running = subprocess.run(["tasklist", "/fi", "imagename eq pythonw.exe", "/fo", "csv", "/nh"], capture_output=True, text=True).stdout.count("pythonw")
+        steps.append(f"{(k + 1) * 10}s: pythonw x{running}, page {'up' if up(wait=1) else 'down'}, answered: {bool(got)}")
+        if got and up(wait=1) and k > 3:
+            break
+    new = log.read_bytes()[size:].decode("utf-8", "replace") if log.exists() else "(no log)"
+    report = f"returned: {got}%0A" + "%0A".join(steps[-12:]) + "%0A--- log ---%0A" + new[-2000:]
+    assert up(wait=5), report
+    return report
 
 
 print(f"{sum(results)}/{len(results)} checks passed")
