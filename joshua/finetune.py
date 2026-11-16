@@ -203,7 +203,7 @@ def parse_file(path):
                     rows.append([user, m["content"]])
                     user = None
         else:
-            q = it.get("question") or it.get("prompt") or it.get("input") or it.get("instruction")
+            q = it.get("question") or it.get("prompt") or "\n\n".join(x for x in (it.get("instruction"), it.get("input")) if x)  # Alpaca style: the task, then its text
             a = it.get("answer") or it.get("completion") or it.get("output") or it.get("response")
             if q and a:
                 rows.append([q, a])
