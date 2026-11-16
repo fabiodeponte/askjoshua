@@ -479,5 +479,13 @@
  "Fine-tuning": "Fine-tuning",
  "Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images or audio, and deep thinking, give no extra points: they are shown on their own, under Abilities. For everyday questions, smaller models are often enough.": "Prima chi ragiona meglio, in ogni gruppo. Il punteggio misura solo il ragionamento: test pubblici di logica, programmazione, conoscenze e uso di strumenti, tutti su testo ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), novembre 2026); per i modelli piccoli è una stima di Joshua. Leggere immagini o audio e il ragionamento approfondito non danno punti in più: sono indicati a parte, sotto Capacità. Per le domande di tutti i giorni bastano spesso modelli più piccoli.",
  "Abilities": "Capacità",
- "deep thinking": "ragionamento approfondito"
+ "deep thinking": "ragionamento approfondito",
+ "reads text": "legge testo",
+ "reads images": "legge immagini",
+ "hears audio": "ascolta audio",
+ "thinks before answering": "ragiona prima di rispondere",
+ "free, on this computer": "gratis, su questo computer",
+ "{inp} / {out} per M tokens": "{inp} / {out} per M token",
+ "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to Ollama, not to Joshua.": "Dollari per milione di token: prima ciò che invii (input), poi ciò che scrive (output). Pagati a Ollama, non a Joshua.",
+ "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.": "Dollari per milione di token: prima ciò che invii (input), poi ciò che scrive (output). Pagati a {company}."
 }

@@ -112,11 +112,39 @@ def default_model():
 CLOUD_BADGE = "<div class='cloudbadge' title='" + html.escape(t("☁ Cloud model: messages go to Ollama's servers; everything stays stored here"), quote=True) + "'>☁ " + t("on Ollama's servers") + "</div>"
 
 
+def money(x):
+    return f"${x:.3f}".rstrip("0").rstrip(".") if x < 0.1 else f"${x:.2f}"
+
+
 def badge(choice):
-    if choice and providers.is_api(choice):
-        full = t("🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here", company=providers.company(choice))
-        return "<div class='cloudbadge' title='" + html.escape(full, quote=True) + "'>🔑 " + t("on {company}'s servers", company=providers.company(choice)) + "</div>"
-    return CLOUD_BADGE if choice and choice != ADD and is_cloud(resolve(choice, False)) else ""
+    """Under the message box: where the chosen model runs, what it can do (icons) and what it costs."""
+    if not choice or choice == ADD:
+        return ""
+    tip = lambda icon, text: f"<span class='bicon' title='{html.escape(text, quote=True)}'>{icon}</span>"
+    if providers.is_api(choice):
+        company = providers.company(choice)
+        full = t("🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here", company=company)
+        place = "<span class='bplace' title='" + html.escape(full, quote=True) + "'>🔑 " + html.escape(company) + "</span>"
+        vision, audio, thinks, price = providers.sees_images(choice), False, False, ranking.closed_price(choice.split(" ", 1)[-1])
+    elif choice == apple.NAME:
+        place, vision, audio, thinks, price = "", False, False, False, None
+    else:
+        m = resolve(choice, True)
+        c = caps(m)
+        vision, audio, thinks = "vision" in c, "audio" in c, "thinking" in c
+        place = ("<span class='bplace' title='" + html.escape(t("☁ Cloud model: messages go to Ollama's servers; everything stays stored here"), quote=True) + "'>☁</span>") if is_cloud(m) else ""
+        price = ranking.cloud_price(m) if is_cloud(m) else None
+    icons = tip("📄", t("reads text"))
+    icons += tip("🖼️", t("reads images")) if vision else ""
+    icons += tip("🎧", t("hears audio")) if audio else ""
+    icons += tip("💭", t("thinks before answering")) if thinks else ""
+    if price:
+        cost = "<span class='bcost' title='" + html.escape((t("Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.", company=providers.company(choice)) if providers.is_api(choice) else t("Dollars per million tokens: first what you send (input), then what it writes (output). Paid to Ollama, not to Joshua.")), quote=True) + "'>" + t("{inp} / {out} per M tokens", inp=money(price[0]), out=money(price[2])) + "</span>"
+    elif place:
+        cost = ""
+    else:
+        cost = "<span class='bcost'>" + t("free, on this computer") + "</span>"
+    return "<div class='cloudbadge'>" + "".join(x for x in (place, "<span class='bicons'>" + icons + "</span>", cost) if x) + "</div>"
 
 
 CLOUD_HELP = ("**" + t("Stays here:") + "** " + t("your chats, files and memory notes.") + "  \n"
@@ -722,7 +750,7 @@ def chat_opts(cid):
     """This chat's own settings: deep thinking, goal mode, swarm, no internet, and the swarm's agents."""
     o = load(cid).get("opts", {}) if cid else {}
     n = int(o.get("agents", 5))
-    return tuple(gr.Checkbox(value=bool(o.get(k))) for k in OPTS) + (gr.Slider(value=n),) + tuple(team_menu(o.get("team", ()), n))
+    return tuple(gr.Checkbox(value=True if k == "thinking" else bool(o.get(k))) for k in OPTS) + (gr.Slider(value=n),) + tuple(team_menu(o.get("team", ()), n))
 
 
 def save_opts(cid, *values):
@@ -1264,8 +1292,6 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     if (cloud or any(is_cloud(m) for m in picked if m)) and offline:
         gr.Warning(t("Cloud models need the internet. Please choose a local model, or turn off No internet."))
         return gr.skip(), *SKIP
-    if thinking and "thinking" not in caps(model):
-        gr.Info(t("{model} can't do deep thinking, so it will answer normally.", model=model))
     cid = cid or new_conv()
     conv = load(cid)
     conv["model"] = choice
@@ -1637,7 +1663,19 @@ body:not(#a):not(#b):not(#c) #chatbar .opt {padding: 2px 10px !important; margin
 body:not(#a):not(#b):not(#c) #chatbar .opt, body:not(#a):not(#b):not(#c) #chatbar .opt * {cursor: pointer}
 #chatbar .opt .info-text {display: none !important}
 body:not(#a):not(#b):not(#c) #chatbar .opt {border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent) !important; border-radius: 999px !important; padding: 2px 10px !important; background: color-mix(in srgb, var(--brand) 8%, transparent) !important}
-#chatbar .opt:not(:has(input:checked)) {display: none !important}  /* the ⋯ menu sets them; only the ones that are on show, as small labels */
+#chatbar .opt:not(:has(input:checked)) {display: none !important}
+/* goal and swarm under the message box: small switches, filled when on */
+body:not(#a):not(#b):not(#c) #modelrow > .form:has(.modeopt) {display: flex !important; flex-direction: row !important; gap: 6px !important; flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; border: none !important; background: transparent !important; box-shadow: none !important; padding: 0 !important}
+body:not(#a):not(#b):not(#c) #modelrow > #cloudbadge {flex: 1 1 auto !important; min-width: 0 !important; text-align: right}
+body:not(#a):not(#b):not(#c) #modelrow .cloudbadge {white-space: nowrap !important; overflow: hidden; padding: 2px 0 0 !important}
+body:not(#a):not(#b):not(#c) #modelrow {gap: 8px !important}
+.cloudbadge > span + span::before {content: " · "; color: var(--dim)}
+body:not(#a):not(#b):not(#c) #modelrow .modeopt {flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; margin: 0 !important; padding: 2px 11px !important; border: 1px solid color-mix(in srgb, var(--line) 80%, transparent) !important; border-radius: 999px !important; background: transparent !important; box-shadow: none !important; cursor: pointer; overflow: visible !important}
+body:not(#a):not(#b):not(#c) #modelrow .modeopt:has(input:checked) {border-color: color-mix(in srgb, var(--brand) 55%, transparent) !important; background: color-mix(in srgb, var(--brand) 12%, transparent) !important}
+#modelrow .modeopt input {display: none !important}
+#modelrow .modeopt .info-text, #modelrow .modeopt [data-testid="block-info"], #modelrow .modeopt .info {display: none !important}
+#modelrow .modeopt label, #modelrow .modeopt label span {font-size: .82rem !important; margin: 0 !important; padding: 0 !important; color: var(--dim); cursor: pointer}
+#modelrow .modeopt:has(input:checked) label span {color: var(--brand)}  /* the ⋯ menu sets them; only the ones that are on show, as small labels */
 #chatbar .opt input {display: none !important}
 #chatbar .opt [data-testid="block-info"], #chatbar .opt .info {display: none !important}
 #chatbar .opt label, #chatbar .opt label span {font-size: .82rem !important; margin: 0 !important; padding: 0 !important}
@@ -1647,6 +1685,10 @@ body:not(#a):not(#b):not(#c) #chatbar .opt {border: 1px solid color-mix(in srgb,
 body:not([data-files="open"]) #chatopts {display: none !important}
 #chatopts {flex-grow: 0 !important; margin: 0 4px 8px !important; padding: 10px 12px !important; border-radius: 12px; background: color-mix(in srgb, var(--brand) 6%, var(--bg)) !important}
 #chatopts .fhead {font-weight: 600; color: var(--brand)}
+.cloudbadge .bicon {cursor: help; margin: 0 1px}
+.cloudbadge .bcost {white-space: nowrap}
+.cloudbadge .bplace {cursor: help}
+.cloudbadge .bplace + span::before {content: " "}
 #fbtnwrap {flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; align-self: center !important; padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important}
 #fbtnwrap .html-container {padding: 0 !important}
 button.fbtn {display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; border: none; background: transparent; color: var(--dim); cursor: pointer}
@@ -1704,7 +1746,7 @@ body.noside #leftcol {display: none !important}
 #promptrow textarea {color: var(--amber) !important; caret-color: var(--amber)}
 #promptrow .block, #promptrow .multimodal-textbox {background: var(--panel) !important; border: var(--pbw) solid var(--pline) !important; border-radius: 4px !important; box-shadow: var(--pglow) !important}
 #tools {font-size: .82rem; line-height: 1.8; opacity: .9}
-#modelrow {justify-content: space-between; align-items: center; margin-top: -6px; padding-right: 86px}
+#modelrow {justify-content: space-between; align-items: center; margin-top: -6px; padding-right: 24px}
 #working {flex: 1 1 auto !important; min-width: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 0 0 4px !important}
 #working .working {display: flex; align-items: center; gap: 8px; color: var(--cyan); font-size: 1.15rem; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
 #working .progress-text, #working .eta-bar, #working .timer, #working .meta-text, #working .meta-text-center, #working .progress-level {display: none !important}
@@ -1786,7 +1828,7 @@ body:not(#a):not(#b):not(#c) #modelrow #model input {field-sizing: content; min-
 #wfiles button.upload-container .icon-wrap {width: 18px !important; height: 18px !important; margin: 0 !important}
 #wfiles button.upload-container .or:empty {display: none}
 #schedel {background: transparent !important; border: none !important; box-shadow: none !important; text-decoration: underline; width: auto !important; align-self: flex-start; padding: 2px 0 !important; opacity: .85}
-#modelrow #model::before {content: "@@MODEL@@"; color: var(--dim); font-size: .85rem; margin-right: 6px; align-self: center; white-space: nowrap}
+#modelrow #model::before {content: none}  /* no "Model:" label: the row is full */
 #modelrow #model {display: flex !important; flex-wrap: nowrap !important; align-items: center; min-width: 240px !important}
 #modelrow #model > .wrap, #modelrow #model > div:not([data-testid]) {flex: 1}
 #model input {text-transform: none !important}
@@ -2057,7 +2099,8 @@ body.narrow:not(#a):not(#b) #cloudbadge .cloudbadge {white-space: nowrap !import
 body.narrow:not(#a):not(#b) #modelrow #model::before {content: none}
 body.narrow:not(#a):not(#b) #modelrow > #working {order: 3}
 body.narrow:not(#a):not(#b) #modelrow > #model {order: 1}
-body.narrow:not(#a):not(#b) #modelrow label, body.narrow:not(#a):not(#b) #modelrow .label {display: none !important}
+body.narrow:not(#a):not(#b) #modelrow > :not(.form) label, body.narrow:not(#a):not(#b) #modelrow > :not(.form) .label {display: none !important}
+body.narrow:not(#a):not(#b) #modelrow > .form:has(.modeopt) {order: 0; flex: 1 1 100% !important; justify-content: flex-start}
 body.narrow:not(#a):not(#b) table.mrank, body.narrow:not(#a):not(#b) table.mrank tbody {display: block; width: 100%}
 body.narrow:not(#a):not(#b) table.mrank thead, body.narrow:not(#a):not(#b) table.mrank tr:has(th) {display: none !important}
 body.narrow:not(#a):not(#b) table.mrank tr {display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 30%, transparent) !important}
@@ -2619,9 +2662,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         with gr.Column(scale=4, elem_id="chatcol", elem_classes="chat-panel") as chatcol:
             sidetoggle = gr.Button("☰", size="sm", elem_id="sidetoggle", min_width=0)
             with gr.Row(elem_id="chatbar"):  # this chat's settings that are on, and its ⋯ menu
-                thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", elem_id="o_thinking", info=t("Slower, better on hard questions"))
-                goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", elem_id="o_goal", info=t("Give a goal; it keeps working until done"))
-                swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes="opt", elem_id="o_swarm", info=t("Several agents answer in parallel, then one combines the best answer"))
+                thinking = gr.Checkbox(True, label="💭 " + t("Deep thinking"), elem_classes="opt", elem_id="o_thinking", visible=False)  # always on: models that can think, do
                 offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", elem_id="o_offline", info=t("Joshua doesn't search or read the web, and code can't go online"))
                 gr.HTML("<button class='cmore cur' title='" + html.escape(t("Options for this chat"), quote=True) + "'>⋯</button>")
             with gr.Column(elem_id="goalpanel", elem_classes="modepanel", visible=False) as goalpanel:
@@ -2643,9 +2684,11 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 gr.HTML("<button class='fbtn' title='" + html.escape(t("Files and folder of this chat"), quote=True) + "'>" + FOLDER_SVG + "</button>", elem_id="fbtnwrap")
                 box = gr.MultimodalTextbox(file_count="multiple", placeholder=t("Message Joshua, or drop files here…"), show_label=False, scale=12)
                 stop = gr.Button("■ " + t("Stop"), scale=1, min_width=64, elem_id="stop")
-            with gr.Row(elem_id="modelrow"):
+            with gr.Row(elem_id="modelrow"):  # under the message box: goal and swarm switches, what's happening, the model and what it can do
+                goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes=["opt", "modeopt"], elem_id="o_goal", info=t("Give a goal; it keeps working until done"))
+                swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes=["opt", "modeopt"], elem_id="o_swarm", info=t("Several agents answer in parallel, then one combines the best answer"))
                 working = gr.HTML("", elem_id="working")
-                cloudbadge = gr.HTML("", elem_id="cloudbadge")
+                cloudbadge = gr.HTML(badge(default_model()), elem_id="cloudbadge")
                 model = gr.Dropdown(choices=models(True), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200)
 
     box.submit(send, [box, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, *team], [chatbot, box, cid, convs, files], concurrency_limit=None)
@@ -2806,7 +2849,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         const PIN = '\\u2063', ICON = "<svg class='pinsvg' viewBox='0 0 24 24'><path d='M14.5 2.5l7 7-2.2.6-3.8 3.8.6 4.6-2.1 2.1-4.1-4.1-5.4 5.4-1.4-1.4 5.4-5.4-4.1-4.1 2.1-2.1 4.6.6 3.8-3.8z'/></svg>";
         const L = {thinking: """ + JS_TEXT("💭 " + t("Deep thinking")) + """, goal: """ + JS_TEXT("🎯 " + t("Goal mode")) + """, swarm: """ + JS_TEXT("🐝 " + t("Swarm")) + """, offline: """ + JS_TEXT("🚫 " + t("No internet")) + """,
                    pin: """ + JS_TEXT(t("Pin to the top")) + """, unpin: """ + JS_TEXT(t("Unpin")) + """, rename: """ + JS_TEXT("✏ " + t("Rename")) + """, del: """ + JS_TEXT("🗑 " + t("Delete")) + """, files: """ + JS_TEXT("📂 " + t("Files and folder of this chat")) + """};
-        const OPT = ['thinking', 'goal', 'swarm', 'offline'];
+        const OPT = ['goal', 'swarm', 'offline'];
         const press = (id) => { const g = document.querySelector('#' + id); if (g) (g.tagName === 'BUTTON' ? g : g.querySelector('button, input')).click(); };
         const close = () => { const m = document.querySelector('#cmenu'); if (m) m.remove(); };
         const text = (l) => { const s = l.querySelector('span:not(.cmore)'); return s ? s.textContent : ''; };

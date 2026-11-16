@@ -479,5 +479,13 @@
  "Fine-tuning": "微调",
  "Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images or audio, and deep thinking, give no extra points: they are shown on their own, under Abilities. For everyday questions, smaller models are often enough.": "每组中推理能力最强的排在前面。分数只衡量推理能力：逻辑、编程、知识和工具使用方面的公开测试，全部基于文本（[Artificial Analysis](https://artificialanalysis.ai/leaderboards/models)，2026 年 11 月）；小模型的分数是 Joshua 的估计。能读图片或音频、能深度思考都不会加分：它们单独显示在“能力”一栏。日常问题，较小的模型通常就够了。",
  "Abilities": "能力",
- "deep thinking": "深度思考"
+ "deep thinking": "深度思考",
+ "reads text": "读取文字",
+ "reads images": "读取图片",
+ "hears audio": "听取音频",
+ "thinks before answering": "回答前先思考",
+ "free, on this computer": "免费，在本机运行",
+ "{inp} / {out} per M tokens": "{inp} / {out}／百万 token",
+ "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to Ollama, not to Joshua.": "每百万 token 的美元价格：先是你发送的（输入），再是它写出的（输出）。付给 Ollama，而不是 Joshua。",
+ "Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.": "每百万 token 的美元价格：先是你发送的（输入），再是它写出的（输出）。付给 {company}。"
 }
