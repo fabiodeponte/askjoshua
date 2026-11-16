@@ -316,4 +316,7 @@ if (-not (Test-Path $counted) -and -not $env:JOSHUA_YES) {
 }
 Say "  Open Joshua from the Start menu. It opens at $Url"
 Dim "Everything lives in $HomeDir - stop it with stop.cmd - remove it with uninstall.cmd"
-if (Ask "Start Joshua now?" "y") { & ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $HomeDir "start.ps1")))) $(if ($env:JOSHUA_YES) { "-NoOpen" } else { "" }) }
+if ($env:JOSHUA_GUI) {  # the "Install Joshua" window starts Joshua itself, after this script has ended, then closes
+    if (Ask "Start Joshua now?" "y") { [Console]::Out.WriteLine("@@OPEN"); [Console]::Out.Flush() }
+}
+elseif (Ask "Start Joshua now?" "y") { & ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $HomeDir "start.ps1")))) $(if ($env:JOSHUA_YES) { "-NoOpen" } else { "" }) }

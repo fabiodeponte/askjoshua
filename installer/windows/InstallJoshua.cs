@@ -29,13 +29,13 @@ class Installer : Form
     readonly TextBox log = new TextBox();
     readonly ProgressBar bar = new ProgressBar();
     readonly Panel questionBox = new Panel();
-    readonly Button yes = new Button(), no = new Button(), main = new Button();
+    readonly Button yes = new Button(), no = new Button(), main = new Button(), close = new Button();
 
     Process process;
     readonly StringBuilder finished = new StringBuilder();
     readonly System.Collections.Generic.List<string> context = new System.Collections.Generic.List<string>();
     string failure = "";
-    bool installed;
+    bool installed, openAtEnd;
     int step, shots;
 
     static readonly string LogFile = Path.Combine(Path.GetTempPath(), "Install Joshua.log");  // what happened, if the window closes by surprise
@@ -125,7 +125,14 @@ class Installer : Form
         main.Click += delegate { if (installed) OpenJoshua(); else Start(); };
         AcceptButton = main;
 
-        Controls.AddRange(new Control[] { logo, heading, status, bar, log, questionBox, main });
+        Style(close, "Close", false);  // always a way out besides the window's ×
+        close.Size = new Size(100, 36);
+        close.Location = new Point(404, 552);
+        close.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+        close.Visible = false;
+        close.Click += delegate { Close(); };
+
+        Controls.AddRange(new Control[] { logo, heading, status, bar, log, questionBox, main, close });
         FormClosing += delegate { try { if (process != null && !process.HasExited) process.Kill(); } catch { } };  // closing the window stops the installation
         if (TestDir != null) Shown += delegate { Later(1000, delegate { Snapshot(); Start(); }); };
     }
@@ -153,8 +160,8 @@ class Installer : Form
     // ---------- the installation: fetch install.ps1, run it, read what it prints ----------
     void Start()
     {
-        finished.Clear(); context.Clear(); failure = ""; step = 0;
-        main.Visible = false; log.Visible = true; bar.Visible = true; bar.Value = 0;
+        finished.Clear(); context.Clear(); failure = ""; step = 0; openAtEnd = false;
+        main.Visible = false; close.Visible = false; log.Visible = true; bar.Visible = true; bar.Value = 0;
         heading.Text = "Installing Joshua";
         status.Text = "Downloading the installer…";
         string script = Path.Combine(Path.GetTempPath(), "joshua-install.ps1");
@@ -193,6 +200,7 @@ class Installer : Form
         Note(raw);
         string l = Regex.Replace(raw, "\u001B\\[[0-9;?]*[A-Za-z]", "");  // terminal colours and cursor moves
         if (l.Contains("\r")) l = l.Substring(l.LastIndexOf('\r') + 1);  // a progress bar redraws its line: keep the last state
+        if (l.Trim() == "@@OPEN") { openAtEnd = true; return; }  // "Start Joshua now?" was answered Yes: done at the end, by this window
         if (l.StartsWith("@@ASK|"))  // a question: "@@ASK|y|Install the deep-thinking version?"
         {
             var parts = l.Split(new[] { '|' }, 3);
@@ -252,7 +260,17 @@ class Installer : Form
     {
         Note("installer ended with code " + code);
         questionBox.Visible = false;
-        main.Visible = true;
+        main.Visible = true; close.Visible = true;
+        if (code == 0 && openAtEnd)  // Joshua opens in its own window, and this one closes
+        {
+            installed = true;
+            heading.Text = "Joshua is installed";
+            status.Text = "Opening Joshua…";
+            bar.Value = Steps;
+            if (TestDir != null) { Snapshot(); StartJoshua(); Environment.Exit(0); }
+            Later(1500, OpenJoshua);
+            return;
+        }
         if (code == 0)
         {
             installed = true;
@@ -272,11 +290,12 @@ class Installer : Form
         if (TestDir != null) Later(1000, delegate { Snapshot(); Environment.Exit(code); });
     }
 
-    void OpenJoshua()
+    void OpenJoshua() { StartJoshua(); Close(); }
+
+    void StartJoshua()
     {
         string start = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "AskJoshua", "start.ps1");
         if (File.Exists(start))
             Process.Start(new ProcessStartInfo("powershell.exe", "-NoProfile -WindowStyle Hidden -Command \"& ([scriptblock]::Create([IO.File]::ReadAllText('" + start.Replace("'", "''") + "')))\"") { UseShellExecute = false, CreateNoWindow = true });
-        Close();
     }
 }
