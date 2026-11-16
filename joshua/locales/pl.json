@@ -475,5 +475,7 @@
  "Swarm agents": "Agenci roju",
  "Number of agents": "Liczba agentów",
  "trying again": "próbuję ponownie",
- "Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).": "Zaktualizowano. Joshua uruchamia się ponownie: ta strona odświeży się sama, gdy będzie gotowy (do minuty)."
+ "Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).": "Zaktualizowano. Joshua uruchamia się ponownie: ta strona odświeży się sama, gdy będzie gotowy (do minuty).",
+ "Background": "Kontekst",
+ "Fine-tuning": "Dostrajanie"
 }

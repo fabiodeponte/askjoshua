@@ -475,5 +475,7 @@
  "Swarm agents": "Agents de l'essaim",
  "Number of agents": "Nombre d'agents",
  "trying again": "nouvel essai",
- "Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).": "Mis à jour. Joshua redémarre : cette page se recharge toute seule quand il est prêt (jusqu'à une minute)."
+ "Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).": "Mis à jour. Joshua redémarre : cette page se recharge toute seule quand il est prêt (jusqu'à une minute).",
+ "Background": "Contexte",
+ "Fine-tuning": "Fine-tuning"
 }

@@ -1877,7 +1877,8 @@ body[data-screen^="modern"]:not(#a):not(#b) #convs label.selected {background: v
 body[data-screen^="modern"]:not(#a):not(#b) #convs label.selected::before {content: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat, body[data-screen^="modern"]:not(#a):not(#b) #tunebtn {border-radius: 10px !important; text-transform: none !important; border-style: solid !important; font-size: .9rem !important; background: transparent !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat, body[data-screen^="modern"]:not(#a):not(#b) #modelsbtn {border-radius: 10px !important; text-transform: none !important; border-style: solid !important; font-size: .9rem !important; background: transparent !important}
-body[data-screen^="modern"]:not(#a):not(#b) #fbbtn {justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b) #fbbtn {justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important; color: rgb(47, 111, 98) !important; margin-top: 5px !important}
+body[data-screen^="modern"]:not(#a):not(#b) #fbbtn:hover {background: var(--soft) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #renchat {border-color: transparent !important; color: var(--dim) !important; justify-content: flex-start !important; padding: .45rem .7rem !important; border-radius: 10px !important; font-size: .92rem !important; min-height: 0 !important; background: transparent !important; box-shadow: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat {border-color: transparent !important; color: var(--dim) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #delchat:hover {color: var(--red) !important; background: transparent !important}
@@ -1945,6 +1946,7 @@ html, body {height: 100%; overflow: hidden !important}
 main.contain > .column > .row {height: 100%; flex-wrap: nowrap !important; align-items: stretch !important; gap: 12px !important; padding: 10px !important; box-sizing: border-box}
 #leftcol {flex: 0 0 290px !important; width: 290px !important; min-width: 0 !important; max-height: 100%; overflow-y: auto !important; overscroll-behavior: contain}
 #leftcol, #chatopts, #panels {flex-wrap: nowrap !important}
+#navgap {height: 14px !important; min-height: 0 !important; padding: 0 !important; border: none !important; background: transparent !important}
 #leftcol > *, #chatopts > *, #panels > * {flex-shrink: 0 !important}
 #chatcol, #tune, #schedpanel, #modelspage {height: 100%; min-width: 0 !important; min-height: 0}
 #chatcol, #tune, #modelspage {height: 100%; min-width: 0 !important; min-height: 0}
@@ -2482,13 +2484,14 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             renbtn = gr.Button("✏  " + t("Rename this chat"), size="sm", elem_id="renchat")
             renbox = gr.Textbox(visible=False, show_label=False, max_lines=1, placeholder=t("New name, then press Enter"), elem_id="renbox")
             dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
-            sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
-            feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
             with gr.Column(elem_id="panels"):
-                mem_btn_open = gr.Button("🧠  " + t("Memory"), size="sm", elem_id="membtn")
-                tune = gr.Button("🧪  " + t("Teach Joshua (fine-tune)"), size="sm", elem_id="tunebtn")
+                sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
                 models_btn = gr.Button("🧩  " + t("Models"), size="sm", elem_id="modelsbtn")
+                mem_btn_open = gr.Button("🧠  " + t("Background"), size="sm", elem_id="membtn")  # what Joshua knows about you
+                tune = gr.Button("🧪  " + t("Fine-tuning"), size="sm", elem_id="tunebtn")
+                gr.HTML("<div class='navgap'></div>", elem_id="navgap")
                 set_btn = gr.Button("⚙  " + t("Settings"), size="sm", elem_id="setbtn")
+                feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
         tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
         with gr.Column(visible=False, scale=5, elem_id="mempage") as mem_panel:
             with gr.Row():

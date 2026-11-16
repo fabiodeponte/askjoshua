@@ -475,5 +475,7 @@
  "Swarm agents": "Agenti dello sciame",
  "Number of agents": "Numero di agenti",
  "trying again": "riprovo",
- "Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).": "Aggiornato. Joshua si sta riavviando: questa pagina si ricarica da sola quando è pronto (fino a un minuto)."
+ "Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).": "Aggiornato. Joshua si sta riavviando: questa pagina si ricarica da sola quando è pronto (fino a un minuto).",
+ "Background": "Contesto",
+ "Fine-tuning": "Fine-tuning"
 }

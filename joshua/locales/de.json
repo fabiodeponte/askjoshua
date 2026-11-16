@@ -475,5 +475,7 @@
  "Swarm agents": "Agenten des Schwarms",
  "Number of agents": "Anzahl der Agenten",
  "trying again": "neuer Versuch",
- "Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).": "Aktualisiert. Joshua startet neu: Diese Seite lädt sich von selbst neu, sobald er bereit ist (bis zu einer Minute)."
+ "Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).": "Aktualisiert. Joshua startet neu: Diese Seite lädt sich von selbst neu, sobald er bereit ist (bis zu einer Minute).",
+ "Background": "Hintergrund",
+ "Fine-tuning": "Feinabstimmung"
 }
