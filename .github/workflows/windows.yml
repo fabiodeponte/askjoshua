@@ -41,6 +41,10 @@ jobs:
           & $py -m playwright install chromium | Out-Null
           $env:PYTHONUTF8 = "1"
           & $py tests\windows_check.py
+      - name: What the taskbar sees for Joshua's Edge window
+        if: always()
+        shell: pwsh
+        run: powershell -NoProfile -Command "& ([scriptblock]::Create([IO.File]::ReadAllText('$PWD\tests\edge_appid.ps1')))"
       - name: Logs
         if: always()
         shell: pwsh
