@@ -259,7 +259,7 @@ def write_pdf(p, content):
     html = re.sub(r"<t([dh])>", r'<t\1 align="left">', html)  # table cells: ragged right, not stretched
     html = html.replace("<table>", "<br><table>")  # a little air above tables
     head = lambda size, color, top: TextStyle(font_family=family, font_style="B", font_size_pt=size, color=color, t_margin=top, b_margin=1)
-    pdf.write_html(html, font_family=family, pre_code_font=mono, li_prefix_color=GREEN, ul_bullet_char="\u2022" if PDF_FONTS else "-",
+    pdf.write_html(html, font_family=family, li_prefix_color=GREEN, ul_bullet_char="\u2022" if PDF_FONTS else "-",
                    table_line_separators=True,
                    tag_styles={"h1": head(20, GREEN, 0), "h2": head(15, GREEN, 4), "h3": head(12.5, INK, 3), "h4": head(11, INK, 2),
                                "p": TextStyle(font_family=family, font_size_pt=10.5, color=INK, t_margin=0, b_margin=2),
