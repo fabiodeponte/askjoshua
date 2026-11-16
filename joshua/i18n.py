@@ -5,7 +5,7 @@ locales/<language>.json, keyed by the English text, so adding a language means a
 A text with no translation stays in English.
 
 The language is the one chosen in Joshua (stored in memory/settings.json), or else the computer's:
-on a Mac the first of System Settings → General → Language & Region, on Linux the LANG variable.
+on a Mac the first of System Settings → General → Language & Region, on Windows the display language (Settings → Time & language), on Linux the LANG variable.
 """
 import json, os, pathlib, subprocess, sys
 
@@ -36,6 +36,13 @@ def system_language():
         try:  # prints e.g. ( "it-IT", "en-US" ): the user's languages, in order of preference
             out = subprocess.run(["defaults", "read", "-g", "AppleLanguages"], capture_output=True, text=True, timeout=5).stdout
             found += [w.strip(' "\n,') for w in out.strip("()\n ").split(",")]
+        except Exception:
+            pass
+    if sys.platform == "win32":
+        try:  # Windows' display language, then its regional format: e.g. 1040 → it_IT
+            import ctypes, locale
+            k32 = ctypes.windll.kernel32
+            found += [locale.windows_locale.get(k32.GetUserDefaultUILanguage(), ""), locale.windows_locale.get(k32.GetUserDefaultLCID(), "")]
         except Exception:
             pass
     for var in ("LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"):  # e.g. it_IT.UTF-8

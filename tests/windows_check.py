@@ -99,6 +99,14 @@ print("all three read back with every character")
     return r.stdout + r.stderr[-1500:]
 
 
+@check("Interface language from Windows' settings")
+def _():
+    code = "import ctypes, locale, i18n; k = ctypes.windll.kernel32; print(k.GetUserDefaultUILanguage(), locale.windows_locale.get(k.GetUserDefaultUILanguage()), locale.windows_locale.get(k.GetUserDefaultLCID()), '->', i18n.system_language())"
+    r = subprocess.run([sys.executable, "-c", code], cwd=APP, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and "->" in r.stdout, r.stdout + r.stderr
+    return r.stdout
+
+
 @check("Code tool (run_python)")
 def _():
     r = subprocess.run([sys.executable, "-c", "import agent; print(agent.run_python('print(6*7, \"àèì\")'))"], cwd=APP, capture_output=True, text=True, timeout=120)
