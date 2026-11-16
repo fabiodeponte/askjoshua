@@ -26,6 +26,7 @@ SKIP = (gr.skip(),) * 4
 IMAGE_RULE = " When the user asks to change, combine or add to photos they shared, use edit_image with those photo files and never answer with an invented picture; use generate_image only for brand-new pictures." if "edit_image" in tools else " You cannot create or edit pictures on this computer: say so if asked."
 SYSTEM = "You are Joshua, an AI assistant running on the user's computer; you have no job or personal life of your own. Today is {now}." + IMAGE_RULE + " Results returned by your tools are real and current. For any factual question (figures, people, events, prices, anything that may change), always use web_search before answering; never answer such questions from memory. Search snippets are often incomplete: if they don't clearly contain the answer, open the most relevant result with read_page before answering, and never fill gaps with guesses. Always address the user directly, in the second person, in the user's language. Files the user shares are in your workspace folder."
 GOAL_RULES = " You are in goal mode: the user gives you a goal to accomplish, not a question. Work step by step with your tools until the goal is fully achieved, and check your own results (for example, read back files you wrote). Do not ask the user questions; make reasonable assumptions. When the goal is achieved and verified, call goal_done with a short summary. Only if it is truly impossible with your tools, call give_up with the reason."
+WRAP = "That's enough research: stop using tools now and write your complete final answer for me with what you have, saying what you couldn't check."
 NUDGE = "The goal is not marked as done yet. Review what you have done so far, fix anything missing or wrong, and continue working. Call goal_done only when the goal is fully achieved and verified."
 
 
@@ -759,6 +760,21 @@ def split_think(raw):
     return raw, ""
 
 
+def link_files(text, work):
+    """Turns the names of files in the chat's folder, where an answer mentions them, into links that open or download them."""
+    work = pathlib.Path(work)
+    if not text or not work.is_dir():
+        return text
+    found = [f for f in work.iterdir() if f.is_file() and not f.name.startswith(".")]
+    found += [f for d in work.iterdir() if d.is_dir() and not d.name.startswith(".") for f in d.iterdir() if f.is_file()][:200]
+    for f in sorted(found, key=lambda f: -len(f.name)):  # longest names first: "plan-v2.pdf" before "plan.pdf"
+        if len(f.name) < 5 or "." not in f.name:
+            continue
+        url = "/gradio_api/file=" + urllib.parse.quote(f.resolve().as_posix(), safe="/:")
+        text = re.sub(r"(?<![\w/\[(.-])`?" + re.escape(f.name) + r"`?(?![\w\]/-])", lambda m: f"[{f.name}]({url})", text)
+    return text
+
+
 def pictures():
     """Pictures in the workspace and its first-level folders, with when they were last changed."""
     work, found = getattr(agent.CTX, "work", None), {}
@@ -771,12 +787,15 @@ def pictures():
     return found
 
 
-def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
-    for _ in range(25):
+def agent_turn(msgs, shown, toolset, model, thinking, stop, called, limit=25):
+    for step in range(limit):
+        last = step == limit - 1  # the last step has no tools: the model must answer with what it has
+        if last:
+            msgs.append({"role": "user", "content": WRAP})
         content, thought, calls, live = "", "", [], []
         raw, reasoned = "", ""
         mode = {"model": model, **think_mode(model, thinking)}
-        for chunk in ollama.chat(**mode, messages=msgs, tools=list(toolset.values()), stream=True, options={"num_ctx": 16384}):
+        for chunk in ollama.chat(**mode, messages=msgs, tools=[] if last else list(toolset.values()), stream=True, options={"num_ctx": 16384}):
             reasoned += chunk.message.thinking or ""
             raw += chunk.message.content or ""
             content, inline = split_think(raw)  # some models (glm) write their reasoning in the text, ending it with </think>
@@ -791,7 +810,7 @@ def agent_turn(msgs, shown, toolset, model, thinking, stop, called):
         msgs.append({"role": "assistant", "content": content, "tool_calls": [{"function": {"name": c.function.name, "arguments": dict(c.function.arguments)}} for c in calls]})
         if thought and providers.is_api(model):  # DeepSeek wants its reasoning back with the tool results
             msgs[-1]["thinking"] = thought
-        if not calls or stop.is_set():
+        if not calls or stop.is_set() or last:
             return
         for c in calls:
             name, args = c.function.name, dict(c.function.arguments)
@@ -994,7 +1013,7 @@ def verify(evidence, msgs, shown, toolset, model, thinking, language, job):
 
 STYLES = ["Work methodically and double-check each step.", "Look for an angle the others might miss.", "Be skeptical: verify facts with your tools before stating them.", "Focus on the most practical, concrete answer.", "Think about what could go wrong or be misunderstood.", "Keep it simple and get to the core of the question."]
 TEMPS = [0.6, 0.9, 0.7, 1.0, 0.8, 1.1]
-SYNTH = "Your team of {n} agents worked on my last request independently. Their answers:\n\n{report}\n\nNow write the single best final answer for me. Agreement is not proof: if a fact isn't backed by a source the agents actually read, check it yourself with web_search and read_page. Combine their strongest points, resolve disagreements, and drop anything wrong. Write directly to me, in the second person, in the language of my request, as if you had answered alone: no notes about the agents or your process."
+SYNTH = "Your team of {n} agents worked on my last request independently. Their answers:\n\n{report}\n\nNow write the single best final answer for me. Agreement is not proof: if an important fact isn't backed by a source the agents actually read, check it yourself with web_search or read_page, but keep it to a few checks. Combine their strongest points, resolve disagreements, and drop anything wrong. Write directly to me, in the second person, in the language of my request, as if you had answered alone. Then end with a short section headed '{differ}' (translated into the language of my request): 3 to 5 bullets on where the agents' answers really differed (approach, conclusions, facts, depth), naming each agent by its number and model, and which view you kept and why."
 
 
 SYNTH_GOAL = " This is a goal, not just a question: finish what is still missing with your tools, check the result, then call goal_done with a short summary (or give_up if it truly can't be done)."
@@ -1010,11 +1029,22 @@ def swarm_agent(k, n, model, thinking, base, box, answers, stop, work, net, time
     think = think_mode(model, thinking)
     log = []
     try:
-        for _ in range(15):
+        for step in range(15):
             if stop.is_set():
                 break
-            m = ollama.chat(model, messages=msgs, tools=list(toolset.values()), options=opts, **think).message
-            calls = m.tool_calls or []
+            last = step == 14  # the last step has no tools, so every agent ends with an answer
+            if last:
+                msgs.append({"role": "user", "content": WRAP})
+            for attempt in range(3):  # cloud servers sometimes answer "Internal Server Error": wait and try again
+                try:
+                    m = ollama.chat(model, messages=msgs, tools=[] if last else list(toolset.values()), options=opts, **think).message
+                    break
+                except Exception as e:
+                    if attempt == 2 or stop.is_set():
+                        raise
+                    log.append(f"⚠️ {e} — " + t("trying again"))
+                    time.sleep(5 * (attempt + 1))
+            calls = [] if last else m.tool_calls or []
             msgs.append({"role": "assistant", "content": m.content or "", "tool_calls": [{"function": {"name": c.function.name, "arguments": dict(c.function.arguments)}} for c in calls]})
             if not calls:
                 answers[k] = m.content or ""
@@ -1054,9 +1084,9 @@ def run_swarm(job, cid, conv, model, thinking, n, pool, net, timeout, toolset, j
     if job.stop.is_set():
         return []
     report = "\n\n".join(f"### Agent {k + 1} ({pool[k % len(pool)]})\n{a or '(no answer)'}" for k, a in enumerate(answers))
-    judge = msgs + [{"role": "user", "content": SYNTH.format(n=n, report=report) + (SYNTH_GOAL if goal else "")}]
+    judge = msgs + [{"role": "user", "content": SYNTH.format(n=n, report=report, differ="How the agents' answers differed") + (SYNTH_GOAL if goal else "")}]
     called = []
-    for view in agent_turn(judge, shown, judge_tools or toolset, model, thinking, job.stop, called):
+    for view in agent_turn(judge, shown, judge_tools or toolset, model, thinking, job.stop, called, limit=10):
         job.publish(view)
     final = next((m["content"] for m in reversed(judge) if m["role"] == "assistant" and m["content"]), "")
     msgs.append({"role": "assistant", "content": final})
@@ -1095,6 +1125,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     agent.set_workspace(conv.get("project") or fdir(cid), net, int(timeout), conv.get("region", "wt-wt"))
     agent.CTX.vision = model if "vision" in caps(model) else FAST
     shown, msgs = conv["display"], conv["llm"]
+    begin = len(shown)  # what this turn adds starts here
     off = {n for g in tools_off() for n in TOOL_GROUPS.get(g, ("", []))[1]}
     base = {k: v for k, v in tools.items() if k not in off and (mem and not private or k not in agent.MEMORY_TOOLS) and not (offline and (k in ("web_search", "read_page") or k in agent.BROWSER_TOOLS))}
     toolset = dict(base, goal_done=goal_done, give_up=give_up) if goal else base
@@ -1174,6 +1205,9 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
             text = t("Ollama's cloud refused this request: you've reached your plan's usage limit or too many requests are running. Wait a moment, check your usage on [ollama.com](https://ollama.com/settings), or switch to a local model.")
         shown.append({"role": "assistant", "content": text, "metadata": {"title": "⚠️ " + t("Something went wrong"), "status": "done"}})
     finally:
+        for m in shown[begin:]:  # "saved as plan.pdf": the name becomes a link to the file
+            if m.get("role") == "assistant" and isinstance(m.get("content"), str) and not m.get("metadata"):
+                m["content"] = link_files(m["content"], conv.get("project") or fdir(cid))
         save(cid, conv)
         job.ended = time.time()
         job.running = False
@@ -1347,7 +1381,7 @@ def retry(cid, *settings):
         return gr.skip(), *SKIP
     conv = load(cid)
     llm, shown = conv["llm"], conv["display"]
-    asked = [k for k, m in enumerate(llm) if m["role"] == "user" and m["content"] != NUDGE]
+    asked = [k for k, m in enumerate(llm) if m["role"] == "user" and m["content"] not in (NUDGE, WRAP)]
     typed = [k for k, m in enumerate(shown) if m["role"] == "user" and isinstance(m["content"], str)]
     if not asked or not typed:
         return gr.skip(), *SKIP
@@ -2015,11 +2049,11 @@ body.narrow:not(#a):not(#b) #cmenu {max-width: calc(100vw - 16px)}
 
 /* ---- Modern: the conversation in a calm reading column, the composer below it ---- */
 body[data-screen^="modern"]:not(#a):not(#b) #chat {background: transparent !important; border: none !important; box-shadow: none !important}
-body[data-screen^="modern"]:not(#a):not(#b) #chat .message-wrap {max-width: 46rem; margin: 0 auto !important; padding: 3rem 1.5rem 2rem !important; width: 100%; box-sizing: border-box}
+body[data-screen^="modern"]:not(#a):not(#b) #chat .message-wrap {max-width: none; margin: 0 auto !important; padding: 3rem 1.5rem 2rem !important; width: 100%; box-sizing: border-box}
 body[data-screen^="modern"]:not(#a):not(#b) #chat .message-content, body[data-screen^="modern"]:not(#a):not(#b) #chat .message-content * {font-size: 1rem !important; line-height: 1.65 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #chat .user-row .message {border-radius: 18px !important; padding: .55rem 1rem !important}
 body[data-screen^="modern"]:not(#a):not(#b) #chat .placeholder {max-width: 40rem; margin: 0 auto}
-body[data-screen^="modern"]:not(#a):not(#b) #promptrow, body[data-screen^="modern"]:not(#a):not(#b) #modelrow {width: 100% !important; max-width: 48rem; margin: 0 auto !important; box-sizing: border-box}
+body[data-screen^="modern"]:not(#a):not(#b) #promptrow, body[data-screen^="modern"]:not(#a):not(#b) #modelrow {width: 100% !important; max-width: none; padding: 0 1.5rem !important; margin: 0 auto !important; box-sizing: border-box}
 body[data-screen^="modern"]:not(#a):not(#b) #promptrow {padding: 0 .5rem !important}
 body[data-screen^="modern"]:not(#a):not(#b) #promptrow .multimodal-textbox {border-radius: 22px !important; box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent), 0 4px 18px color-mix(in srgb, var(--ink) 6%, transparent) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #promptrow textarea {font-size: 1rem !important; line-height: 1.5 !important; max-height: 40vh !important; overflow-y: auto !important}

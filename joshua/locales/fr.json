@@ -474,5 +474,6 @@
  "Check again": "Vérifier à nouveau",
  "Automatic": "Automatique",
  "Swarm agents": "Agents de l'essaim",
- "Number of agents": "Nombre d'agents"
+ "Number of agents": "Nombre d'agents",
+ "trying again": "nouvel essai"
 }

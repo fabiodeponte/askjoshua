@@ -33,6 +33,12 @@ HERE = pathlib.Path(__file__).parent
 # A font with accents and non-Latin letters for PDFs: Arial Unicode on a Mac, DejaVu Sans on Linux.
 FONT = next((f for f in ["/System/Library/Fonts/Supplemental/Arial Unicode.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                          "/usr/share/fonts/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf"] if os.path.exists(f)), None)
+# Fonts for PDFs with bold and italics: Arial on Mac and Windows, DejaVu on Linux, plus a wide font for symbols they lack.
+_FONT_DIR, _FONT_FILES = {
+    "darwin": ("/System/Library/Fonts/Supplemental/", ["Arial.ttf", "Arial Bold.ttf", "Arial Italic.ttf", "Arial Bold Italic.ttf", "Courier New.ttf", "Arial Unicode.ttf"]),
+    "win32": ("C:/Windows/Fonts/", ["arial.ttf", "arialbd.ttf", "ariali.ttf", "arialbi.ttf", "cour.ttf", "seguisym.ttf"]),
+}.get(sys.platform, ("/usr/share/fonts/truetype/dejavu/", ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans-Oblique.ttf", "DejaVuSans-BoldOblique.ttf", "DejaVuSansMono.ttf", "DejaVuSans.ttf"]))
+PDF_FONTS = [_FONT_DIR + f for f in _FONT_FILES] if all(os.path.exists(_FONT_DIR + f) for f in _FONT_FILES[:5]) else None  # regular, bold, italic, bold italic, code, symbols
 DEFAULT_WORK = (pathlib.Path(__file__).parent / "workspace").resolve()
 CTX = threading.local()
 
@@ -166,7 +172,7 @@ def read_file(name: str) -> str:
 
 
 def write_file(name: str, content: str) -> str:
-    """Write a file in the workspace folder. A name ending in .docx creates a Word document and .pdf creates a PDF; in those, lines starting with '# ', '## ' or '### ' become headings."""
+    """Write a file in the workspace folder. A name ending in .pdf creates a formatted PDF: write the content in Markdown (# headings, **bold**, *italics*, lists, tables, code blocks). A name ending in .docx creates a Word document, where lines starting with '# ', '## ' or '### ' become headings."""
     p = _path(name)
     lines = [(len(m[1]), m[2]) if (m := re.match(r"(#{1,3}) (.*)", line)) else (0, line) for line in content.splitlines()]
     if p.suffix.lower() == ".docx":
@@ -175,19 +181,49 @@ def write_file(name: str, content: str) -> str:
             d.add_heading(text, level) if level else d.add_paragraph(text)
         d.save(p)
     elif p.suffix.lower() == ".pdf":
-        pdf = FPDF()
-        pdf.add_page()
-        if FONT:
-            pdf.add_font("U", fname=FONT)
-        for level, text in lines:
-            size = {0: 11, 1: 20, 2: 16, 3: 13}[level]
-            pdf.set_font("U" if FONT else "Helvetica", size=size)
-            text = text if FONT else text.encode("latin-1", "replace").decode("latin-1")
-            pdf.multi_cell(0, size * 0.55, text, new_x="LMARGIN", new_y="NEXT")
-        pdf.output(str(p))
+        write_pdf(p, content)
     else:
         p.write_text(content)
     return f"Saved {name}"
+
+
+def write_pdf(p, content):
+    """A tidy PDF from Markdown: headings, bold and italics, lists, tables, code."""
+    import markdown
+    from fpdf.fonts import FontFace
+    text = re.sub("[\u2010\u2011\u00ad]", "-", content).replace("\u202f", " ").replace("\u2009", " ").replace("\u200a", " ").replace("\u2060", "")
+    html = markdown.markdown(text, extensions=["tables", "sane_lists", "fenced_code"])
+    pdf = FPDF(format="A4")
+    pdf.set_margins(22, 20, 22)
+    pdf.set_auto_page_break(True, margin=18)
+    family, mono = "Helvetica", "Courier"
+    if PDF_FONTS:
+        regular, bold, italic, both, code, wide = PDF_FONTS
+        for style, f in (("", regular), ("B", bold), ("I", italic), ("BI", both)):
+            pdf.add_font("J", style, f)
+        pdf.add_font("JM", "", code)
+        if os.path.exists(wide):
+            pdf.add_font("JW", "", wide)
+            pdf.set_fallback_fonts(["JW"], exact_match=False)
+        family, mono = "J", "JM"
+    else:  # no font with accents found: the PDF's own fonts only know Western European letters
+        html = html.encode("latin-1", "replace").decode("latin-1")
+    pdf.set_title(next((l.lstrip("# ").strip() for l in content.splitlines() if l.strip()), p.stem)[:120])
+    pdf.add_page()
+    pdf.set_font(family, size=10.5)
+    ink, green = (40, 36, 32), (46, 107, 79)
+    pdf.set_text_color(*ink)
+    from fpdf.fonts import TextStyle
+    html = re.sub(r"<t([dh])>", r'<t\1 align="left">', html)
+    html = html.replace("<table>", "<br><table>")  # a little air above tables  # table cells: ragged right, not stretched
+    head = lambda size, color, top: TextStyle(font_family=family, font_style="B", font_size_pt=size, color=color, t_margin=top, b_margin=1)
+    pdf.write_html(html, font_family=family, pre_code_font=mono, li_prefix_color=green, ul_bullet_char="\u2022" if PDF_FONTS else "-",
+                   table_line_separators=True,
+                   tag_styles={"h1": head(20, green, 0), "h2": head(15, green, 4), "h3": head(12.5, ink, 3), "h4": head(11, ink, 2),
+                               "p": TextStyle(font_family=family, font_size_pt=10.5, color=ink, t_margin=0, b_margin=2),
+                               "code": TextStyle(font_family=mono, font_size_pt=9.5, color=(120, 60, 30)),
+                               "pre": TextStyle(font_family=mono, font_size_pt=9.5, color=ink, t_margin=3, b_margin=3)})
+    pdf.output(str(p))
 
 
 MEM = (pathlib.Path(__file__).parent / "memory").resolve()
