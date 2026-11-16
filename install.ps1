@@ -241,7 +241,9 @@ if ($Cloud) {
     if ($LASTEXITCODE -ne 0) { Warn "sign-in didn't finish; you can do it later from Joshua (Models page)" }
     $c = $null
     foreach ($m in @("deepseek-v4.1-flash:cloud", "kimi-k3.1-pro:cloud", "nemotron-3-super:cloud")) {  # DeepSeek first: the default, good and cheap
+        $ErrorActionPreference = "Continue"   # Windows PowerShell 5 treats Ollama's progress messages, hidden here, as errors: "Stop" would end the installer
         & $Ollama pull $m *> $null
+        $ErrorActionPreference = "Stop"
         if ($LASTEXITCODE -eq 0) { Ok "$m added (nothing downloaded: it runs on Ollama's servers)"; if (-not $c) { $c = $m } }
         else { Warn "couldn't add $m now; add it later from Joshua's Models page" }
     }
