@@ -494,5 +494,9 @@
  "Restore the default": "恢复默认",
  "Your own version": "你的版本",
  "Saved: chats at this desk follow it from the next message.": "已保存：此工作台的对话从下一条消息起按此执行。",
- "Transcribe audio and video (on this computer)": "转写音频和视频（在本机）"
+ "Transcribe audio and video (on this computer)": "转写音频和视频（在本机）",
+ "Other models on this computer": "本机上的其他模型",
+ "Used for": "用途",
+ "transcribing audio and video, on this computer": "在本机转写音频和视频",
+ "The speech model was removed. It downloads again the next time you ask for a transcription.": "语音模型已删除。下次需要转写时会重新下载。"
 }

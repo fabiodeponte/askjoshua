@@ -494,5 +494,9 @@
  "Restore the default": "Rétablir l'original",
  "Your own version": "Votre version",
  "Saved: chats at this desk follow it from the next message.": "Enregistré : les discussions de ce bureau le suivent dès le prochain message.",
- "Transcribe audio and video (on this computer)": "Transcrire l'audio et la vidéo (sur cet ordinateur)"
+ "Transcribe audio and video (on this computer)": "Transcrire l'audio et la vidéo (sur cet ordinateur)",
+ "Other models on this computer": "Autres modèles sur cet ordinateur",
+ "Used for": "Sert à",
+ "transcribing audio and video, on this computer": "transcrire l'audio et la vidéo, sur cet ordinateur",
+ "The speech model was removed. It downloads again the next time you ask for a transcription.": "Le modèle vocal a été supprimé. Il se téléchargera à nouveau la prochaine fois que vous demanderez une transcription."
 }

@@ -58,3 +58,29 @@ def run(path, language=""):
         _model = WhisperModel("large-v3-turbo", device="cpu", compute_type="int8")
     segments, info = _model.transcribe(sound, language=lang, vad_filter=True, beam_size=5)
     return [(s.start, s.end, s.text.strip()) for s in segments], info.language
+
+
+REPO = "mlx-community/whisper-large-v3-turbo" if APPLE else "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+NAME = "Whisper large-v3-turbo"
+
+
+def model_dir():
+    """Where the speech model is stored (Hugging Face's cache), if it has been downloaded."""
+    import os, pathlib
+    home = pathlib.Path(os.environ.get("HF_HOME") or pathlib.Path.home() / ".cache" / "huggingface") / "hub"
+    p = home / ("models--" + REPO.replace("/", "--"))
+    return p if p.exists() else None
+
+
+def size_gb():
+    p = model_dir()
+    return sum(f.stat().st_size for f in p.rglob("*") if f.is_file() and not f.is_symlink()) / 1e9 if p else 0
+
+
+def remove():
+    global _model
+    import shutil
+    p = model_dir()
+    if p:
+        shutil.rmtree(p)
+    _model = None

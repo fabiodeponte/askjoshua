@@ -221,7 +221,17 @@ def installed_html():
     if not apple.why_not():
         rows.append((apple.LABEL, t("built into macOS"), media(False), ranking.data().get("apple", 1), ""))
     rows.sort(key=lambda r: -(r[3] or 0))
-    return rank_table(rows, t("No local models yet: download one below."))
+    return rank_table(rows, t("No local models yet: download one below.")) + other_models_html()
+
+
+def other_models_html():
+    """Models Joshua uses for other jobs than chatting, kept on this computer: today the speech model for transcription."""
+    import transcribe as tr
+    if not tr.model_dir():
+        return ""
+    return ("<h3 class='msub2'>" + t("Other models on this computer") + "</h3><table class='mrank'><tr><th>" + t("Model") + "</th><th>" + t("Size") + "</th><th>" + t("Used for") + "</th><th></th></tr>"
+            + f"<tr><td class='mname'>🎙️ {tr.NAME}</td><td class='mdim'>{tr.size_gb():.1f} GB</td><td class='mdim'>" + t("transcribing audio and video, on this computer") + "</td><td class='mnote mbtns'>"
+            + act_button("rmspeech", "whisper", t("Remove")) + "</td></tr></table>")
 
 
 def cloud_catalog():
@@ -415,6 +425,10 @@ def row_action(act):
             yield gr.Dropdown(choices=models(True)), "<div class='cloudstat'>" + t("{model} was removed from this computer.", model=html.escape(tag)) + "</div>", gr.skip(), gr.skip()
         except Exception as e:
             yield gr.skip(), "<div class='cloudstat'>" + t("Couldn't remove {model}: {error}", model=html.escape(tag), error=html.escape(str(e))) + "</div>", gr.skip(), gr.skip()
+    elif kind == "rmspeech":
+        import transcribe as tr
+        tr.remove()
+        yield gr.skip(), "<div class='cloudstat'>" + t("The speech model was removed. It downloads again the next time you ask for a transcription.") + "</div>", gr.skip(), gr.skip()
     elif kind == "add":
         m, status = cloud_add_model(tag)
         yield m, gr.skip(), gr.skip(), status
