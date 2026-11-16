@@ -135,5 +135,18 @@ def _():
     return "started from the shortcut"
 
 
+@check("Update from the site, then restart by itself")
+def _():
+    from gradio_client import Client
+    log = HOME / "joshua.log"
+    before = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
+    got = Client(URL, verbose=False).predict(api_name="/do_update")
+    time.sleep(8)
+    ok = up(wait=180)
+    after = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
+    assert ok, f"not running 3 minutes after the update. It said: {got}%0ALog since:%0A{after[len(before):][-2500:]}"
+    return f"{got} | version now {(APP / 'VERSION').read_text().strip()}"
+
+
 print(f"{sum(results)}/{len(results)} checks passed")
 sys.exit(0 if all(results) else 1)
