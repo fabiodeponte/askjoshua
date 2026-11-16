@@ -68,7 +68,6 @@
  "Read more": "了解更多",
  "Open <a href='{url}' target='_blank'>this page</a>, sign in to Ollama and approve this computer. Then come back and choose a cloud model.": "打开<a href='{url}' target='_blank'>这个页面</a>，登录 Ollama 并批准这台电脑。然后回来选择一个云端模型。",
  "All {n} local models are up to date.": "全部 {n} 个本地模型均为最新版本。",
- "Updated. Joshua is restarting: reload this page in a few seconds.": "已更新。Joshua 正在重启：请几秒钟后刷新此页面。",
  "Added ☁ {model}: it's selected in the model menu. Nothing was downloaded: it runs on Ollama's servers.": "已添加 ☁ {model}：已在模型菜单中选中。没有下载任何内容：它在 Ollama 的服务器上运行。",
  "Checked against sources": "已根据资料来源核查",
  "Not supported by the sources:": "资料来源不支持的内容：",
@@ -475,5 +474,6 @@
  "Automatic": "自动",
  "Swarm agents": "群体智能体",
  "Number of agents": "智能体数量",
- "trying again": "正在重试"
+ "trying again": "正在重试",
+ "Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).": "已更新。Joshua 正在重启：准备好后此页面会自动刷新（最多一分钟）。"
 }

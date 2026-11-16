@@ -465,7 +465,7 @@ def do_update():
     except Exception as e:
         return "<div class='updnote'>" + tr("Update failed: {error}", error=html.escape(str(e))) + "</div>"
     if restart():
-        return "<div class='updnote'>" + tr("Updated. Joshua is restarting: reload this page in a few seconds.") + "</div>"
+        return "<div class='updnote'>" + tr("Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).") + "</div>"
     return "<div class='updnote'>" + tr("Updated. Quit and start Joshua again to use the new version.") + "</div>"
 
 
@@ -475,10 +475,13 @@ def restart():
         threading.Timer(1, lambda: os._exit(0)).start()
         return True
     if agent.WIN:  # Windows: start.cmd starts it again in a moment, from a separate process
-        start = pathlib.Path.home() / "AskJoshua" / "start.cmd"
-        if start.exists():
-            subprocess.Popen(["cmd", "/c", f'ping -n 4 127.0.0.1 >nul & "{start}"'], env={**os.environ, "JOSHUA_STAY_HIDDEN": "1"},
-                             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        start = pathlib.Path.home() / "AskJoshua" / "start.ps1"
+        if start.exists():  # PowerShell runs start.ps1 as text (company rules may forbid .ps1 files); no double quotes, which cmd would misread
+            script = str(start).replace("'", "''")
+            subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
+                              f"Start-Sleep 4; & ([scriptblock]::Create([IO.File]::ReadAllText('{script}')))"],
+                             env={**os.environ, "JOSHUA_STAY_HIDDEN": "1"}, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)
             threading.Timer(1, lambda: os._exit(0)).start()
             return True
         return False
@@ -692,6 +695,11 @@ def reorder_pins(cid, order):
 OPTS = ("thinking", "goal", "swarm", "offline")
 
 
+WAIT_AND_RELOAD = """() => { const t0 = Date.now(); let down = false;
+  const tick = async () => { try { const r = await fetch(location.pathname, {cache: 'no-store'}); if (r.ok && down) { location.reload(); return; } } catch (e) { down = true; }
+    if (Date.now() - t0 < 600000) setTimeout(tick, 2000); };
+  setTimeout(tick, 1500); }"""
+FOLDER_SVG = "<svg viewBox='0 0 24 24' width='22' height='22' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linejoin='round'><path d='M3 6.5A1.5 1.5 0 0 1 4.5 5h4.3l2 2.2h8.7A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z'/></svg>"
 TEAM = 6  # the most agents a swarm can have
 
 
@@ -1632,6 +1640,12 @@ body:not(#a):not(#b):not(#c) #chatbar .opt {border: 1px solid color-mix(in srgb,
 body:not([data-files="open"]) #chatopts {display: none !important}
 #chatopts {flex-grow: 0 !important; margin: 0 4px 8px !important; padding: 10px 12px !important; border-radius: 12px; background: color-mix(in srgb, var(--brand) 6%, var(--bg)) !important}
 #chatopts .fhead {font-weight: 600; color: var(--brand)}
+#fbtnwrap {flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; align-self: center !important; padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important}
+#fbtnwrap .html-container {padding: 0 !important}
+button.fbtn {display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; border: none; background: transparent; color: var(--dim); cursor: pointer}
+body:not(#a):not(#b) button.fbtn svg {width: 22px !important; height: 22px !important; min-width: 22px; flex: none; display: block}
+button.fbtn:hover {color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, transparent)}
+body[data-files="open"] button.fbtn {color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent)}
 .modepanel {flex-grow: 0 !important; margin: 0 4px 8px !important; padding: 10px 12px !important; border-radius: 12px; gap: 6px !important; border: none !important; box-shadow: none !important; background: color-mix(in srgb, var(--brand) 6%, var(--bg)) !important}
 #swarmpanel .fhead {font-weight: 600; color: var(--brand)}
 .modepanel .block {background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important}
@@ -2616,6 +2630,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     dlall = gr.DownloadButton("⬇ " + t("Download all (.zip)"), size="sm", visible=False)
             chatbot = gr.Chatbot(height="100%", show_label=False, elem_id="chat", placeholder="### " + t("Hello. What would you like to do today?") + "\n" + t("Everything you write here is stored only on this computer."))
             with gr.Row(equal_height=True, elem_id="promptrow"):
+                gr.HTML("<button class='fbtn' title='" + html.escape(t("Files and folder of this chat"), quote=True) + "'>" + FOLDER_SVG + "</button>", elem_id="fbtnwrap")
                 box = gr.MultimodalTextbox(file_count="multiple", placeholder=t("Message Joshua, or drop files here…"), show_label=False, scale=12)
                 stop = gr.Button("■ " + t("Stop"), scale=1, min_width=64, elem_id="stop")
             with gr.Row(elem_id="modelrow"):
@@ -2719,7 +2734,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         lambda: (installed_html(), local_catalog()[1], cloud_catalog()[1]), outputs=[installed, local_list, cloud_list], show_progress="hidden")
     local_upd.click(local_update, outputs=local_status)
     demo.load(check_update, outputs=[updnote, updbtn])
-    updbtn.click(do_update, outputs=updnote)
+    # after an update Joshua restarts, which can take a minute on a slow computer: the page waits, then reloads by itself
+    updbtn.click(do_update, outputs=updnote).then(None, js=WAIT_AND_RELOAD)
     connect.click(cloud_connect, outputs=cloud_status)
     k_provider.change(keys_status, k_provider, [k_pick, k_status])
     k_save.click(keys_save, [k_provider, k_key], [k_pick, k_status, k_key])
@@ -2827,6 +2843,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         });
         new MutationObserver(mark).observe(document.body, {childList: true, subtree: true, characterData: true}); mark();
         document.addEventListener('click', (e) => {
+          if (e.target.closest('.fbtn')) { document.body.dataset.files = document.body.dataset.files ? '' : 'open'; return; }  // the folder left of the message box
           const d = e.target.closest('.cmore');
           if (!d) { if (!e.target.closest('#cmenu')) close(); return; }
           if (d.classList.contains('cur')) { e.preventDefault(); open(d, !!document.querySelector('#convs label.selected')); return; }

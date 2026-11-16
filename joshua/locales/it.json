@@ -68,7 +68,6 @@
  "Read more": "Per saperne di più",
  "Open <a href='{url}' target='_blank'>this page</a>, sign in to Ollama and approve this computer. Then come back and choose a cloud model.": "Apri <a href='{url}' target='_blank'>questa pagina</a>, accedi a Ollama e approva questo computer. Poi torna qui e scegli un modello cloud.",
  "All {n} local models are up to date.": "Tutti i {n} modelli locali sono aggiornati.",
- "Updated. Joshua is restarting: reload this page in a few seconds.": "Aggiornato. Joshua si sta riavviando: ricarica questa pagina tra qualche secondo.",
  "Added ☁ {model}: it's selected in the model menu. Nothing was downloaded: it runs on Ollama's servers.": "Aggiunto ☁ {model}: è selezionato nel menu dei modelli. Non è stato scaricato nulla: gira sui server di Ollama.",
  "Checked against sources": "Verificata sulle fonti",
  "Not supported by the sources:": "Non confermato dalle fonti:",
@@ -475,5 +474,6 @@
  "Automatic": "Automatico",
  "Swarm agents": "Agenti dello sciame",
  "Number of agents": "Numero di agenti",
- "trying again": "riprovo"
+ "trying again": "riprovo",
+ "Updated. Joshua is restarting: this page reloads by itself when it's ready (up to a minute).": "Aggiornato. Joshua si sta riavviando: questa pagina si ricarica da sola quando è pronto (fino a un minuto)."
 }
