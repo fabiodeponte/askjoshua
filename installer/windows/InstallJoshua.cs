@@ -267,7 +267,7 @@ class Installer : Form
             heading.Text = "Joshua is installed";
             status.Text = "Opening Joshua…";
             bar.Value = Steps;
-            if (TestDir != null) { Snapshot(); StartJoshua(); Environment.Exit(0); }
+            if (TestDir != null) { Snapshot(); var p = StartJoshua(); if (p != null) p.WaitForExit(120000); Environment.Exit(0); }  // a test waits until Joshua is up
             Later(1500, OpenJoshua);
             return;
         }
@@ -292,10 +292,10 @@ class Installer : Form
 
     void OpenJoshua() { StartJoshua(); Close(); }
 
-    void StartJoshua()
+    Process StartJoshua()
     {
         string start = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "AskJoshua", "start.ps1");
-        if (File.Exists(start))
-            Process.Start(new ProcessStartInfo("powershell.exe", "-NoProfile -WindowStyle Hidden -Command \"& ([scriptblock]::Create([IO.File]::ReadAllText('" + start.Replace("'", "''") + "')))\"") { UseShellExecute = false, CreateNoWindow = true });
+        if (!File.Exists(start)) return null;
+        return Process.Start(new ProcessStartInfo("powershell.exe", "-NoProfile -WindowStyle Hidden -Command \"& ([scriptblock]::Create([IO.File]::ReadAllText('" + start.Replace("'", "''") + "')))\"") { UseShellExecute = false, CreateNoWindow = true });
     }
 }
