@@ -35,10 +35,15 @@ FONT = next((f for f in ["/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
                          "/usr/share/fonts/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf"] if os.path.exists(f)), None)
 # Fonts for PDFs with bold and italics: Arial on Mac and Windows, DejaVu on Linux, plus a wide font for symbols they lack.
 _FONT_DIR, _FONT_FILES = {
-    "darwin": ("/System/Library/Fonts/Supplemental/", ["Arial.ttf", "Arial Bold.ttf", "Arial Italic.ttf", "Arial Bold Italic.ttf", "Courier New.ttf", "Arial Unicode.ttf"]),
-    "win32": ("C:/Windows/Fonts/", ["arial.ttf", "arialbd.ttf", "ariali.ttf", "arialbi.ttf", "cour.ttf", "seguisym.ttf"]),
-}.get(sys.platform, ("/usr/share/fonts/truetype/dejavu/", ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans-Oblique.ttf", "DejaVuSans-BoldOblique.ttf", "DejaVuSansMono.ttf", "DejaVuSans.ttf"]))
-PDF_FONTS = [_FONT_DIR + f for f in _FONT_FILES] if all(os.path.exists(_FONT_DIR + f) for f in _FONT_FILES[:5]) else None  # regular, bold, italic, bold italic, code, symbols
+    "darwin": ("/System/Library/Fonts/Supplemental/", ["Arial.ttf", "Arial Bold.ttf", "Arial Italic.ttf", "Arial Bold Italic.ttf", "Courier New.ttf"]),
+    "win32": ("C:/Windows/Fonts/", ["arial.ttf", "arialbd.ttf", "ariali.ttf", "arialbi.ttf", "cour.ttf"]),
+}.get(sys.platform, ("/usr/share/fonts/truetype/dejavu/", ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans-Oblique.ttf", "DejaVuSans-BoldOblique.ttf", "DejaVuSansMono.ttf"]))
+PDF_FONTS = [_FONT_DIR + f for f in _FONT_FILES] if all(os.path.exists(_FONT_DIR + f) for f in _FONT_FILES) else None  # regular, bold, italic, bold italic, code
+# for letters and symbols the main font lacks: arrows and maths, Greek, Cyrillic, Chinese, Japanese, Korean
+PDF_FALLBACKS = [f for f in ["/System/Library/Fonts/Supplemental/Arial Unicode.ttf", "/System/Library/Fonts/Apple Symbols.ttf",
+                             "C:/Windows/Fonts/seguisym.ttf", "C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/malgun.ttf", "C:/Windows/Fonts/YuGothM.ttc",
+                             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                             "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc"] if os.path.exists(f)]
 DEFAULT_WORK = (pathlib.Path(__file__).parent / "workspace").resolve()
 CTX = threading.local()
 
@@ -160,70 +165,340 @@ def install_package(name: str) -> str:
 
 
 def read_file(name: str) -> str:
-    """Read a file from the workspace folder: plain text, Word (.docx) or PDF (.pdf)."""
+    """Read a file from the workspace folder: plain text, Word (.docx), LibreOffice (.odt) or PDF (.pdf)."""
     p = _path(name)
     if p.suffix.lower() == ".docx":
         text = "\n".join(par.text for par in docx.Document(p).paragraphs)
+    elif p.suffix.lower() == ".odt":
+        from odf.opendocument import load
+        from odf import teletype, text as odftext
+        from odf.namespaces import TEXTNS
+        d = load(str(p))
+        lines = []
+
+        def walk(node):  # paragraphs and headings in the order they appear
+            for child in node.childNodes:
+                if getattr(child, "qname", None) in ((TEXTNS, "p"), (TEXTNS, "h")):
+                    lines.append(teletype.extractText(child))
+                else:
+                    walk(child)
+        walk(d.text)
+        text = "\n".join(lines)
     elif p.suffix.lower() == ".pdf":
         text = "\n".join(page.extract_text() or "" for page in PdfReader(p).pages)
     else:
-        text = p.read_text()
+        raw = p.read_bytes()
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:  # an older file in the computer's own encoding (Windows: cp1252)
+            text = raw.decode("cp1252", errors="replace")
     return text[:20000]
 
 
 def write_file(name: str, content: str) -> str:
-    """Write a file in the workspace folder. A name ending in .pdf creates a formatted PDF: write the content in Markdown (# headings, **bold**, *italics*, lists, tables, code blocks). A name ending in .docx creates a Word document, where lines starting with '# ', '## ' or '### ' become headings."""
+    """Write a file in the workspace folder. A name ending in .pdf, .docx (Word) or .odt (LibreOffice) creates a formatted document: write the content in Markdown (# headings, **bold**, *italics*, lists, tables, code blocks)."""
     p = _path(name)
-    lines = [(len(m[1]), m[2]) if (m := re.match(r"(#{1,3}) (.*)", line)) else (0, line) for line in content.splitlines()]
     if p.suffix.lower() == ".docx":
-        d = docx.Document()
-        for level, text in lines:
-            d.add_heading(text, level) if level else d.add_paragraph(text)
-        d.save(p)
+        write_docx(p, content)
+    elif p.suffix.lower() == ".odt":
+        write_odt(p, content)
     elif p.suffix.lower() == ".pdf":
         write_pdf(p, content)
     else:
-        p.write_text(content)
+        p.write_text(content, encoding="utf-8")
     return f"Saved {name}"
+
+
+def _clean(text):
+    """Text ready for a document: unusual hyphens and spaces made plain, control characters (which break Word files) removed."""
+    text = re.sub("[\u2010\u2011\u00ad]", "-", text)
+    text = re.sub("[\u202f\u2009\u200a\u2007]", " ", text).replace("\u2060", "").replace("\ufeff", "")
+    text = re.sub("[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
+    # nested list items indented by 2 spaces (as most models write them): Markdown wants 4
+    return re.sub(r"^( +)(?=(?:[-*+]|\d+[.)]) )", lambda m: m[1] * 2 if len(m[1]) % 4 else m[1], text, flags=re.M)
+
+
+def _html(content):
+    import markdown
+    return markdown.markdown(_clean(content), extensions=["tables", "sane_lists", "fenced_code"])
+
+
+INK, GREEN = (40, 36, 32), (46, 107, 79)
 
 
 def write_pdf(p, content):
     """A tidy PDF from Markdown: headings, bold and italics, lists, tables, code."""
-    import markdown
-    from fpdf.fonts import FontFace
-    text = re.sub("[\u2010\u2011\u00ad]", "-", content).replace("\u202f", " ").replace("\u2009", " ").replace("\u200a", " ").replace("\u2060", "")
-    html = markdown.markdown(text, extensions=["tables", "sane_lists", "fenced_code"])
+    from fpdf.fonts import TextStyle
+    html = _html(content)
     pdf = FPDF(format="A4")
     pdf.set_margins(22, 20, 22)
     pdf.set_auto_page_break(True, margin=18)
     family, mono = "Helvetica", "Courier"
     if PDF_FONTS:
-        regular, bold, italic, both, code, wide = PDF_FONTS
+        regular, bold, italic, both, code = PDF_FONTS
         for style, f in (("", regular), ("B", bold), ("I", italic), ("BI", both)):
             pdf.add_font("J", style, f)
         pdf.add_font("JM", "", code)
-        if os.path.exists(wide):
-            pdf.add_font("JW", "", wide)
-            pdf.set_fallback_fonts(["JW"], exact_match=False)
+        backups = []
+        for k, f in enumerate(PDF_FALLBACKS):
+            try:
+                pdf.add_font(f"JW{k}", "", f)
+                backups.append(f"JW{k}")
+            except Exception:
+                pass
+        if backups:
+            pdf.set_fallback_fonts(backups, exact_match=False)
         family, mono = "J", "JM"
+        html = re.sub("[\U0001F000-\U0001FAFF\u2600-\u26ff\u2700-\u27bf\ufe0f\u200d]", "", html)  # emoji: PDF fonts can't draw them in colour
     else:  # no font with accents found: the PDF's own fonts only know Western European letters
         html = html.encode("latin-1", "replace").decode("latin-1")
     pdf.set_title(next((l.lstrip("# ").strip() for l in content.splitlines() if l.strip()), p.stem)[:120])
     pdf.add_page()
     pdf.set_font(family, size=10.5)
-    ink, green = (40, 36, 32), (46, 107, 79)
-    pdf.set_text_color(*ink)
-    from fpdf.fonts import TextStyle
-    html = re.sub(r"<t([dh])>", r'<t\1 align="left">', html)
-    html = html.replace("<table>", "<br><table>")  # a little air above tables  # table cells: ragged right, not stretched
+    pdf.set_text_color(*INK)
+    html = re.sub(r"<t([dh])>", r'<t\1 align="left">', html)  # table cells: ragged right, not stretched
+    html = html.replace("<table>", "<br><table>")  # a little air above tables
     head = lambda size, color, top: TextStyle(font_family=family, font_style="B", font_size_pt=size, color=color, t_margin=top, b_margin=1)
-    pdf.write_html(html, font_family=family, pre_code_font=mono, li_prefix_color=green, ul_bullet_char="\u2022" if PDF_FONTS else "-",
+    pdf.write_html(html, font_family=family, pre_code_font=mono, li_prefix_color=GREEN, ul_bullet_char="\u2022" if PDF_FONTS else "-",
                    table_line_separators=True,
-                   tag_styles={"h1": head(20, green, 0), "h2": head(15, green, 4), "h3": head(12.5, ink, 3), "h4": head(11, ink, 2),
-                               "p": TextStyle(font_family=family, font_size_pt=10.5, color=ink, t_margin=0, b_margin=2),
+                   tag_styles={"h1": head(20, GREEN, 0), "h2": head(15, GREEN, 4), "h3": head(12.5, INK, 3), "h4": head(11, INK, 2),
+                               "p": TextStyle(font_family=family, font_size_pt=10.5, color=INK, t_margin=0, b_margin=2),
                                "code": TextStyle(font_family=mono, font_size_pt=9.5, color=(120, 60, 30)),
-                               "pre": TextStyle(font_family=mono, font_size_pt=9.5, color=ink, t_margin=3, b_margin=3)})
+                               "blockquote": TextStyle(font_family=family, font_style="I", font_size_pt=10.5, color=(90, 84, 78), l_margin=8, t_margin=1, b_margin=2),
+                               "pre": TextStyle(font_family=mono, font_size_pt=9.5, color=INK, t_margin=3, b_margin=3)})
     pdf.output(str(p))
+
+
+def _blocks(content):
+    """Markdown as a list of blocks, for Word and LibreOffice. Each piece of text is (text, bold, italic, code).
+    ("h", level, text) ("p", text) ("li", depth, numbered, text) ("pre", lines) ("quote", text) ("hr",) ("table", rows of (header?, text))"""
+    root = lxml.html.fragment_fromstring(_html(content), create_parent="div")
+    out = []
+
+    def text(el, bold=False, italic=False, code=False):
+        parts = [(el.text, bold, italic, code)] if el.text else []
+        for child in el:
+            tag = child.tag if isinstance(child.tag, str) else ""
+            if tag == "br":
+                parts.append(("\n", bold, italic, code))
+            elif tag not in ("ul", "ol"):  # nested lists come after their item
+                parts += text(child, bold or tag in ("strong", "b"), italic or tag in ("em", "i"), code or tag == "code")
+                href = child.get("href", "") if tag == "a" else ""
+                if href.startswith("http") and href != child.text_content().strip():
+                    parts.append((f" ({href})", bold, italic, False))
+            if child.tail:
+                parts.append((child.tail, bold, italic, code))
+        return parts
+
+    def lists(el, depth):
+        for li in el.findall("li"):
+            first = li.find("p")  # "loose" lists wrap each item in <p>
+            out.append(("li", depth, el.tag == "ol", text(first if first is not None and not (li.text or "").strip() else li)))
+            for sub in li:
+                if sub.tag in ("ul", "ol"):
+                    lists(sub, depth + 1)
+
+    for el in root:
+        tag = el.tag if isinstance(el.tag, str) else ""
+        if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            out.append(("h", min(int(tag[1]), 4), text(el)))
+        elif tag in ("ul", "ol"):
+            lists(el, 0)
+        elif tag == "pre":
+            out.append(("pre", el.text_content().rstrip("\n").split("\n")))
+        elif tag == "blockquote":
+            out.append(("quote", text(el, italic=True)))
+        elif tag == "hr":
+            out.append(("hr",))
+        elif tag == "table":
+            rows = [[(c.tag == "th", text(c, bold=c.tag == "th")) for c in r if c.tag in ("th", "td")] for r in el.iter("tr")]
+            if any(rows):
+                out.append(("table", rows))
+        else:
+            out.append(("p", text(el)))
+    return out
+
+
+def _title(content, p):
+    return next((l.lstrip("# ").strip() for l in content.splitlines() if l.strip()), p.stem)[:120]
+
+
+def write_docx(p, content):
+    """A tidy Word document from Markdown, in the same style as the PDFs."""
+    from docx.shared import Pt, RGBColor, Cm
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    d = docx.Document()
+    for section in d.sections:
+        section.left_margin = section.right_margin = Cm(2.2)
+        section.top_margin = section.bottom_margin = Cm(2)
+    normal = d.styles["Normal"]
+    normal.font.name, normal.font.size, normal.font.color.rgb = "Calibri", Pt(11), RGBColor(*INK)
+    normal.element.rPr.rFonts.set(qn("w:eastAsia"), "Microsoft YaHei")  # Chinese, Japanese, Korean
+    normal.paragraph_format.space_after, normal.paragraph_format.line_spacing = Pt(6), 1.15
+    for level, size, color in ((1, 20, GREEN), (2, 15, GREEN), (3, 12.5, INK), (4, 11, INK)):
+        h = d.styles[f"Heading {level}"]
+        h.font.name, h.font.size, h.font.bold, h.font.italic, h.font.color.rgb = "Calibri", Pt(size), True, False, RGBColor(*color)
+        for attr in ("w:asciiTheme", "w:hAnsiTheme"):  # Calibri, not the template's theme font
+            h.element.rPr.rFonts.attrib.pop(qn(attr), None)
+        h.paragraph_format.space_before, h.paragraph_format.space_after = Pt(14 if level < 3 else 10), Pt(4)
+
+    def put(par, parts):
+        for t, bold, italic, code in parts:
+            if t == "\n":
+                par.add_run().add_break()
+                continue
+            r = par.add_run(t)
+            r.bold, r.italic = bold or None, italic or None
+            if code:
+                r.font.name, r.font.size, r.font.color.rgb = "Consolas", Pt(9.5), RGBColor(120, 60, 30)
+        return par
+
+    for b in _blocks(content):
+        kind = b[0]
+        if kind == "h":
+            put(d.add_heading(level=b[1]), b[2])
+        elif kind == "p":
+            put(d.add_paragraph(), b[1])
+        elif kind == "li":
+            style = ("List Number" if b[2] else "List Bullet") + (f" {min(b[1], 2) + 1}" if b[1] else "")
+            put(d.add_paragraph(style=style), b[3]).paragraph_format.space_after = Pt(2)
+        elif kind == "pre":
+            par = d.add_paragraph()
+            par.paragraph_format.left_indent = Cm(0.5)
+            put(par, [x for k, line in enumerate(b[1]) for x in ([("\n", 0, 0, 1)] if k else []) + [(line, False, False, True)]])
+        elif kind == "quote":
+            put(d.add_paragraph(), b[1]).paragraph_format.left_indent = Cm(1)
+        elif kind == "hr":
+            d.add_paragraph().add_run("—" * 3).font.color.rgb = RGBColor(160, 160, 160)
+        elif kind == "table":
+            cols = max(len(r) for r in b[1])
+            t = d.add_table(rows=0, cols=cols)
+            t.style = "Table Grid"
+            for r in b[1]:
+                cells = t.add_row().cells
+                for k, (header, parts) in enumerate(r):
+                    put(cells[k].paragraphs[0], parts)
+                    if header:  # a light green header row
+                        shd = OxmlElement("w:shd")
+                        shd.set(qn("w:val"), "clear"); shd.set(qn("w:color"), "auto"); shd.set(qn("w:fill"), "E3EEE8")
+                        cells[k]._tc.get_or_add_tcPr().append(shd)
+            d.add_paragraph()
+    d.core_properties.title = _title(content, p)
+    d.save(p)
+
+
+def write_odt(p, content):
+    """A tidy LibreOffice Writer document (.odt) from Markdown, in the same style as the PDFs and Word documents."""
+    from odf.opendocument import OpenDocumentText
+    from odf.style import Style, TextProperties, ParagraphProperties, TableColumnProperties, TableCellProperties, ListLevelProperties
+    from odf.text import H, P, Span, List, ListItem, ListStyle, ListLevelStyleBullet, ListLevelStyleNumber, LineBreak
+    from odf.table import Table, TableColumn, TableRow, TableCell
+    from odf.element import Text as Raw
+    from odf.dc import Title
+    hexa = lambda c: "#%02x%02x%02x" % c
+    doc = OpenDocumentText()
+    doc.meta.addElement(Title(text=_title(content, p)))
+
+    def style(name, family="paragraph", text=None, para=None, parent=None, auto=False):
+        st = Style(name=name, family=family, **({"parentstylename": parent} if parent else {}))
+        if text:
+            st.addElement(TextProperties(**text))
+        if para:
+            st.addElement(ParagraphProperties(**para))
+        (doc.automaticstyles if auto else doc.styles).addElement(st)
+        return st
+
+    font = {"fontfamily": "Calibri", "fontfamilyasian": "Microsoft YaHei", "fontsize": "11pt", "color": hexa(INK)}
+    body = style("Body", text=font, para={"marginbottom": "0.21cm", "lineheight": "115%"})
+    heads = {lvl: style(f"Heading{lvl}", text={**font, "fontsize": f"{size}pt", "fontweight": "bold", "fontweightasian": "bold", "color": hexa(color)},
+                        para={"margintop": f"{0.5 if lvl < 3 else 0.35}cm", "marginbottom": "0.14cm", "keepwithnext": "always"})
+             for lvl, size, color in ((1, 20, GREEN), (2, 15, GREEN), (3, 12.5, INK), (4, 11, INK))}
+    item = style("Item", text=font, para={"marginbottom": "0.07cm"})
+    code_p = style("Code", text={**font, "fontfamily": "Consolas", "fontsize": "9.5pt"}, para={"marginleft": "0.5cm", "marginbottom": "0.21cm"})
+    quote = style("Quote", text={**font, "fontstyle": "italic"}, para={"marginleft": "1cm", "marginbottom": "0.21cm"})
+    spans = {}
+    for b in (False, True):
+        for i in (False, True):
+            for c in (False, True):
+                props = {}
+                if b: props.update(fontweight="bold", fontweightasian="bold")
+                if i: props.update(fontstyle="italic", fontstyleasian="italic")
+                if c: props.update(fontfamily="Consolas", fontsize="9.5pt", color="#783c1e")
+                if props:
+                    spans[(b, i, c)] = style(f"T{int(b)}{int(i)}{int(c)}", "text", text=props, auto=True)
+    bullets, numbers = ListStyle(name="Bullets"), ListStyle(name="Numbers")
+    for lvl in range(1, 4):
+        bl = ListLevelStyleBullet(level=lvl, bulletchar="•")
+        bl.addElement(ListLevelProperties(spacebefore=f"{0.6 * lvl - 0.6}cm", minlabelwidth="0.6cm"))
+        bullets.addElement(bl)
+        nl = ListLevelStyleNumber(level=lvl, numformat="1", numsuffix=".")
+        nl.addElement(ListLevelProperties(spacebefore=f"{0.6 * lvl - 0.6}cm", minlabelwidth="0.6cm"))
+        numbers.addElement(nl)
+    doc.automaticstyles.addElement(bullets); doc.automaticstyles.addElement(numbers)
+    head_cell = style("HeadCell", "table-cell", auto=True)
+    head_cell.addElement(TableCellProperties(backgroundcolor="#e3eee8", border="0.5pt solid #999999", padding="0.1cm"))
+    cell = style("Cell", "table-cell", auto=True)
+    cell.addElement(TableCellProperties(border="0.5pt solid #999999", padding="0.1cm"))
+
+    def put(par, parts):
+        for t, bold, italic, code in parts:
+            if t == "\n":
+                par.addElement(LineBreak())
+            elif (bold, italic, code) in spans:
+                par.addElement(Span(stylename=spans[(bold, italic, code)], text=t))
+            else:
+                par.addText(t)
+        return par
+
+    stack = []  # the open lists: (depth, numbered, List)
+    for b in _blocks(content):
+        if b[0] != "li":
+            stack = []
+        if b[0] == "h":
+            doc.text.addElement(put(H(outlinelevel=b[1], stylename=heads[b[1]]), b[2]))
+        elif b[0] == "p":
+            doc.text.addElement(put(P(stylename=body), b[1]))
+        elif b[0] == "li":
+            depth, numbered, parts = b[1], b[2], b[3]
+            while stack and (stack[-1][0] > depth or (stack[-1][0] == depth and stack[-1][1] != numbered)):
+                stack.pop()
+            if not stack or stack[-1][0] < depth:
+                lst = List(stylename=numbers if numbered else bullets) if not stack else List()
+                if stack:  # a nested list goes inside the last item of its parent
+                    stack[-1][3].addElement(lst)
+                else:
+                    doc.text.addElement(lst)
+                stack.append([depth, numbered, lst, None])
+            li = ListItem()
+            li.addElement(put(P(stylename=item), parts))
+            stack[-1][2].addElement(li)
+            stack[-1][3] = li
+        elif b[0] == "pre":
+            par = P(stylename=code_p)
+            for k, line in enumerate(b[1]):
+                if k:
+                    par.addElement(LineBreak())
+                par.addText(line)
+            doc.text.addElement(par)
+        elif b[0] == "quote":
+            doc.text.addElement(put(P(stylename=quote), b[1]))
+        elif b[0] == "hr":
+            doc.text.addElement(P(stylename=body, text="—" * 3))
+        elif b[0] == "table":
+            cols = max(len(r) for r in b[1])
+            t = Table()
+            t.addElement(TableColumn(numbercolumnsrepeated=cols))
+            for r in b[1]:
+                row = TableRow()
+                for header, parts in r + [(False, [])] * (cols - len(r)):
+                    c = TableCell(stylename=head_cell if header else cell)
+                    c.addElement(put(P(stylename=body), parts))
+                    row.addElement(c)
+                t.addElement(row)
+            doc.text.addElement(t)
+            doc.text.addElement(P(stylename=body))
+    doc.save(str(p))
 
 
 MEM = (pathlib.Path(__file__).parent / "memory").resolve()
@@ -245,10 +520,10 @@ def remember(fact: str, topic: str = "profile") -> str:
     fact = " ".join(fact.split())
     with MEM_LOCK:
         p = _mem(topic)
-        old = p.read_text() if p.exists() else ""
+        old = p.read_text(encoding="utf-8") if p.exists() else ""
         if fact.lower() in old.lower():
             return "Already in memory."
-        p.write_text(old + f"- {fact}\n")
+        p.write_text(old + f"- {fact}\n", encoding="utf-8")
     return f"Saved to memory ({p.stem})."
 
 
@@ -258,16 +533,16 @@ def forget(text: str, topic: str = "profile") -> str:
         p = _mem(topic)
         if not p.exists():
             return f"No memory topic '{topic}'."
-        lines = p.read_text().splitlines()
+        lines = p.read_text(encoding="utf-8").splitlines()
         kept = [line for line in lines if text.lower() not in line.lower()]
-        p.write_text("\n".join(kept) + "\n") if kept else p.unlink()
+        p.write_text("\n".join(kept) + "\n", encoding="utf-8") if kept else p.unlink()
     return f"Removed {len(lines) - len(kept)} line(s)."
 
 
 def read_memory(topic: str) -> str:
     """Read one long-term memory topic about the user."""
     p = _mem(topic)
-    return p.read_text() if p.exists() else f"No memory topic '{topic}'. Topics: {', '.join(memory_topics()) or 'none'}."
+    return p.read_text(encoding="utf-8") if p.exists() else f"No memory topic '{topic}'. Topics: {', '.join(memory_topics()) or 'none'}."
 
 
 def memory_prompt():

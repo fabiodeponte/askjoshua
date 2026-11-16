@@ -80,6 +80,25 @@ def _():
         return "\n".join(out)
 
 
+@check("Documents: PDF, Word and LibreOffice, with accents and other alphabets")
+def _():
+    code = r"""
+import agent, pathlib, tempfile, warnings
+warnings.simplefilter("always")
+md = "# Città, Łódź e 北京 — prova\n\nTesto con **grassetto** e *corsivo*: àèéìòù “virgolette” € → ≥ α Привет 中文\n\n- uno\n  - sotto\n- due\n\n| A | B |\n|---|---|\n| Zażółć | 你好 |\n"
+agent.set_workspace(tempfile.mkdtemp())
+for ext in ("pdf", "docx", "odt"):
+    print(agent.write_file("t." + ext, md))
+    back = agent.read_file("t." + ext)
+    for word in ("Città", "Łódź", "Привет", "中文", "“virgolette”"):
+        assert word in back, (ext, word, back[:300])
+print("all three read back with every character")
+"""
+    r = subprocess.run([sys.executable, "-c", code], cwd=APP, capture_output=True, text=True, timeout=180, encoding="utf-8")
+    assert r.returncode == 0, r.stdout + r.stderr
+    return r.stdout + r.stderr[-1500:]
+
+
 @check("Code tool (run_python)")
 def _():
     r = subprocess.run([sys.executable, "-c", "import agent; print(agent.run_python('print(6*7, \"àèì\")'))"], cwd=APP, capture_output=True, text=True, timeout=120)

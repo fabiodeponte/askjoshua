@@ -12,3 +12,4 @@ langdetect @ https://ask.joshua.earth/wheels/langdetect-1.0.9-py3-none-any.whl  
 playwright
 segno
 markdown
+odfpy
