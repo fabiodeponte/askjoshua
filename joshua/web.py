@@ -691,16 +691,29 @@ def reorder_pins(cid, order):
 OPTS = ("thinking", "goal", "swarm", "offline")
 
 
+TEAM = 6  # the most agents a swarm can have
+
+
+def team_menu(team=(), n=5):
+    """The swarm's model menus: one per agent, 'Automatic' or a model of yours (the same one may be picked for several agents)."""
+    choices = [(t("Automatic"), "")] + models()
+    values = [v for _, v in choices]
+    team = (list(team) + [""] * TEAM)[:TEAM]
+    return [gr.Dropdown(choices=choices, value=v if v in values else "", visible=k < n) for k, v in enumerate(team)]
+
+
 def chat_opts(cid):
-    """This chat's own settings: deep thinking, goal mode, swarm, no internet."""
+    """This chat's own settings: deep thinking, goal mode, swarm, no internet, and the swarm's agents."""
     o = load(cid).get("opts", {}) if cid else {}
-    return tuple(gr.Checkbox(value=bool(o.get(k))) for k in OPTS)
+    n = int(o.get("agents", 5))
+    return tuple(gr.Checkbox(value=bool(o.get(k))) for k in OPTS) + (gr.Slider(value=n),) + tuple(team_menu(o.get("team", ()), n))
 
 
 def save_opts(cid, *values):
     if cid and (ROOT / cid).exists():
         conv = load(cid)
-        conv["opts"] = dict(zip(OPTS, map(bool, values)))
+        flags, (n, *team) = values[:len(OPTS)], values[len(OPTS):]
+        conv["opts"] = dict(zip(OPTS, map(bool, flags)), agents=int(n), team=[v or "" for v in team])
         (ROOT / cid / "chat.json").write_text(json.dumps(conv, ensure_ascii=False, indent=1))  # not save(): a setting doesn't move the chat to the top
 
 
@@ -984,11 +997,15 @@ TEMPS = [0.6, 0.9, 0.7, 1.0, 0.8, 1.1]
 SYNTH = "Your team of {n} agents worked on my last request independently. Their answers:\n\n{report}\n\nNow write the single best final answer for me. Agreement is not proof: if a fact isn't backed by a source the agents actually read, check it yourself with web_search and read_page. Combine their strongest points, resolve disagreements, and drop anything wrong. Write directly to me, in the second person, in the language of my request, as if you had answered alone: no notes about the agents or your process."
 
 
+SYNTH_GOAL = " This is a goal, not just a question: finish what is still missing with your tools, check the result, then call goal_done with a short summary (or give_up if it truly can't be done)."
+
+
 def swarm_agent(k, n, model, thinking, base, box, answers, stop, work, net, timeout, toolset, region):
     agent.set_workspace(work, net, int(timeout), region)
     agent.CTX.vision = model if "vision" in caps(model) else FAST
     msgs = base
-    msgs[0] = {"role": "system", "content": msgs[0]["content"] + f" You are agent {k + 1} of {n} in a team answering the same request independently; a reviewer will compare your answers. {STYLES[k % len(STYLES)]} Back every fact with a tool result and say where it comes from. Only create files if the user asked for them. End with your complete answer, addressed to the user."}
+    goal = GOAL_RULES in msgs[0]["content"]
+    msgs[0] = {"role": "system", "content": msgs[0]["content"].replace(GOAL_RULES, " The user gave a goal: work toward it with your tools, step by step, and end with what you did and the result.") + f" You are agent {k + 1} of {n} in a team answering the same request independently; a reviewer will compare your answers. {STYLES[k % len(STYLES)]} Back every fact with a tool result and say where it comes from. Only create files if the user asked for them. End with your complete answer, addressed to the user."}
     opts = {"num_ctx": 16384, "temperature": TEMPS[k % len(TEMPS)]}
     think = think_mode(model, thinking)
     log = []
@@ -1019,7 +1036,7 @@ def swarm_agent(k, n, model, thinking, base, box, answers, stop, work, net, time
     box["metadata"]["status"] = "done"
 
 
-def run_swarm(job, cid, conv, model, thinking, n, pool, net, timeout, toolset):
+def run_swarm(job, cid, conv, model, thinking, n, pool, net, timeout, toolset, judge_tools=None, goal=False):
     shown, msgs = conv["display"], conv["llm"]
     work = conv.get("project") or fdir(cid)
     answers, threads = [None] * n, []
@@ -1035,13 +1052,15 @@ def run_swarm(job, cid, conv, model, thinking, n, pool, net, timeout, toolset):
         time.sleep(0.5)
     job.publish(shown)
     if job.stop.is_set():
-        return
+        return []
     report = "\n\n".join(f"### Agent {k + 1} ({pool[k % len(pool)]})\n{a or '(no answer)'}" for k, a in enumerate(answers))
-    judge = msgs + [{"role": "user", "content": SYNTH.format(n=n, report=report)}]
-    for view in agent_turn(judge, shown, toolset, model, thinking, job.stop, []):
+    judge = msgs + [{"role": "user", "content": SYNTH.format(n=n, report=report) + (SYNTH_GOAL if goal else "")}]
+    called = []
+    for view in agent_turn(judge, shown, judge_tools or toolset, model, thinking, job.stop, called):
         job.publish(view)
     final = next((m["content"] for m in reversed(judge) if m["role"] == "assistant" and m["content"]), "")
     msgs.append({"role": "assistant", "content": final})
+    return called
 
 
 # ---------- long-term memory ----------
@@ -1079,7 +1098,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     off = {n for g in tools_off() for n in TOOL_GROUPS.get(g, ("", []))[1]}
     base = {k: v for k, v in tools.items() if k not in off and (mem and not private or k not in agent.MEMORY_TOOLS) and not (offline and (k in ("web_search", "read_page") or k in agent.BROWSER_TOOLS))}
     toolset = dict(base, goal_done=goal_done, give_up=give_up) if goal else base
-    rounds = 0 if swarm else int(rounds) if goal else 1
+    rounds = int(rounds) if goal else 0 if swarm else 1
     language = agent.LANGUAGES.get(conv.get("lang"))
     evidence = None
     try:
@@ -1099,11 +1118,20 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
             elif any(b is box for b in shown):
                 shown.remove(box)
             job.publish(shown)
-        if swarm:
-            run_swarm(job, cid, conv, model, thinking, int(swarm), pool, net, timeout, base)
+        first = 1
+        if swarm:  # the team works first; in goal mode Joshua then keeps going, round after round, until the goal is done
+            called = run_swarm(job, cid, conv, model, thinking, int(swarm), pool, net, timeout, base, toolset, goal)
             if job.stop.is_set():
                 shown.append({"role": "assistant", "content": t("You stopped this task. Send a message to continue."), "metadata": {"title": "⏹ " + t("Stopped"), "status": "done"}})
-        for r in range(1, rounds + 1):
+                rounds = 0
+            elif goal and not {"goal_done", "give_up"} & set(called) and rounds > 1:
+                first = 2
+                shown.append({"role": "assistant", "content": t("Not marked as done yet, continuing."), "metadata": {"title": "🔁 " + t("Round {i} of {n}", i=2, n=rounds), "status": "done"}})
+                msgs.append({"role": "user", "content": NUDGE})
+                job.publish(shown)
+            else:
+                rounds = 0
+        for r in range(first, rounds + 1):
             called = []
             for view in agent_turn(msgs, shown, toolset, model, thinking, job.stop, called):
                 job.publish(view)
@@ -1169,21 +1197,22 @@ def busy(cid):
     return cid in JOBS and JOBS[cid].running
 
 
-def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem=False):
+def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem=False, *team):
     message = message or {}
     text = (message.get("text") or "").strip()
     files = message.get("files") or []
     if not text and not files:
         return gr.skip(), *SKIP
     if busy(cid):  # like Claude: the message waits in line and goes when Joshua has finished
-        QUEUE.setdefault(cid, []).append((message, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem))
+        QUEUE.setdefault(cid, []).append((message, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, *team))
         gr.Info(t("Queued: Joshua will send it when it has finished."))
         return gr.skip(), None, gr.skip(), gr.skip(), gr.skip()
     if model == ADD:  # the menu is still on "＋ Add a model…"
         model = default_model()
     choice, model = model, resolve(model, thinking)
+    picked = [resolve(v, thinking) if v and v != ADD else "" for v in (list(team) + [""] * TEAM)[:int(agents)]] if swarm else []
     cloud = is_cloud(model)
-    if cloud and offline:
+    if (cloud or any(is_cloud(m) for m in picked if m)) and offline:
         gr.Warning(t("Cloud models need the internet. Please choose a local model, or turn off No internet."))
         return gr.skip(), *SKIP
     if thinking and "thinking" not in caps(model):
@@ -1191,7 +1220,7 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     cid = cid or new_conv()
     conv = load(cid)
     conv["model"] = choice
-    conv["opts"] = dict(zip(OPTS, map(bool, (thinking, goal, swarm, offline))))
+    conv["opts"] = dict(zip(OPTS, map(bool, (thinking, goal, swarm, offline))), agents=int(agents), team=[v or "" for v in (list(team) + [""] * TEAM)[:TEAM]])
     if cloud and conv.get("cloud_notice") != model:  # say it once in the chat, each time a new cloud model is picked
         conv["cloud_notice"] = model
         where = (t("From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model, company=providers.company(model))
@@ -1212,23 +1241,25 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
         if dst.suffix.lower() in IMAGES and "vision" in caps(model):
             images.append(str(dst))
     if text:
-        shown.append({"role": "user", "content": ("🐝 " if swarm else "🎯 " if goal else "") + text})
+        shown.append({"role": "user", "content": ("🐝 " if swarm else "") + ("🎯 " if goal else "") + text})
     conv["title"] = conv["title"] or (text or names[0])[:48]
     where = f" Your workspace is the user's project folder {work}; use list_files to explore it and edit files with care." if conv.get("project") else ""
     online = " You have no internet access in this chat: you cannot search or read web pages, so answer from what you know and say when something may be out of date." if offline else "" if net else " Code you run has no internet access."
     online += f" The user writes in {language}: always reply in {language}." if language else ""
-    system = {"role": "system", "content": SYSTEM.format(now=agent.get_datetime()) + where + online + (GOAL_RULES if goal and not swarm else "") + (agent.memory_prompt() if mem and (cloudmem or not cloud) else "")}
+    system = {"role": "system", "content": SYSTEM.format(now=agent.get_datetime()) + where + online + (GOAL_RULES if goal else "") + (agent.memory_prompt() if mem and (cloudmem or not cloud) else "")}
     if msgs and msgs[0]["role"] == "system":
         msgs[0] = system
     else:
         msgs.insert(0, system)
     note = f"\n\n(Files saved in the workspace: {', '.join(names)})" if names else ""
-    goal = goal and not swarm
     msgs.append({"role": "user", "content": ("GOAL: " if goal else "") + text + note, "images": images})
-    pool = [model] + [m for m in dict.fromkeys(resolve(v, thinking) for _, v in models()) if m != model and (cloud or not is_cloud(m))]  # a local chat never borrows a cloud model
+    pool = [model] + [m for m in dict.fromkeys(resolve(v, thinking) for _, v in models()) if m != model and (cloud or not is_cloud(m))]  # "Automatic": a local chat never borrows a cloud model
+    auto = iter(pool * TEAM)
+    team = [m or next(auto) for m in picked]  # the agents you gave a model use it; the others take the menu's models in turn
+    cloud = cloud or any(is_cloud(m) for m in team)  # memory notes stay private if any agent runs in the cloud
     save(cid, conv)
     JOBS[cid] = job = Job(shown)
-    threading.Thread(target=worker, args=(job, cid, conv, model, thinking, goal, rounds, net, timeout, int(agents) if swarm else 0, pool, mem, text, offline, cloud and not cloudmem), daemon=True).start()
+    threading.Thread(target=worker, args=(job, cid, conv, model, thinking, goal, rounds, net, timeout, int(agents) if swarm else 0, team, mem, text, offline, cloud and not cloudmem), daemon=True).start()
     return shown, None, cid, gr.Radio(choices=conv_choices(), value=cid), file_list(cid)
 
 
@@ -1415,7 +1446,7 @@ def rename_save(cid, name):
 
 
 def delete_chat(cid):
-    nothing = (gr.skip(),) * 5
+    nothing = (gr.skip(),) * (10 + TEAM)
     if not cid or not (ROOT / cid).exists():
         return nothing
     if busy(cid):
@@ -1567,6 +1598,11 @@ body:not(#a):not(#b):not(#c) #chatbar .opt {border: 1px solid color-mix(in srgb,
 body:not([data-files="open"]) #chatopts {display: none !important}
 #chatopts {flex-grow: 0 !important; margin: 0 4px 8px !important; padding: 10px 12px !important; border-radius: 12px; background: color-mix(in srgb, var(--brand) 6%, var(--bg)) !important}
 #chatopts .fhead {font-weight: 600; color: var(--brand)}
+.modepanel {flex-grow: 0 !important; margin: 0 4px 8px !important; padding: 10px 12px !important; border-radius: 12px; gap: 6px !important; border: none !important; box-shadow: none !important; background: color-mix(in srgb, var(--brand) 6%, var(--bg)) !important}
+#swarmpanel .fhead {font-weight: 600; color: var(--brand)}
+.modepanel .block {background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important}
+#teamrow {flex-wrap: wrap !important; gap: 8px !important; background: transparent !important; border: none !important}
+#teamrow > .teampick {flex: 1 1 150px !important}
 .pinsvg {width: .95em; height: .95em; fill: var(--brand); vertical-align: -.12em; flex: none}
 #convs label .pinsvg {margin-right: 6px}
 #convs label.dropto {box-shadow: inset 0 2px 0 var(--brand) !important}
@@ -2527,11 +2563,16 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             with gr.Row(elem_id="chatbar"):  # this chat's settings that are on, and its ⋯ menu
                 thinking = gr.Checkbox(False, label="💭 " + t("Deep thinking"), elem_classes="opt", elem_id="o_thinking", info=t("Slower, better on hard questions"))
                 goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes="opt", elem_id="o_goal", info=t("Give a goal; it keeps working until done"))
-                rounds = gr.Slider(2, 30, value=10, step=1, label=t("Max rounds"), visible=False)
                 swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes="opt", elem_id="o_swarm", info=t("Several agents answer in parallel, then one combines the best answer"))
-                agents = gr.Slider(2, 6, value=5, step=1, label=t("Agents"), visible=False)
                 offline = gr.Checkbox(False, label="🚫 " + t("No internet"), elem_classes="opt", elem_id="o_offline", info=t("Joshua doesn't search or read the web, and code can't go online"))
                 gr.HTML("<button class='cmore cur' title='" + html.escape(t("Options for this chat"), quote=True) + "'>⋯</button>")
+            with gr.Column(elem_id="goalpanel", elem_classes="modepanel", visible=False) as goalpanel:
+                rounds = gr.Slider(2, 30, value=10, step=1, label="🎯 " + t("Max rounds"))
+            with gr.Column(elem_id="swarmpanel", elem_classes="modepanel", visible=False) as swarmpanel:  # the swarm's agents: how many, and which model each one uses
+                gr.HTML("<div class='fhead'>🐝 " + t("Swarm agents") + "</div>")
+                agents = gr.Slider(2, TEAM, value=5, step=1, label=t("Number of agents"))
+                with gr.Row(elem_id="teamrow"):
+                    team = [gr.Dropdown(choices=[(t("Automatic"), "")] + models(), value="", label=t("Agent {n}", n=k + 1), elem_classes="teampick", min_width=150, visible=k < 5) for k in range(TEAM)]
             with gr.Column(elem_id="chatopts") as rightcol:  # this chat's files, opened from the ⋯ menu
                 gr.HTML("<div class='fhead'>📂 " + t("Files and folder of this chat") + "</div>")
                 files = gr.File(file_count="multiple", label=t("Files in this chat"), elem_id="wfiles", height=None)
@@ -2548,7 +2589,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 cloudbadge = gr.HTML("", elem_id="cloudbadge")
                 model = gr.Dropdown(choices=models(True), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200)
 
-    box.submit(send, [box, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem], [chatbot, box, cid, convs, files], concurrency_limit=None)
+    box.submit(send, [box, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, *team], [chatbot, box, cid, convs, files], concurrency_limit=None)
     model.change(badge, model, cloudbadge)
 
     # "＋ Add a model…" in the menu: open the two panels on the right, fill their lists, then put the menu back on the model you had
@@ -2652,21 +2693,22 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     mem_topic.input(mem_view, mem_topic, [mem_topic, mem_text])
     mem_btn.click(mem_save, [mem_topic, mem_text], [mem_topic, mem_text],
                   js="(topic, text) => (text.trim() || confirm(" + JS_TEXT(t("Clear all the notes in '{topic}'? This can't be undone.")) + ".replace('{topic}', topic))) ? [topic, text] : [topic, null]")
-    swarm.change(lambda s: (gr.Slider(visible=s), gr.Checkbox(value=False) if s else gr.skip()), swarm, [agents, goal])
+    swarm.change(lambda s: gr.Column(visible=s), swarm, swarmpanel)
+    agents.change(lambda n: [gr.Dropdown(visible=k < n) for k in range(TEAM)], agents, team, show_progress="hidden")
     stop.click(stop_chat, cid, concurrency_limit=None)
-    goal.change(lambda g: (gr.Slider(visible=g), gr.MultimodalTextbox(placeholder=t("Describe a goal for Joshua to accomplish…") if g else t("Message Joshua, or drop files here…")), gr.Checkbox(value=False) if g else gr.skip()), goal, [rounds, box, swarm])
-    new.click(new_chat, outputs=[chatbot, cid, convs, files, project, thinking, goal, swarm, offline])
-    convs.input(open_conv, convs, [chatbot, cid, files, project, model, thinking, goal, swarm, offline]).then(badge, model, cloudbadge)
+    goal.change(lambda g: (gr.Column(visible=g), gr.MultimodalTextbox(placeholder=t("Describe a goal for Joshua to accomplish…") if g else t("Message Joshua, or drop files here…"))), goal, [goalpanel, box])
+    new.click(new_chat, outputs=[chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team])
+    convs.input(open_conv, convs, [chatbot, cid, files, project, model, thinking, goal, swarm, offline, agents, *team]).then(badge, model, cloudbadge)
     to_chat = lambda: (gr.Column(visible=True), gr.Column(visible=True)) + (gr.Column(visible=False),) * 5
     for e in (convs.input, new.click):  # a chat or New chat in the side column closes Models, Settings and the other pages
         e(to_chat, outputs=[chatcol, rightcol, models_panel, sched_panel, tune_panel, mem_panel, set_panel], show_progress="hidden")
-    for o in (thinking, goal, swarm, offline):
-        o.input(save_opts, [cid, thinking, goal, swarm, offline], show_progress="hidden")
+    for o in (thinking, goal, swarm, offline, agents, *team):
+        o.input(save_opts, [cid, thinking, goal, swarm, offline, agents, *team], show_progress="hidden")
     project.submit(set_project, [project, cid], [files, cid, convs, project])
     files.upload(upload_files, [files, cid], [files, cid, convs])
     files.change(zip_files, cid, dlall, show_progress="hidden")
     openf.click(open_folder, cid)
-    chatbot.retry(retry, [cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem], [chatbot, box, cid, convs, files])
+    chatbot.retry(retry, [cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, *team], [chatbot, box, cid, convs, files])
     files.delete(delete_file, cid, files)
     gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
     feedback.click(None, model, None, js="(m) => { window.open(" + json.dumps(FEEDBACK) + " + '&model=' + encodeURIComponent(m || ''), '_blank') }")
@@ -2675,7 +2717,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     ord_go.click(None, None, ord_val, js="() => window.joshuaOrder || ''").then(reorder_pins, [cid, ord_val], convs, show_progress="hidden")
     ren_go.click(None, None, ren_val, js="() => window.joshuaRename || ''").then(rename_save, [cid, ren_val], [renbox, convs], show_progress="hidden")
     renbox.submit(rename_save, [cid, renbox], [renbox, convs])
-    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
+    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
     tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
     tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models(True))), outputs=[tune_panel, chatcol, rightcol, model])

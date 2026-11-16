@@ -471,5 +471,8 @@
  "Access from anywhere": "随处访问",
  "Use Joshua from your other computers, phone or tablet, wherever you are, through Tailscale: a free app that links your own devices in a private network. Nothing is opened to the internet.": "通过 Tailscale 在你的其他电脑、手机或平板上使用 Joshua，无论你在哪里：这是一个免费应用，把你自己的设备连成一个私有网络。不会向互联网开放任何东西。",
  "Let my devices on Tailscale reach Joshua": "允许我在 Tailscale 上的设备访问 Joshua",
- "Check again": "再次检查"
+ "Check again": "再次检查",
+ "Automatic": "自动",
+ "Swarm agents": "群体智能体",
+ "Number of agents": "智能体数量"
 }

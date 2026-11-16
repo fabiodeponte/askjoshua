@@ -471,5 +471,8 @@
  "Access from anywhere": "Zugriff von überall",
  "Use Joshua from your other computers, phone or tablet, wherever you are, through Tailscale: a free app that links your own devices in a private network. Nothing is opened to the internet.": "Nutze Joshua von deinen anderen Computern, Telefon oder Tablet, wo immer du bist, über Tailscale: eine kostenlose App, die deine Geräte in einem privaten Netz verbindet. Nichts wird zum Internet geöffnet.",
  "Let my devices on Tailscale reach Joshua": "Meine Geräte auf Tailscale dürfen Joshua erreichen",
- "Check again": "Erneut prüfen"
+ "Check again": "Erneut prüfen",
+ "Automatic": "Automatisch",
+ "Swarm agents": "Agenten des Schwarms",
+ "Number of agents": "Anzahl der Agenten"
 }
