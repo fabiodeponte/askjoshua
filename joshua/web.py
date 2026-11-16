@@ -134,9 +134,13 @@ def ollama_bin():
     return web_ollama.path()
 
 
-def media(vision, audio=False):
-    """What a model can take in, said plainly."""
-    return t("text + images + audio") if vision and audio else t("text + images") if vision else t("text + audio") if audio else t("text only")
+def media(vision, audio=False, thinking=False):
+    """What a model can do, said plainly: what it reads, and whether it can think at length before answering."""
+    reads = t("text + images + audio") if vision and audio else t("text + images") if vision else t("text + audio") if audio else t("text only")
+    return reads + (" · 💭 " + t("deep thinking") if thinking else "")
+
+
+THINKERS = set()  # models on ollama.com labelled "thinking", seen while reading the library
 
 
 def act_button(action, tag, label):
@@ -164,7 +168,7 @@ def rank_table(rows, empty):
     if not rows:
         return f"<div class='cloudstat'>{empty}</div>"
     top = max([r[3] or 0 for r in rows] + [1])
-    out = ["<table class='mrank'><tr><th>" + t("Model") + "</th><th>" + t("Size") + "</th><th>" + t("Reads") + "</th><th>" + t("Reasoning") + "</th><th></th></tr>"]
+    out = ["<table class='mrank'><tr><th>" + t("Model") + "</th><th>" + t("Size") + "</th><th>" + t("Abilities") + "</th><th>" + t("Reasoning") + "</th><th></th></tr>"]
     for name, size, reads, score, note, *price in rows:
         bar = f"<span class='mbar'><i style='width:{100 * (score or 0) / top:.0f}%'></i></span> {score:g}" if score is not None else "<span class='mdim'>" + t("not rated") + "</span>"
         bar += cost_box(*price)
@@ -185,7 +189,7 @@ def installed_html():
             continue
         gb = (getattr(m, "size", 0) or 0) / 1e9
         name = ("★ " + n.removeprefix("joshua-") + " · " + t("taught by you")) if n.startswith("joshua-") else n.removesuffix(":latest")
-        rows.append((name, f"{gb:.1f} GB", media("vision" in c, "audio" in c), ranking.local_score(n, gb), act_button("rm", n, t("Remove"))))
+        rows.append((name, f"{gb:.1f} GB", media("vision" in c, "audio" in c, "thinking" in c), ranking.local_score(n, gb), act_button("rm", n, t("Remove"))))
     if not apple.why_not():
         rows.append((apple.LABEL, t("built into macOS"), media(False), ranking.data().get("apple", 1), ""))
     rows.sort(key=lambda r: -(r[3] or 0))
@@ -205,7 +209,7 @@ def cloud_catalog():
     have = set(CLOUD)
     added = lambda n: (n + ("-cloud" if ":" in n else ":cloud")) in have
     pnote = ranking.data().get("prices", {}).get("offpeak_cloud", "")
-    rows = [(n, "☁", media("vision" in c, "audio" in c), ranking.cloud_score(n), ("✓ " + t("in your menu") + " " + act_button("unmenu", n + ("-cloud" if ":" in n else ":cloud"), t("Remove")) if added(n) else act_button("add", n, t("Add"))) + (" · " + t("cheapest") if n in free else ""), ranking.cloud_price(n), pnote) for n, c in usable]
+    rows = [(n, "☁", media("vision" in c, "audio" in c, "thinking" in c), ranking.cloud_score(n), ("✓ " + t("in your menu") + " " + act_button("unmenu", n + ("-cloud" if ":" in n else ":cloud"), t("Remove")) if added(n) else act_button("add", n, t("Add"))) + (" · " + t("cheapest") if n in free else ""), ranking.cloud_price(n), pnote) for n, c in usable]
     rows.sort(key=lambda r: -(r[3] or 0))
     return "", rank_table(rows, "")
 
@@ -298,6 +302,7 @@ def _tool_models(order, limit):
     page = requests.get(f"https://ollama.com/library?sort={order}", timeout=20).text
     cards = re.split(r'(?=<a href="/library/[\w.-]+")', page)[1:]
     names = [re.match(r'<a href="/library/([\w.-]+)"', c)[1] for c in cards if re.search(r">\s*tools\s*</span>", c)]
+    THINKERS.update(re.match(r'<a href="/library/([\w.-]+)"', c)[1] for c in cards if re.search(r">\s*thinking\s*</span>", c))
     return names[:limit]
 
 
@@ -314,7 +319,7 @@ def local_catalog():
     budget, free = memory_budget(), shutil.disk_usage(pathlib.Path.home()).free / 2**30
     have = {m.model for m in _try(lambda: ollama.list().models)}
     fits = sorted({x for x in tags if x[1] * 1.2 + 2 <= budget}, key=lambda x: (-ranking.local_score(x[0], x[1]), x[1]))
-    rows = [(tg, f"{gb:g} GB", media(v, a), ranking.local_score(tg, gb), "✓ " + t("installed") if tg in have else act_button("dl", tg, t("Download"))) for tg, gb, v, a in fits]
+    rows = [(tg, f"{gb:g} GB", media(v, a, tg.split(":")[0] in THINKERS), ranking.local_score(tg, gb), "✓ " + t("installed") if tg in have else act_button("dl", tg, t("Download"))) for tg, gb, v, a in fits]
     note = t("{n} versions fit this computer ({memory} GB of memory for models, {disk} GB free disk). Most capable first.", n=len(rows), memory=f"{budget:.0f}", disk=f"{free:.0f}")
     return f"<div class='cloudstat'>{note}</div>", rank_table(rows, "")
 
@@ -348,7 +353,9 @@ def menu_html():
         if v not in (PAIR, apple.NAME):
             btns += act_button("unmenu", v, t("Remove") if not is_cloud(v) or providers.is_api(v) else t("Remove from the menu"))
         first = " <span class='mdefault'>" + t("default") + "</span>" if i == 0 else ""
-        rows.append(f"<tr><td class='mname'>{html.escape(label)}{first}</td><td class='mdim'>{kind}</td><td class='mnote mbtns'>{btns}</td></tr>")
+        c = caps(resolve(v, False)) if v != apple.NAME else set()
+        can = media("vision" in c, "audio" in c, "thinking" in c or (v == PAIR and "thinking" in caps(MODEL)))
+        rows.append(f"<tr><td class='mname'>{html.escape(label)}{first}</td><td class='mdim'>{kind}</td><td class='mdim'>{html.escape(can)}</td><td class='mnote mbtns'>{btns}</td></tr>")
     return "<table class='mrank mmenu'>" + "".join(rows) + "</table>"
 
 
@@ -2542,7 +2549,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("MODELS") + "</div>")
                 models_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="modelsback")
-            gr.Markdown(t("Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images gives no extra points: it is shown on its own, under Reads. For everyday questions, smaller models are often enough."), elem_id="mintro")
+            gr.Markdown(t("Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images or audio, and deep thinking, give no extra points: they are shown on their own, under Abilities. For everyday questions, smaller models are often enough."), elem_id="mintro")
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<div class='mzhead'><h2 class='msec'>" + t("Your model menu") + "</h2></div><div class='msub'>" + t("The models you choose from under the chat, in this order. The first one is the default for new chats.") + "</div>")
                 menu_list = gr.HTML(menu_html())

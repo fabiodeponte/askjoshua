@@ -19,7 +19,7 @@ ATTRS = ["alt", "title", "aria-label", "placeholder", "data-text"]
 SCRIPT_TEXTS = ["Copied", "Selected", "Copy"]
 
 
-VERSION = re.compile(r"20\d\d\.\d\d\.\d\d\.\d+")
+VERSION = re.compile(r"20\d\d\.\d\d\.\d\d\.\d+(?:\.\d+)?")  # 2026.11.16.5 or, with the release counter, 2026.11.16.5.51
 
 
 def norm(s):
