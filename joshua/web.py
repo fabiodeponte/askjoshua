@@ -121,12 +121,12 @@ def badge(choice):
     """Under the message box: where the chosen model runs, what it can do (icons) and what it costs."""
     if not choice or choice == ADD:
         return ""
-    tip = lambda icon, text: f"<span class='bicon' title='{html.escape(text, quote=True)}'>{icon}</span>"
+    tip = lambda icon, text: f"<span class='bicon' data-tip='{html.escape(text, quote=True)}' aria-label='{html.escape(text, quote=True)}'>{icon}</span>"  # data-tip: an explanation that shows at once on hover
     left = None  # dollars left on the Ollama account: shown for cloud models when you gave Joshua an API key
     if providers.is_api(choice):
         company = providers.company(choice)
         full = t("🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here", company=company)
-        place = "<span class='bplace' title='" + html.escape(full, quote=True) + "'>🔑 " + html.escape(company) + "</span>"
+        place = "<span class='bplace' data-tip='" + html.escape(full, quote=True) + "'>🔑 " + html.escape(company) + "</span>"
         vision, audio, thinks, price = providers.sees_images(choice), False, False, ranking.closed_price(choice.split(" ", 1)[-1])
     elif choice == apple.NAME:
         place, vision, audio, thinks, price = "", False, False, False, None
@@ -134,20 +134,20 @@ def badge(choice):
         m = resolve(choice, True)
         c = caps(m)
         vision, audio, thinks = "vision" in c, "audio" in c, "thinking" in c
-        place = ("<span class='bplace' title='" + html.escape(t("☁ Cloud model: messages go to Ollama's servers; everything stays stored here"), quote=True) + "'>☁</span>") if is_cloud(m) else ""
+        place = ""  # the menu already shows ☁ before a cloud model's name
         price = ranking.cloud_price(m) if is_cloud(m) else None
         left = credit_left() if is_cloud(m) else None
-    icons = tip("📄", t("reads text"))
-    icons += tip("🖼️", t("reads images")) if vision else ""
-    icons += tip("🎧", t("hears audio")) if audio else ""
-    icons += tip("💭", t("thinks before answering")) if thinks else ""
+    icons = tip("📄", t("Reads and writes text"))
+    icons += tip("🖼️", t("Sees images: you can attach photos, screenshots and scanned pages")) if vision else ""
+    icons += tip("🎧", t("Hears audio: you can attach recordings")) if audio else ""
+    icons += tip("💭", t("Thinks before answering: slower, but better at hard questions")) if thinks else ""
     if price:
-        cost = "<span class='bcost' title='" + html.escape((t("Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.", company=providers.company(choice)) if providers.is_api(choice) else t("Dollars per million tokens: first what you send (input), then what it writes (output). Paid to Ollama, not to Joshua.")), quote=True) + "'>" + t("{inp} / {out} per M tokens", inp=money(price[0]), out=money(price[2])) + "</span>"
-    elif place:
+        cost = "<span class='bcost' data-tip='" + html.escape((t("Dollars per million tokens: first what you send (input), then what it writes (output). Paid to {company}.", company=providers.company(choice)) if providers.is_api(choice) else t("Dollars per million tokens: first what you send (input), then what it writes (output). Paid to Ollama, not to Joshua.")), quote=True) + "'>" + t("{inp} / {out} per M", inp=money(price[0]), out=money(price[2])) + "</span>"
+    elif place or (choice != apple.NAME and not providers.is_api(choice) and is_cloud(resolve(choice, True))):
         cost = ""
     else:
         cost = "<span class='bcost'>" + t("free, on this computer") + "</span>"
-    credit = ("<span class='bcredit' title='" + html.escape(t("What is left on your Ollama account: the credit included in your plan plus the credit you bought."), quote=True) + "'>" + t("{n} left", n=money(left)) + "</span>") if left is not None else ""
+    credit = ("<span class='bcredit' data-tip='" + html.escape(t("What is left on your Ollama account: the credit included in your plan plus the credit you bought."), quote=True) + "'>" + t("{n} left", n=money(left)) + "</span>") if left is not None else ""
     return "<div class='cloudbadge'>" + "".join(x for x in (place, "<span class='bicons'>" + icons + "</span>", cost, credit) if x) + "</div>"
 
 
@@ -1771,7 +1771,7 @@ body:not(#a):not(#b):not(#c) #modelrow .modeopt:has(input:checked) {border-color
 body:not([data-files="open"]) #chatopts {display: none !important}
 #chatopts {flex-grow: 0 !important; margin: 0 4px 8px !important; padding: 10px 12px !important; border-radius: 12px; background: color-mix(in srgb, var(--brand) 6%, var(--bg)) !important}
 #chatopts .fhead {font-weight: 600; color: var(--brand)}
-.cloudbadge .bicon {cursor: help; margin: 0 1px}
+.cloudbadge .bicon {margin: 0 1px}
 body:not(#a):not(#b):not(#c) span.ji {display: inline-flex !important; width: 1.2em !important; height: 1.2em !important; vertical-align: -.22em !important; flex: none !important}
 body:not(#a):not(#b):not(#c) #modelrow .modeopt label span.ji, body:not(#a):not(#b):not(#c) #deskpick label span.ji {margin: 0 .35em 0 0 !important; padding: 0 !important}
 body:not(#a):not(#b):not(#c) #convs label span.ji {margin-right: .4em !important; opacity: .75}
@@ -1788,8 +1788,8 @@ body:not(#a):not(#b):not(#c) #deskpick label.selected, body:not(#a):not(#b):not(
 body:not(#a):not(#b):not(#c) #deskpick input {display: none !important}
 body.narrow:not(#a):not(#b) #deskpick {order: 0; flex: 1 1 100% !important}
 .cloudbadge .bcost, .cloudbadge .bcredit {white-space: nowrap}
-.cloudbadge .bcredit {cursor: help}
-.cloudbadge .bplace {cursor: help}
+.cloudbadge .bcredit {cursor: default}
+.cloudbadge .bplace {cursor: default}
 .cloudbadge .bplace + span::before {content: " "}
 #fbtnwrap {flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; align-self: center !important; padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important}
 #fbtnwrap .html-container {padding: 0 !important}
@@ -2240,6 +2240,20 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+/* ---------- under the message box: desks and modes on the left; the model, what it can do and its price on the right, on one line ---------- */
+body:not(.narrow):not(#a):not(#b):not(#c) #modelrow {flex-wrap: wrap !important; align-items: center !important; column-gap: 6px !important; row-gap: 6px !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #deskpick {order: 0}
+body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > .form:has(.modeopt) {order: 1}
+body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #working {order: 2}
+body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #model {order: 3; margin-left: auto !important; flex: 0 1 auto !important; width: auto !important; min-width: 0 !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #cloudbadge {order: 4; flex: 0 0 auto !important; min-width: 0 !important; width: auto !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge, body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge .html-container, body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge .cloudbadge {overflow: visible !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge .cloudbadge {padding: 0 4px 0 0 !important; white-space: nowrap !important; font-size: .85rem !important; color: var(--dim) !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #model input {font-size: .85rem !important}
+/* the explanation of an icon or a price shows at once on hover, above it */
+#cloudbadge [data-tip] {position: relative; cursor: default}
+#cloudbadge [data-tip]:hover::after {content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); right: -6px; z-index: 60; width: max-content; max-width: 280px; white-space: normal; text-align: left;
+  background: #2a2622; color: #fff; font-size: .78rem; line-height: 1.35; font-weight: 400; padding: 7px 10px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, .18); pointer-events: none}
 /* ---------- Paper: the look of a well-set document (like a PDF in macOS Preview) ----------
    Arial / Helvetica, near-black on white, a clear size step between headings and text, lines of 1.5,
    and tables drawn with thin grey rules and a pale header row. */

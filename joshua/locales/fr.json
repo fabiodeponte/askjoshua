@@ -511,5 +511,10 @@
  "{n} new": "{n} nouveautés",
  "nothing new": "rien de nouveau",
  "Monitor: report only what's new since the last run": "Veille : signaler seulement ce qui est nouveau depuis la dernière fois",
- "Paper": "Papier"
+ "Paper": "Papier",
+ "Reads and writes text": "Lit et écrit du texte",
+ "Sees images: you can attach photos, screenshots and scanned pages": "Voit les images : tu peux joindre des photos, des captures d'écran et des pages scannées",
+ "Hears audio: you can attach recordings": "Entend l'audio : tu peux joindre des enregistrements",
+ "Thinks before answering: slower, but better at hard questions": "Réfléchit avant de répondre : plus lent, mais meilleur sur les questions difficiles",
+ "{inp} / {out} per M": "{inp} / {out} par M"
 }
