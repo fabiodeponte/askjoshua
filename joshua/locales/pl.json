@@ -498,5 +498,7 @@
  "Used for": "Służy do",
  "transcribing audio and video, on this computer": "transkrypcja audio i wideo, na tym komputerze",
  "The speech model was removed. It downloads again the next time you ask for a transcription.": "Model mowy został usunięty. Pobierze się ponownie przy następnej prośbie o transkrypcję.",
- "Read & write files (text, Word, PDF)": "Czytanie i zapisywanie plików (tekst, Word, PDF)"
+ "Read & write files (text, Word, PDF)": "Czytanie i zapisywanie plików (tekst, Word, PDF)",
+ "{n} left": "zostało {n}",
+ "What is left on your Ollama account: the credit included in your plan plus the credit you bought.": "Ile zostało na Twoim koncie Ollama: kredyt wliczony w Twój plan plus kredyt, który kupiłeś."
 }

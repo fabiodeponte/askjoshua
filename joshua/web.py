@@ -121,6 +121,7 @@ def badge(choice):
     if not choice or choice == ADD:
         return ""
     tip = lambda icon, text: f"<span class='bicon' title='{html.escape(text, quote=True)}'>{icon}</span>"
+    left = None  # dollars left on the Ollama account: shown for cloud models when you gave Joshua an API key
     if providers.is_api(choice):
         company = providers.company(choice)
         full = t("🔑 {company}'s model: messages go to {company}'s servers; everything stays stored here", company=company)
@@ -134,6 +135,7 @@ def badge(choice):
         vision, audio, thinks = "vision" in c, "audio" in c, "thinking" in c
         place = ("<span class='bplace' title='" + html.escape(t("☁ Cloud model: messages go to Ollama's servers; everything stays stored here"), quote=True) + "'>☁</span>") if is_cloud(m) else ""
         price = ranking.cloud_price(m) if is_cloud(m) else None
+        left = credit_left() if is_cloud(m) else None
     icons = tip("📄", t("reads text"))
     icons += tip("🖼️", t("reads images")) if vision else ""
     icons += tip("🎧", t("hears audio")) if audio else ""
@@ -144,7 +146,8 @@ def badge(choice):
         cost = ""
     else:
         cost = "<span class='bcost'>" + t("free, on this computer") + "</span>"
-    return "<div class='cloudbadge'>" + "".join(x for x in (place, "<span class='bicons'>" + icons + "</span>", cost) if x) + "</div>"
+    credit = ("<span class='bcredit' title='" + html.escape(t("What is left on your Ollama account: the credit included in your plan plus the credit you bought."), quote=True) + "'>" + t("{n} left", n=money(left)) + "</span>") if left is not None else ""
+    return "<div class='cloudbadge'>" + "".join(x for x in (place, "<span class='bicons'>" + icons + "</span>", cost, credit) if x) + "</div>"
 
 
 CLOUD_HELP = ("**" + t("Stays here:") + "** " + t("your chats, files and memory notes.") + "  \n"
@@ -280,6 +283,32 @@ def ollama_credit(key=None):
     return "<div class='cloudstat'>💳 <b>" + t("Ollama credit") + "</b><br>" + "<br>".join(html.escape(p) for p in parts) + "</div>"
 
 
+_credit = {"at": 0, "key": "", "usd": None}
+
+
+def credit_left():
+    """Dollars left on the Ollama account (included in the plan + bought), or None without an API key.
+    Asked at most once a minute: Ollama allows 10 requests a minute."""
+    import requests
+    key = (providers.settings()["keys"].get("ollama") or "").strip()
+    if not key:
+        return None
+    if key == _credit["key"] and time.time() - _credit["at"] < 60:
+        return _credit["usd"]
+    usd = None
+    try:
+        r = requests.get("https://ollama.com/api/balance", headers={"Authorization": f"Bearer {key}"}, timeout=8)
+        if r.ok:
+            data = r.json()
+            inc, bought = data.get("included") or {}, (data.get("purchased") or {}).get("balance_usd")
+            if "balance_usd" in inc or bought is not None:
+                usd = float(inc.get("balance_usd") or 0) + float(bought or 0)
+    except Exception:
+        pass
+    _credit.update(at=time.time(), key=key, usd=usd)
+    return usd
+
+
 def save_ollama_key(key):
     if key and key.strip():
         providers.set_key("ollama", key)
@@ -344,13 +373,10 @@ def _tool_models(order, limit):
     return names[:limit]
 
 
-ALWAYS_LOCAL = ["phi4-mini"]  # listed even when it is not among the most popular or newest
-
-
 def local_catalog():
     """Models on ollama.com that can use tools, in the versions that fit this computer's memory, most capable first."""
     try:
-        names = list(dict.fromkeys(_tool_models("popular", 30) + _tool_models("newest", 12) + ALWAYS_LOCAL))
+        names = list(dict.fromkeys(_tool_models("popular", 30) + _tool_models("newest", 12)))
         with ThreadPoolExecutor(8) as pool:
             tags = [t for ts in pool.map(lambda n: _try(_model_tags, n), names) for t in ts]
     except Exception:
@@ -1750,7 +1776,8 @@ body:not(#a):not(#b):not(#c) #deskpick label {padding: 2px 10px !important; bord
 body:not(#a):not(#b):not(#c) #deskpick label.selected, body:not(#a):not(#b):not(#c) #deskpick label:has(input:checked) {border-color: color-mix(in srgb, var(--brand) 55%, transparent) !important; background: color-mix(in srgb, var(--brand) 12%, transparent) !important; color: var(--brand)}
 body:not(#a):not(#b):not(#c) #deskpick input {display: none !important}
 body.narrow:not(#a):not(#b) #deskpick {order: 0; flex: 1 1 100% !important}
-.cloudbadge .bcost {white-space: nowrap}
+.cloudbadge .bcost, .cloudbadge .bcredit {white-space: nowrap}
+.cloudbadge .bcredit {cursor: help}
 .cloudbadge .bplace {cursor: help}
 .cloudbadge .bplace + span::before {content: " "}
 #fbtnwrap {flex: 0 0 auto !important; min-width: 0 !important; width: auto !important; align-self: center !important; padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important}
@@ -2941,6 +2968,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     chatbot.retry(retry, [cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, desk, *team], [chatbot, box, cid, convs, files])
     files.delete(delete_file, cid, files)
     gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
+    gr.Timer(60).tick(badge, model, cloudbadge, show_progress="hidden")  # the Ollama credit left goes down as you use cloud models
     feedback.click(None, model, None, js="(m) => { window.open(" + json.dumps(FEEDBACK) + " + '&model=' + encodeURIComponent(m || ''), '_blank') }")
     renbtn.click(rename_open, cid, renbox)
     pin_go.click(toggle_pin, cid, convs, show_progress="hidden")

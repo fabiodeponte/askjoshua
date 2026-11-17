@@ -498,5 +498,7 @@
  "Used for": "用途",
  "transcribing audio and video, on this computer": "在本机转写音频和视频",
  "The speech model was removed. It downloads again the next time you ask for a transcription.": "语音模型已删除。下次需要转写时会重新下载。",
- "Read & write files (text, Word, PDF)": "读写文件（文本、Word、PDF）"
+ "Read & write files (text, Word, PDF)": "读写文件（文本、Word、PDF）",
+ "{n} left": "剩余 {n}",
+ "What is left on your Ollama account: the credit included in your plan plus the credit you bought.": "你的 Ollama 账户剩余额度：套餐内含的额度加上你购买的额度。"
 }
