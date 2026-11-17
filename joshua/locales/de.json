@@ -500,5 +500,15 @@
  "The speech model was removed. It downloads again the next time you ask for a transcription.": "Das Sprachmodell wurde entfernt. Es wird beim nächsten Transkriptionswunsch erneut heruntergeladen.",
  "Read & write files (text, Word, PDF)": "Dateien lesen und schreiben (Text, Word, PDF)",
  "{n} left": "{n} übrig",
- "What is left on your Ollama account: the credit included in your plan plus the credit you bought.": "Was auf deinem Ollama-Konto übrig ist: das in deinem Tarif enthaltene Guthaben plus das gekaufte Guthaben."
+ "What is left on your Ollama account: the credit included in your plan plus the credit you bought.": "Was auf deinem Ollama-Konto übrig ist: das in deinem Tarif enthaltene Guthaben plus das gekaufte Guthaben.",
+ "A monitor needs the internet: turn off 'No internet for this task'.": "Eine Beobachtung braucht Internet: Schalte „Kein Internet für diese Aufgabe“ aus.",
+ "{n} new since the last check": "{n} Neuigkeiten seit der letzten Prüfung",
+ "last check {when}: {what}": "letzte Prüfung {when}: {what}",
+ "Couldn't read: {sites}": "Nicht lesbar: {sites}",
+ "It remembers what it already told you, checks your sites and feeds and searches the web. When there's nothing new, it stays silent.": "Sie merkt sich, was sie dir schon gemeldet hat, prüft deine Websites und Feeds und sucht im Web. Wenn es nichts Neues gibt, bleibt sie still.",
+ "Sites and RSS feeds to check, one per line (optional)": "Websites und RSS-Feeds zum Prüfen, einer pro Zeile (optional)",
+ "Not finished: the check found gaps (round {i} of {n})": "Nicht fertig: Die Prüfung hat Lücken gefunden (Runde {i} von {n})",
+ "{n} new": "{n} neu",
+ "nothing new": "nichts Neues",
+ "Monitor: report only what's new since the last run": "Beobachtung: nur melden, was seit dem letzten Lauf neu ist"
 }

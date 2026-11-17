@@ -5,7 +5,7 @@ import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, su
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, desks, providers, ranking, remote, tune_ui
+import agent, apple, browser, desks, factcheck, monitor, providers, ranking, remote, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -27,6 +27,7 @@ IMAGE_RULE = " When the user asks to change, combine or add to photos they share
 SYSTEM = "You are Joshua, an AI assistant running on the user's computer; you have no job or personal life of your own. Today is {now}." + IMAGE_RULE + " Results returned by your tools are real and current. For any factual question (figures, people, events, prices, anything that may change), always use web_search before answering; never answer such questions from memory. Search snippets are often incomplete: if they don't clearly contain the answer, open the most relevant result with read_page before answering, and never fill gaps with guesses. Always address the user directly, in the second person, in the user's language. Files the user shares are in your workspace folder."
 GOAL_RULES = " You are in goal mode: the user gives you a goal to accomplish, not a question. Work step by step with your tools until the goal is fully achieved, and check your own results (for example, read back files you wrote). Do not ask the user questions; make reasonable assumptions. When the goal is achieved and verified, call goal_done with a short summary. Only if it is truly impossible with your tools, call give_up with the reason."
 WRAP = "That's enough research: stop using tools now and write your complete final answer for me with what you have, saying what you couldn't check."
+CHECK_GAPS = "Not done yet: checking your fact-check table found these gaps:\n{gaps}\nFix them (search and open sources as needed), then write the complete table again and call goal_done."
 NUDGE = "The goal is not marked as done yet. Review what you have done so far, fix anything missing or wrong, and continue working. Call goal_done only when the goal is fully achieved and verified."
 
 
@@ -805,7 +806,7 @@ def starters_html(desk_id):
     d = desks.get(desk_id)
     if not d:
         return ""
-    cards = "".join("<button class='starter' data-prompt='" + html.escape(desks.text(s["prompt"], i18n.LANG), quote=True) + "'><span class='sicon'>" + s.get("icon", "")
+    cards = "".join("<button class='starter' data-prompt='" + html.escape(desks.text(s["prompt"], i18n.LANG), quote=True) + "'" + (" data-goal='1'" if s.get("goal") else "") + "><span class='sicon'>" + s.get("icon", "")
                     + "</span>" + html.escape(desks.text(s["title"], i18n.LANG)) + "</button>" for s in d.get("starters", []))
     return "<div class='starters'>" + cards + "</div>"
 
@@ -1247,7 +1248,9 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     toolset = dict(base, goal_done=goal_done, give_up=give_up) if goal else base
     rounds = int(rounds) if goal else 0 if swarm else 1
     language = agent.LANGUAGES.get(conv.get("lang"))
-    evidence = None
+    evidence = asked = None
+    role = conv.pop("agent", None) or {}  # a monitor's run: what to search for, and what its sites and feeds said
+    checking = goal and conv.get("opts", {}).get("desk") == "journalism" and factcheck.asked(user_text)  # the fact checker
     try:
         if not offline and user_text and "web_search" not in off:
             box = {"role": "assistant", "content": "", "metadata": {"title": "🔎 " + t("Looking online…"), "status": "done"}}
@@ -1257,7 +1260,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
                     shown.append(box)
                 job.publish(shown)
 
-            evidence = research(user_text, msgs, model, language, conv.get("region", "wt-wt"), box, show)
+            evidence = research(role.get("query") or user_text, msgs, model, language, conv.get("region", "wt-wt"), box, show)
             box["metadata"] = {"title": "🔎 " + t("Sources from the web"), "status": "done"}
             if evidence:
                 asked, original = msgs[-1], msgs[-1]["content"]
@@ -1265,6 +1268,8 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
             elif any(b is box for b in shown):
                 shown.remove(box)
             job.publish(shown)
+        if role.get("evidence"):  # the items read in a monitor's sites and feeds count as sources for the fact check
+            evidence = (evidence + "\n\n" if evidence else "") + role["evidence"]
         first = 1
         if swarm:  # the team works first; in goal mode Joshua then keeps going, round after round, until the goal is done
             called = run_swarm(job, cid, conv, model, thinking, int(swarm), pool, net, timeout, base, toolset, goal)
@@ -1286,6 +1291,12 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
             if job.stop.is_set():
                 shown.append({"role": "assistant", "content": t("You stopped this task. Send a message to continue."), "metadata": {"title": "⏹ " + t("Stopped"), "status": "done"}})
                 break
+            missing = factcheck.gaps((last_answer(shown) or {}).get("content", ""), user_text) if checking and "goal_done" in called else []
+            if missing and r < rounds:  # Joshua said it's done, but the table doesn't pass the check: one more round, with what's missing
+                shown.append({"role": "assistant", "content": "\n".join("- " + m for m in missing), "metadata": {"title": "🔁 " + t("Not finished: the check found gaps (round {i} of {n})", i=r + 1, n=rounds), "status": "done"}})
+                msgs.append({"role": "user", "content": CHECK_GAPS.format(gaps="\n".join("- " + m for m in missing))})
+                job.publish(shown)
+                continue
             if not goal or {"goal_done", "give_up"} & set(called):
                 break
             if r == rounds:
@@ -1302,7 +1313,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
             refs = [f"[{n}] [{t.strip()[:80]}]({u})" for n, t, u in re.findall(r"^\[(\d+)\] (.*)\n(https?://\S+)", evidence, re.M) if n in cited]
             if refs:
                 final["content"] += "\n\n**" + t("Sources") + "**  \n" + "  \n".join(refs)
-        if evidence:
+        if evidence and asked:
             asked["content"] = original + "\n\n(Web sources consulted: " + ", ".join(re.findall(r"^https?://\S+", evidence, re.M)) + ")"
     except Exception as e:
         text = str(e)
@@ -2093,6 +2104,8 @@ main.contain > .column > .row {height: 100%; flex-wrap: nowrap !important; align
 #chatcol {display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important}
 #chatcol textarea {min-height: calc(1lh + 8px) !important}  /* Gradio measures the box by shrinking it to 1px for an instant: in Safari the chat jumps; this keeps it from shrinking */
 #tune, #schedpanel, #modelspage {overflow-y: auto !important}
+#schedpanel {flex-wrap: nowrap !important}  /* a tall form scrolls down instead of wrapping into a second column off to the right */
+#schedpanel > * {flex-shrink: 0 !important}
 #modelspage {flex-wrap: nowrap !important}  /* a tall column must scroll, not wrap into new columns to the right */
 #modelspage > * {flex-shrink: 0 !important}
 #modelspage h2.msec {margin: 0; font-size: 1.5rem; color: var(--cyan); letter-spacing: .04em}
@@ -2239,7 +2252,10 @@ body.narrow:not(#a):not(#b):not(#c) #promptrow textarea::placeholder {white-spac
 body.narrow:not(#a):not(#b):not(#c) #modelrow {padding: 4px 2px 2px !important; gap: 4px 6px !important; row-gap: 4px !important; flex-wrap: wrap !important; align-items: center !important}
 body.narrow:not(#a):not(#b):not(#c) #modelrow > * {margin: 0 !important}
 body.narrow:not(#a):not(#b):not(#c) #deskpick {order: 0; flex: 0 0 auto !important}
-body.narrow:not(#a):not(#b):not(#c) #deskpick .wrap {gap: 3px !important}
+body.narrow:not(#a):not(#b):not(#c) #deskpick {flex: 1 1 100% !important; max-width: 100% !important; min-width: 0 !important}
+body.narrow:not(#a):not(#b):not(#c) #deskpick .wrap {gap: 3px !important; flex-wrap: nowrap !important; overflow-x: auto !important; scrollbar-width: none; -webkit-overflow-scrolling: touch}
+body.narrow:not(#a):not(#b):not(#c) #deskpick .wrap::-webkit-scrollbar {display: none}
+body.narrow:not(#a):not(#b):not(#c) #deskpick label {flex: 0 0 auto !important}
 body.narrow:not(#a):not(#b):not(#c) #deskpick label {padding: 1px 6px !important; font-size: .74rem !important}
 body.narrow:not(#a):not(#b):not(#c) #modelrow > .form:has(.modeopt) {order: 0; flex: 0 0 auto !important; gap: 3px !important}
 body.narrow:not(#a):not(#b):not(#c) #modelrow .modeopt {padding: 1px 6px !important}
@@ -2498,6 +2514,8 @@ def run_task(t):
     model = t.get("model") or default_model()
     if model not in [v for _, v in models()]:
         model = default_model()
+    if t.get("monitor"):
+        return run_monitor(t, model)
     cid = new_conv()  # named first: send() keeps an existing title
     conv = load(cid)
     conv["title"] = f"⏰ {t['name']} · {dt.datetime.now():%d/%m %H:%M}"
@@ -2512,6 +2530,41 @@ def run_task(t):
             text = re.sub(r"[*#`\[\]]", "", str(answer.get("content", tr("Done."))))[:180]
             notify(f"Joshua · {t['name']}", text or tr("Done."))
     threading.Thread(target=wait_and_notify, daemon=True).start()
+
+
+def run_monitor(task, model):
+    """A monitor's run: only what is new since the last run. Nothing new: no chat and no notification."""
+    st = monitor.state(task["name"])
+    seen, started = st["seen"], dt.datetime.now()
+    after = monitor.since(task, st)
+    items, failed = monitor.gather(task.get("sources") or [], set(seen), after)
+    cid = new_conv()
+    conv = load(cid)
+    conv["title"] = f"📡 {task['name']} · {started:%d/%m %H:%M}"
+    conv["agent"] = {"query": task["prompt"], "evidence": "\n\n".join(f"[{i['source']}] {i['title']}\n{i['link']}" for i in items)}
+    save(cid, conv)
+    send({"text": monitor.prompt(task, items, seen, after)}, cid, model, False, False, 10, True, 120, False, 0, True, False, share_memory_setting(), task.get("desk", ""))
+
+    def finish():
+        while busy(cid):
+            time.sleep(5)
+        answer = (last_answer(load(cid)["display"]) or {}).get("content", "")
+        fresh = monitor.new_links(answer, seen)
+        if not answer.strip():  # something went wrong: the chat stays, to show what
+            return
+        st.update(since=started.isoformat(timespec="seconds"), last=started.isoformat(timespec="seconds"), failed=failed)
+        if monitor.NOTHING in answer or not fresh:
+            st["result"] = 0
+            monitor.save(task["name"], st)
+            JOBS.pop(cid, None)
+            shutil.rmtree(ROOT / cid, ignore_errors=True)  # nothing new: the run leaves no chat
+            return
+        n = sum(1 for line in answer.splitlines() if re.match(r"\s*([-*•]|\d+[.)])\s", line) and "http" in line) or len(fresh)
+        st["seen"], st["result"] = seen + fresh, n
+        monitor.save(task["name"], st)
+        if task.get("notify", True):
+            notify(f"Joshua · {task['name']}", tr("{n} new since the last check", n=n))
+    threading.Thread(target=finish, daemon=True).start()
 
 
 def scheduler():
@@ -2550,7 +2603,14 @@ def tasks_view():
         nxt = due_time(task) if task.get("on", True) else None
         last = " · " + t("last run {when}", when=f"{dt.datetime.fromisoformat(task['last_run']):%d/%m %H:%M}") if task.get("last_run") else ""
         state = (t("next: {when}", when=f"{t(DAYS[nxt.weekday()])} {nxt:%d/%m %H:%M}") if nxt else t("finished") if task["when"] == "once" else t("paused"))
-        rows.append(f"<div class='task'><b>{html.escape(task['name'])}</b><br>{describe(task)}<br><span>{state}{last}</span>"
+        if task.get("monitor"):
+            st = monitor.state(task["name"])
+            if st.get("last"):
+                found = st.get("result", 0)
+                last = " · " + t("last check {when}: {what}", when=f"{dt.datetime.fromisoformat(st['last']):%d/%m %H:%M}", what=t("{n} new", n=found) if found else t("nothing new"))
+            if st.get("failed"):
+                last += "<br>⚠ " + t("Couldn't read: {sites}", sites=html.escape(", ".join(st["failed"])))
+        rows.append(f"<div class='task'><b>{'📡 ' if task.get('monitor') else ''}{html.escape(task['name'])}</b><br>{describe(task)}<br><span>{state}{last}</span>"
                     + f"<div class='taskp'>{html.escape(task['prompt'][:160])}</div></div>")
     names = [task["name"] for task in tasks_load()]
     warn = "<div class='cloudstat'>" + t("⚠ Keep Joshua open and the computer awake at those times.") + "</div>" if rows else ""
@@ -2562,7 +2622,7 @@ def pause_label(name):
     return gr.Button(t("Resume") if task and not task.get("on", True) else t("Pause"))
 
 
-def task_add(name, prompt, when, date, at, days, every, offline, notify_on, model):
+def task_add(name, prompt, when, date, at, days, every, offline, notify_on, model, watch=False, sources=""):
     name, prompt = (name or "").strip(), (prompt or "").strip()
     if not name or not prompt:
         gr.Warning(t("Give the task a name and write what Joshua should do."))
@@ -2580,11 +2640,15 @@ def task_add(name, prompt, when, date, at, days, every, offline, notify_on, mode
         except ValueError:
             gr.Warning(t("Write the date as YYYY-MM-DD, for example 2026-11-20."))
             return gr.skip(), gr.skip(), gr.skip()
+    if watch and offline:
+        gr.Warning(t("A monitor needs the internet: turn off 'No internet for this task'."))
+        return gr.skip(), gr.skip(), gr.skip()
     if kind == "weekly" and not days:
         gr.Warning(t("Pick at least one day."))
         return gr.skip(), gr.skip(), gr.skip()
     task = {"name": name, "prompt": prompt, "when": kind, "date": date, "time": at, "days": days, "every": int(every),
             "offline": bool(offline), "notify": bool(notify_on), "model": model or None,
+            "monitor": bool(watch), "sources": [u.strip() for u in (sources or "").split() if u.strip().startswith(("http://", "https://"))],
             "created": dt.datetime.now().isoformat(timespec="seconds"), "on": True}
     with SCHED_LOCK:
         tasks = [t for t in tasks_load() if t["name"] != name]  # same name: replaced
@@ -2597,10 +2661,10 @@ def task_fill(name):
     """Puts a task's settings in the form, so it can be changed and saved again."""
     t = next((t for t in tasks_load() if t["name"] == name), None)
     if not t:
-        return (gr.skip(),) * 10
+        return (gr.skip(),) * 12
     when = t["when"]
     return (t["name"], t["prompt"], when, t.get("date") or time.strftime("%Y-%m-%d"), t.get("time", "07:30"), t.get("days", []), t.get("every", 6),
-            t.get("offline", False), t.get("notify", True), t.get("model") or default_model())
+            t.get("offline", False), t.get("notify", True), t.get("model") or default_model(), t.get("monitor", False), gr.Textbox(value="\n".join(t.get("sources", [])), visible=t.get("monitor", False)))
 
 
 def task_action(name, action):
@@ -2612,6 +2676,7 @@ def task_action(name, action):
         t = next((t for t in tasks if t["name"] == name), None)
         if t and action == "delete":
             tasks.remove(t)
+            monitor.forget(name)  # a monitor's memory of what it reported goes with it
         elif t and action == "pause":
             t["on"] = not t.get("on", True)
             if t["on"]:  # resuming: count from now, so it doesn't fire for the paused period
@@ -2771,6 +2836,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     gr.HTML("<div class='schedsub'>" + t("NEW TASK, OR CHANGE ONE") + "</div>")
                     t_name = gr.Textbox(label=t("Name"), placeholder=t("Morning news"), max_lines=1)
                     t_prompt = gr.Textbox(label=t("What Joshua should do"), lines=5, placeholder=t("Find the three most important news stories in Piedmont today and summarise each in two lines, with sources."))
+                    t_watch = gr.Checkbox(False, label="📡 " + t("Monitor: report only what's new since the last run"), info=t("It remembers what it already told you, checks your sites and feeds and searches the web. When there's nothing new, it stays silent."))
+                    t_sources = gr.Textbox(label=t("Sites and RSS feeds to check, one per line (optional)"), lines=3, placeholder="https://www.ansa.it/sito/ansait_rss.xml\nhttps://www.reuters.com/world/", visible=False)
                     t_when = gr.Radio([(t("Once"), "once"), (t("Every day"), "daily"), (t("On some days"), "weekly"), (t("Every few hours"), "hours")], value="daily", label=t("When"))
                     with gr.Row():
                         t_date = gr.Textbox(label=t("Date (YYYY-MM-DD)"), value=time.strftime("%Y-%m-%d"), max_lines=1, visible=False)
@@ -2895,9 +2962,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     o_key.submit(save_ollama_key, o_key, [o_key, credit])
     sched.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), gr.Dropdown(choices=models())), outputs=[sched_panel, chatcol, rightcol, tune_panel, t_model]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tasks_view, outputs=[task_list, t_pick, t_controls])
     sched_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Radio(choices=conv_choices())), outputs=[sched_panel, chatcol, rightcol, convs])
-    t_pick.input(task_fill, t_pick, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model]).then(pause_label, t_pick, t_pause)
+    t_watch.change(lambda w: gr.Textbox(visible=w), t_watch, t_sources)
+    t_pick.input(task_fill, t_pick, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model, t_watch, t_sources]).then(pause_label, t_pick, t_pause)
     t_when.change(lambda w: (gr.Textbox(visible=w == "once"), gr.Textbox(visible=w != "hours"), gr.CheckboxGroup(visible=w == "weekly"), gr.Slider(visible=w == "hours")), t_when, [t_date, t_time, t_days, t_every])
-    t_add.click(task_add, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model], [task_list, t_pick, t_controls])
+    t_add.click(task_add, [t_name, t_prompt, t_when, t_date, t_time, t_days, t_every, t_offline, t_notify, t_model, t_watch, t_sources], [task_list, t_pick, t_controls])
     t_run.click(lambda n: task_action(n, "run"), t_pick, [task_list, t_pick, t_controls])
     t_pause.click(lambda n: task_action(n, "pause"), t_pick, [task_list, t_pick, t_controls])
     t_del.click(lambda n: task_action(n, "delete"), t_pick, [task_list, t_pick, t_controls], js="(n) => (n && confirm(" + JS_TEXT(t("Delete '{name}'? It won't run again.")) + ".replace('{name}', n))) ? n : null")
@@ -3053,7 +3121,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         document.addEventListener('click', (e) => {
           if (e.target.closest('.fbtn')) { document.body.dataset.files = document.body.dataset.files ? '' : 'open'; return; }  // the folder left of the message box
           const sc = e.target.closest('button.starter');  // a desk's starter card: its prompt goes in the message box, ready to finish
-          if (sc) { const ta = document.querySelector('#promptrow textarea'); ta.value = sc.dataset.prompt; ta.dispatchEvent(new Event('input', {bubbles: true})); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); return; }
+          if (sc) { const g = document.querySelector('#o_goal input'); if (sc.dataset.goal && g && !g.checked) g.click();  // an agent's card (the fact checker) also turns on goal mode
+            const ta = document.querySelector('#promptrow textarea'); ta.value = sc.dataset.prompt; ta.dispatchEvent(new Event('input', {bubbles: true})); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); return; }
           const d = e.target.closest('.cmore');
           if (!d) { if (!e.target.closest('#cmenu')) close(); return; }
           if (d.classList.contains('cur')) { e.preventDefault(); open(d, !!document.querySelector('#convs label.selected')); return; }

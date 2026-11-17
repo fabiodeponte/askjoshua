@@ -500,5 +500,15 @@
  "The speech model was removed. It downloads again the next time you ask for a transcription.": "Model mowy został usunięty. Pobierze się ponownie przy następnej prośbie o transkrypcję.",
  "Read & write files (text, Word, PDF)": "Czytanie i zapisywanie plików (tekst, Word, PDF)",
  "{n} left": "zostało {n}",
- "What is left on your Ollama account: the credit included in your plan plus the credit you bought.": "Ile zostało na Twoim koncie Ollama: kredyt wliczony w Twój plan plus kredyt, który kupiłeś."
+ "What is left on your Ollama account: the credit included in your plan plus the credit you bought.": "Ile zostało na Twoim koncie Ollama: kredyt wliczony w Twój plan plus kredyt, który kupiłeś.",
+ "A monitor needs the internet: turn off 'No internet for this task'.": "Monitorowanie potrzebuje internetu: wyłącz „Bez internetu dla tego zadania”.",
+ "{n} new since the last check": "{n} nowości od ostatniego sprawdzenia",
+ "last check {when}: {what}": "ostatnie sprawdzenie {when}: {what}",
+ "Couldn't read: {sites}": "Nie udało się odczytać: {sites}",
+ "It remembers what it already told you, checks your sites and feeds and searches the web. When there's nothing new, it stays silent.": "Pamięta, co już ci przekazało, sprawdza twoje strony i kanały oraz szuka w sieci. Gdy nie ma nic nowego, milczy.",
+ "Sites and RSS feeds to check, one per line (optional)": "Strony i kanały RSS do sprawdzania, po jednym w wierszu (opcjonalnie)",
+ "Not finished: the check found gaps (round {i} of {n})": "Nie skończone: kontrola znalazła braki (runda {i} z {n})",
+ "{n} new": "{n} nowe",
+ "nothing new": "nic nowego",
+ "Monitor: report only what's new since the last run": "Monitorowanie: zgłaszaj tylko to, co nowe od ostatniego razu"
 }

@@ -500,5 +500,15 @@
  "The speech model was removed. It downloads again the next time you ask for a transcription.": "语音模型已删除。下次需要转写时会重新下载。",
  "Read & write files (text, Word, PDF)": "读写文件（文本、Word、PDF）",
  "{n} left": "剩余 {n}",
- "What is left on your Ollama account: the credit included in your plan plus the credit you bought.": "你的 Ollama 账户剩余额度：套餐内含的额度加上你购买的额度。"
+ "What is left on your Ollama account: the credit included in your plan plus the credit you bought.": "你的 Ollama 账户剩余额度：套餐内含的额度加上你购买的额度。",
+ "A monitor needs the internet: turn off 'No internet for this task'.": "监测需要联网：请关闭“此任务不联网”。",
+ "{n} new since the last check": "自上次检查以来有 {n} 条新内容",
+ "last check {when}: {what}": "上次检查 {when}：{what}",
+ "Couldn't read: {sites}": "无法读取：{sites}",
+ "It remembers what it already told you, checks your sites and feeds and searches the web. When there's nothing new, it stays silent.": "它会记住已经告诉过你的内容，查看你的网站和订阅源，并在网上搜索。没有新内容时，它保持安静。",
+ "Sites and RSS feeds to check, one per line (optional)": "要查看的网站和 RSS 订阅源，每行一个（可选）",
+ "Not finished: the check found gaps (round {i} of {n})": "未完成：检查发现了缺漏（第 {i} 轮，共 {n} 轮）",
+ "{n} new": "{n} 条新内容",
+ "nothing new": "没有新内容",
+ "Monitor: report only what's new since the last run": "监测：只报告自上次运行以来的新内容"
 }
