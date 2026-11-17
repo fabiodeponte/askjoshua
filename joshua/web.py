@@ -344,10 +344,13 @@ def _tool_models(order, limit):
     return names[:limit]
 
 
+ALWAYS_LOCAL = ["phi4-mini"]  # listed even when it is not among the most popular or newest
+
+
 def local_catalog():
     """Models on ollama.com that can use tools, in the versions that fit this computer's memory, most capable first."""
     try:
-        names = list(dict.fromkeys(_tool_models("popular", 30) + _tool_models("newest", 12)))
+        names = list(dict.fromkeys(_tool_models("popular", 30) + _tool_models("newest", 12) + ALWAYS_LOCAL))
         with ThreadPoolExecutor(8) as pool:
             tags = [t for ts in pool.map(lambda n: _try(_model_tags, n), names) for t in ts]
     except Exception:
@@ -2151,7 +2154,7 @@ body.narrow:not(#a):not(#b) #chat .message-wrap {padding-left: 4px !important; p
 body.narrow:not(#a):not(#b) #chat .bubble-wrap {padding: 10px 6px !important}
 body.narrow:not(#a):not(#b) #chat .placeholder h3, body.narrow:not(#a):not(#b) #chat .placeholder-content h3 {font-size: 1.5rem !important; line-height: 1.25 !important}
 body.narrow:not(#a):not(#b) #promptrow {gap: 6px !important; flex-wrap: nowrap !important}
-body.narrow:not(#a):not(#b) #promptrow > .block:first-child, body.narrow:not(#a):not(#b) #promptrow > div:first-child {min-width: 0 !important; flex: 1 1 auto !important}
+body.narrow:not(#a):not(#b) #promptrow > .form {min-width: 0 !important; flex: 1 1 auto !important}
 body.narrow:not(#a):not(#b) #stop {min-width: 0 !important; flex: 0 0 auto !important; padding: 0 10px !important}
 body.narrow:not(#a):not(#b) #modelrow {flex-wrap: wrap !important; padding-right: 0 !important; margin-top: 0 !important; gap: 4px 10px !important; row-gap: 2px !important}
 body.narrow:not(#a):not(#b) #modelrow > #working {flex: 1 1 100% !important}
@@ -2197,6 +2200,35 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+/* ---------- phone: the message box and the switches under it take two short lines, not half the screen ---------- */
+body.narrow:not(#a):not(#b):not(#c) #promptrow {padding: 0 !important; gap: 4px !important; align-items: center !important}
+body.narrow:not(#a):not(#b):not(#c) #fbtnwrap {flex: 0 0 auto !important; width: auto !important; background: transparent !important; border: none !important; box-shadow: none !important}
+body.narrow:not(#a):not(#b):not(#c) button.fbtn {width: 32px; height: 32px}
+body.narrow:not(#a):not(#b):not(#c) #promptrow .multimodal-textbox {border-radius: 18px !important}
+body.narrow:not(#a):not(#b):not(#c) #promptrow .input-container {padding: 2px 4px !important; min-height: 0 !important}
+body.narrow:not(#a):not(#b):not(#c) #promptrow textarea {font-size: 16px !important; line-height: 1.35 !important; padding-top: 6px !important; padding-bottom: 6px !important}
+body.narrow:not(#a):not(#b):not(#c) #promptrow textarea::placeholder {white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
+body.narrow:not(#a):not(#b):not(#c) #modelrow {padding: 4px 2px 2px !important; gap: 4px 6px !important; row-gap: 4px !important; flex-wrap: wrap !important; align-items: center !important}
+body.narrow:not(#a):not(#b):not(#c) #modelrow > * {margin: 0 !important}
+body.narrow:not(#a):not(#b):not(#c) #deskpick {order: 0; flex: 0 0 auto !important}
+body.narrow:not(#a):not(#b):not(#c) #deskpick .wrap {gap: 3px !important}
+body.narrow:not(#a):not(#b):not(#c) #deskpick label {padding: 1px 6px !important; font-size: .74rem !important}
+body.narrow:not(#a):not(#b):not(#c) #modelrow > .form:has(.modeopt) {order: 0; flex: 0 0 auto !important; gap: 3px !important}
+body.narrow:not(#a):not(#b):not(#c) #modelrow .modeopt {padding: 1px 6px !important}
+body.narrow:not(#a):not(#b):not(#c) #modelrow .modeopt label, body.narrow:not(#a):not(#b):not(#c) #modelrow .modeopt label span {font-size: .74rem !important}
+body.narrow:not(#a):not(#b):not(#c) #modelrow > #model {order: 1; flex: 0 1 auto !important; min-width: 0 !important; width: auto !important; max-width: 48vw}
+body.narrow:not(#a):not(#b):not(#c) #modelrow #model input {font-size: .8rem !important}
+body.narrow:not(#a):not(#b):not(#c) #modelrow > #cloudbadge {order: 2; flex: 1 1 0 !important; min-width: 0 !important; text-align: left}
+body.narrow:not(#a):not(#b):not(#c) #cloudbadge .html-container, body.narrow:not(#a):not(#b):not(#c) #working .html-container {padding: 0 !important}
+body.narrow:not(#a):not(#b):not(#c) #cloudbadge .cloudbadge {font-size: .72rem !important; padding: 0 !important; white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis}
+body.narrow:not(#a):not(#b):not(#c) #modelrow > #working {order: 3; flex: 0 0 auto !important; font-size: .72rem}
+body.narrow:not(#a):not(#b):not(#c) #chatcol {padding-left: 6px !important; padding-right: 6px !important}
+body.narrow:not(#a):not(#b):not(#c) #chatcol > .row, body.narrow:not(#a):not(#b):not(#c) #chatcol .row:has(> #chatcol) {padding-left: 0 !important; padding-right: 0 !important}
+body.narrow:not(#a):not(#b):not(#c) .row:has(> #chatcol) {padding: 0 !important}
+body.narrow:not(#a):not(#b):not(#c) #promptrow .full-container {padding: 4px 6px !important}
+body.narrow:not(#a):not(#b):not(#c) #starters .starters {gap: 5px; margin-bottom: 6px}
+body.narrow:not(#a):not(#b):not(#c) button.starter {padding: 5px 10px; font-size: .8rem; border-radius: 10px}
+body.narrow:not(#a):not(#b):not(#c) #modelrow > #working:not(:has(.prose *)):not(:has(.prose:not(:empty))) {display: none !important}
 body[data-screen^="modern"]:not(#a):not(#b) .side .label-wrap .icon {transform: scale(.65); opacity: .4}
 body[data-screen^="modern"]:not(#a):not(#b) .side .label-wrap:hover .icon {opacity: .8}
 body[data-screen^="modern"]:not(#a):not(#b) #filebtns button {background: transparent !important; border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent) !important; border-radius: 10px !important; box-shadow: none !important}
