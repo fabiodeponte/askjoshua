@@ -1277,6 +1277,20 @@ Does the USER message reveal lasting facts worth knowing in future chats: who th
 Reply with JSON only, like {{"save": [{{"topic": "profile", "fact": "<one short fact, in the user's language>"}}]}}. Use topic "profile" for personal facts and preferences, or a short lowercase topic name for a specific project. Reply {{"save": []}} if there is nothing to save."""
 
 
+def notes_model(model):
+    """Who writes the memory notes after a cloud answer: the fast local model if it's installed, else the smallest
+    local model you have (the quickest), else the cloud model itself. (Before, it was always the fast model named in
+    config.json, and when that model wasn't installed, no note was ever written.)"""
+    try:
+        local = {m.model: m.size or 0 for m in ollama.list().models if not is_cloud(m.model)}
+    except Exception:
+        local = {}
+    for name in (FAST, MODEL):
+        if name in local:
+            return name
+    return min(local, key=local.get) if local else model
+
+
 def extract_memory(model, user, answer):
     try:
         notes = "\n\n".join(f"## {t}\n{agent.read_memory(t)}" for t in agent.memory_topics()) or "(empty)"
@@ -1285,8 +1299,8 @@ def extract_memory(model, user, answer):
         for item in json.loads(split_think(r.message.content)[0]).get("save", [])[:5]:
             if isinstance(item, dict) and str(item.get("fact", "")).strip():
                 agent.remember(str(item["fact"]), str(item.get("topic") or "profile"))
-    except Exception:
-        pass
+    except Exception as e:
+        print("memory notes:", model, e)  # in joshua.log, so a failure can be seen
 
 
 def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0, pool=(), mem=True, user_text="", offline=False, private=False):
@@ -1409,10 +1423,10 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
             print("queued message failed:", e)
     if mem and learn_setting() and user_text and not job.stop.is_set():
         answer = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant" and m.get("content")), "")
-        # memory notes are always written by a model on this computer, even after a cloud answer
-        local = FAST if is_cloud(model) else resolve(conv.get("model") or model, False) if conv.get("model") == PAIR else model
-        if not is_cloud(local) or share_memory_setting():  # cloud-only installs: learn only if you let cloud models see your notes
-            extract_memory(local, user_text, answer)
+        # memory notes are written by a model on this computer when there is one, even after a cloud answer
+        writer = notes_model(model) if is_cloud(model) else resolve(conv.get("model") or model, False) if conv.get("model") == PAIR else model
+        if writer and (not is_cloud(writer) or share_memory_setting()):  # no local model: learn only if you let cloud models see your notes
+            extract_memory(writer, user_text, answer)
 
 
 def busy(cid):
