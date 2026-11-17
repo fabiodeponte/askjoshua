@@ -2424,6 +2424,9 @@ body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat .code_wrap:ha
 #chatcol:has(#starters .wopr) #chat .placeholder {visibility: hidden !important}  /* WOPR's greeting replaces Joshua's */
 body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr-in {display: flex; align-items: center; gap: 0; margin-top: 10px; font-family: 'VT323', 'Menlo', 'Courier New', ui-monospace, monospace !important}
 body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr-in input {flex: 1; background: transparent !important; border: none !important; outline: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; color: #7dff8a !important; caret-color: #7dff8a; font-family: inherit !important; font-size: 1.2rem !important; text-transform: uppercase; min-width: 0}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat pre:has(> code.language-wopr), body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr {position: relative !important}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr-voice {position: absolute !important; bottom: 12px; right: 12px; background: transparent !important; border: 1px solid rgba(125, 255, 138, .5) !important; color: #7dff8a !important; font-family: 'VT323', 'Menlo', monospace !important; font-size: .85rem !important; line-height: 1 !important; padding: 4px 7px !important; border-radius: 4px !important; cursor: pointer; letter-spacing: .05em; box-shadow: none !important; min-height: 0 !important; opacity: .75}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr-voice:hover {opacity: 1; background: rgba(125, 255, 138, .12) !important}
 .wcur {animation: wblink 1s steps(1) infinite} @keyframes wblink {50% {opacity: 0}}
 /* ---------- the side column: chats and menu items closer together ---------- */
 body[data-screen^="modern"]:not(#a):not(#b):not(#c) #convs label {padding: .28rem .7rem !important}
@@ -3375,23 +3378,48 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           const already = d.closest('label').classList.contains('selected');  // the click also opens the chat; its settings arrive a moment later
           setTimeout(() => open(d, true), already ? 0 : 700); }, true);
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); }); }""")
-    demo.load(None, None, None, js="""() => {  // Prof Falken: you type in WOPR's own screen, at a > prompt under the latest one; Enter sends it
+    demo.load(None, None, None, js="""() => {  // Prof Falken: you type in WOPR's own screen, at a > prompt under the latest one; Enter sends it.
+        // WOPR can also speak (🔊, off by default): only its words, never boards, mazes or lists, with the browser's own voice.
+        const synth = window.speechSynthesis;
+        const voiceOn = () => { try { return localStorage.getItem('joshua-wopr-voice') === '1' } catch (e) { return false } };
+        const pickVoice = () => { const vs = synth ? synth.getVoices() : []; for (const n of ['Fred', 'Zarvox', 'Ralph', 'Albert', 'Microsoft David', 'Google US English'])
+          { const v = vs.find(x => x.name.startsWith(n)); if (v) return v; } return vs.find(x => x.lang && x.lang.startsWith('en')) || null; };
+        const words = (txt) => txt.split(/\\n\\s*\\n/).map(par => par.split('\\n').map(l => l.trim()).filter(l => l && !l.startsWith('>')
+            && !/[|]|\\+-|---|^[+\\s-]+$|^\\d+[.:]\\s|^[1-8]\\s{2}|^a b c|^STRATEGY|^GAME \\d|^YOU:|^DEALER:|^\\.+$|SCORE:|VOICE (ON|OFF)/.test(l)).join(' '))
+          .filter(Boolean).join('. ').replace(/[@_]|\\(([A-Z])(\\/[A-Z])?\\)/g, '').replace(/\\.\\.+/g, '.').replace(/\\s+\\./g, '.').replace(/([.?!:])\\./g, '$1').toLowerCase();
+        const say = (txt) => { if (!synth || !voiceOn()) return; const w = words(txt); if (!w) return; synth.cancel();
+          const u = new SpeechSynthesisUtterance(w); const v = pickVoice(); if (v) u.voice = v; u.rate = 0.9; u.pitch = 0.7; u.lang = 'en-US'; synth.speak(u); };
+        let armed = false, lastGreet = null, lastSaid = '';
         const attach = () => {
           const blocks = document.querySelectorAll('#chat code.language-wopr'), last = blocks[blocks.length - 1];
           const greet = document.querySelector('#starters .wopr'), host = last ? last.parentElement : (greet && greet.offsetParent ? greet : null);
-          document.querySelectorAll('.wopr-in').forEach(i => { if (!host || !host.contains(i)) i.remove(); });
-          if (!host || host.querySelector('.wopr-in')) return;
+          document.querySelectorAll('.wopr-in, .wopr-voice').forEach(i => { if (!host || !host.contains(i)) i.remove(); });
+          if (!host) return;
+          const screen = last ? last.innerText : greet.innerText;
+          if (!last && greet !== lastGreet) { lastGreet = greet; say(screen); }  // the greeting, when the desk opens
+          else if (last && armed && screen !== lastSaid) { armed = false; say(screen); }  // WOPR's answer to what you typed
+          lastSaid = screen;
+          if (!host.querySelector('.wopr-voice')) {
+            const b = document.createElement('button'); b.className = 'wopr-voice'; b.type = 'button';
+            const show = () => { b.textContent = voiceOn() ? 'VOICE ON' : 'VOICE OFF'; b.title = voiceOn() ? 'WOPR speaks: click to mute' : 'Click to let WOPR speak'; };
+            show();
+            b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { localStorage.setItem('joshua-wopr-voice', voiceOn() ? '' : '1') } catch (x) {}
+              show(); if (voiceOn()) say(host.innerText); else if (synth) synth.cancel(); });
+            host.appendChild(b); }
+          if (host.querySelector('.wopr-in')) return;
           const line = document.createElement('div'); line.className = 'wopr-in';
           line.innerHTML = '<span>&gt;&nbsp;</span><input type="text" spellcheck="false" autocomplete="off" aria-label="WOPR">';
           host.appendChild(line);
           const inp = line.querySelector('input');
           inp.addEventListener('keydown', (e) => {
+            if (synth) synth.cancel();  // typing stops WOPR talking
             if (e.key !== 'Enter' || !inp.value.trim()) return;
             e.preventDefault(); e.stopPropagation();
             const ta = document.querySelector('#promptrow textarea'); ta.value = inp.value; ta.dispatchEvent(new Event('input', {bubbles: true}));
-            inp.value = '';
+            inp.value = ''; armed = true;
             setTimeout(() => { const b = document.querySelector('#promptrow button.submit-button'); if (b) b.click(); }, 120); });
           setTimeout(() => inp.focus(), 60); };
+        document.addEventListener('click', (e) => { if (e.target.closest('.wopr .wline')) armed = true; }, true);
         new MutationObserver(() => { clearTimeout(window.joshuaWopr); window.joshuaWopr = setTimeout(attach, 200); }).observe(document.body, {childList: true, subtree: true}); }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // a cost box closes when you click anywhere else; one open at a time
         document.querySelectorAll('details.mcost[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
