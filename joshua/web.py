@@ -2243,8 +2243,8 @@ body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !importan
 /* ---------- Paper: the look of a well-set document (like a PDF in macOS Preview) ----------
    Arial / Helvetica, near-black on white, a clear size step between headings and text, lines of 1.5,
    and tables drawn with thin grey rules and a pale header row. */
-body[data-screen="modern-paper"] {--bg: #f4f4f6; --bg-hi: #f4f4f6; --panel: #ffffff; --codebg: #f3f4f6; --line: rgba(0, 0, 0, .12); --cyan: #24665a; --glow: transparent; --ink: #111111; --dim: #6b6b70; --amber: #24665a; --red: #b3261e; --codeink: #111111; --shadow: none; --check: #24665a; --userbg: #eef0f3; --green: #24665a; --soft: rgba(0, 0, 0, .05)}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) {--side: #ececef}
+body[data-screen="modern-paper"] {--bg: #f6f4ef; --bg-hi: #f6f4ef; --panel: #fffdf9; --codebg: #f1eee7; --line: rgba(0, 0, 0, .12); --cyan: #24665a; --glow: transparent; --ink: #111111; --dim: #6b6b70; --amber: #24665a; --red: #b3261e; --codeink: #111111; --shadow: none; --check: #24665a; --userbg: #ebe7de; --green: #24665a; --soft: rgba(0, 0, 0, .05)}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) {--side: #efebe3}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container *:not(svg):not(path):not(code):not(pre):not(pre *):not(#brand):not(#brand *) {font-family: Arial, 'Helvetica Neue', Helvetica, 'Liberation Sans', sans-serif !important; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose * {font-size: 1.06rem !important; line-height: 1.5 !important; color: var(--ink)}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose * {opacity: 1 !important}  /* the answer in full black, not faded like the folded parts */
@@ -2259,16 +2259,15 @@ body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .pro
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(ul, ol) {padding-left: 1.5em !important; margin: .3em 0 .9em !important}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose li {margin: .25em 0 !important}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose ul > li {list-style: disc !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose table {border-collapse: collapse !important; width: 100% !important; margin: .7em 0 1.4em !important; border: 1px solid #d3d6db !important; display: table !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) {border: 1px solid #d3d6db !important; padding: .6em .85em !important; text-align: left !important; vertical-align: middle !important; background: #fff !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th * {background: #e8eaee !important; font-weight: 700 !important; color: #000 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose table {border-collapse: collapse !important; width: 100% !important; margin: .7em 0 1.4em !important; border: 1px solid #dbd5c9 !important; display: table !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) {border: 1px solid #dbd5c9 !important; padding: .6em .85em !important; text-align: left !important; vertical-align: middle !important; background: transparent !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th * {background: #ece7dd !important; font-weight: 700 !important; color: #000 !important}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) p {margin: 0 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose blockquote {border-left: 3px solid #d3d6db !important; padding-left: 1em !important; color: #333 !important; margin: .6em 0 1em !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose blockquote {border-left: 3px solid #dbd5c9 !important; padding-left: 1em !important; color: #333 !important; margin: .6em 0 1em !important}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose a {color: var(--cyan) !important}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-wrap {max-width: 56rem !important}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user * {font-size: 1.02rem !important; line-height: 1.45 !important; color: #111 !important}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .placeholder::before, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #schedtitle, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #tunetitle {font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important; font-weight: 700 !important; letter-spacing: -.015em !important; color: #000 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chatcol {background: #ffffff !important}
 #chat button.jcopied {color: var(--brand) !important; transform: scale(1.15); transition: transform .15s}
 /* ---------- phone: the message box and the switches under it take two short lines, not half the screen ---------- */
 body.narrow:not(#a):not(#b):not(#c) #promptrow {padding: 0 !important; gap: 4px !important; align-items: center !important}
