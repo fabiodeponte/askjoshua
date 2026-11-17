@@ -2200,6 +2200,7 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+#chat button.jcopied {color: var(--brand) !important; transform: scale(1.15); transition: transform .15s}
 /* ---------- phone: the message box and the switches under it take two short lines, not half the screen ---------- */
 body.narrow:not(#a):not(#b):not(#c) #promptrow {padding: 0 !important; gap: 4px !important; align-items: center !important}
 body.narrow:not(#a):not(#b):not(#c) #fbtnwrap {flex: 0 0 auto !important; width: auto !important; background: transparent !important; border: none !important; box-shadow: none !important}
@@ -3036,7 +3037,18 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('details.mcost[open]').forEach(d => d.open = false); }); }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('copy', (e) => {  // text selected in the chat is copied without the extra blank lines and spaces around it
         const s = getSelection(); if (!s.rangeCount || !s.anchorNode || !s.anchorNode.parentElement || !s.anchorNode.parentElement.closest('#chat')) return;
-        e.clipboardData.setData('text/plain', s.toString().replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim()); e.preventDefault(); }) }""")
+        e.clipboardData.setData('text/plain', s.toString().replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim()); e.preventDefault(); })
+      document.addEventListener('click', (e) => {  // the copy button under an answer copies only the answer: not the thinking, sources or fact check folded above and below it
+        const b = e.target.closest("#chat button[aria-label='Copy message']"); if (!b) return;
+        let row = b.closest('.message-buttons'); row = row && row.previousElementSibling;
+        while (row && !row.querySelector('.message')) row = row.previousElementSibling;
+        if (!row || !row.querySelector('.bot')) return;
+        const text = [...row.querySelectorAll('.message')].filter(m => !m.querySelector('.thought-group')).map(m => m.innerText.trim()).filter(Boolean).join('\\n\\n');
+        if (!text) return;
+        e.stopPropagation(); e.preventDefault();
+        const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        b.classList.add('jcopied'); setTimeout(() => b.classList.remove('jcopied'), 1200); }, true) }""")
     demo.load(None, None, screen, js="() => { let v = 'modern'; try { v = localStorage.getItem('joshua-screen2') || 'modern' } catch (e) {} document.body.dataset.screen = v; return v }")
     textsize.change(None, textsize, None, js="(v) => { document.documentElement.style.fontSize = (16 * v) + 'px'; try { localStorage.setItem('joshua-zoom', v) } catch (e) {} }")
     demo.load(None, None, textsize, js="() => { let v = '1'; try { v = localStorage.getItem('joshua-zoom') || '1' } catch (e) {} document.documentElement.style.fontSize = (16 * v) + 'px'; return v }")
