@@ -747,13 +747,30 @@ def new_conv():
     return cid
 
 
+def cap(s):
+    return s[:1].upper() + s[1:] if s else s
+
+
+TITLE = "Write a title of 3 to 6 words that sums up this conversation, in {language}. Only the title: no quotes, no emoji, no final full stop.\n\nUser: {user}\n\nAssistant: {answer}"
+
+
+def make_title(model, user, answer, language):
+    try:
+        r = ollama.chat(fast_of(model), messages=[{"role": "user", "content": TITLE.format(language=language or "the language of the user's message", user=user[:1500], answer=answer[:1500])}],
+                        options={"temperature": 0.2, "num_predict": 40}, **think_mode(model, False))
+        title = split_think(r.message.content or "")[0].strip().splitlines()[0].strip(" \"'“”«»*#.").strip()
+        return cap(title[:60]) if 2 <= len(title) else ""
+    except Exception:
+        return ""
+
+
 def conv_choices():
     convs = [(load(p.name), p.name) for p in ROOT.iterdir() if (p / "chat.json").exists()]
     order = sorted(convs, key=lambda x: (not x[0].get("pinned"), x[0].get("pin_order", 0), -x[0]["updated"]))  # pinned chats first, in your order; then the most recent
     # PIN is an invisible character: the page script sees it and draws the green pin
     icons = {k: d.get("icon", "") for k, d in desks.desks()}  # a chat at a desk shows the desk's icon
     return [((PIN if c.get("pinned") else "") + ("⏳ " if busy(cid) else "") + (icons.get(c.get("opts", {}).get("desk"), "") + " " if icons.get(c.get("opts", {}).get("desk")) else "")
-             + (c["title"] or t("New chat")), cid) for c, cid in order]
+             + (cap(c["title"]) or t("New chat")), cid) for c, cid in order]
 
 
 PIN = "\u2063"
@@ -858,6 +875,44 @@ class Job:
     def publish(self, view):
         self.view = list(view)
         self.version += 1
+
+
+def is_step(m):
+    """A thinking box or a tool box: the working steps that are grouped on screen."""
+    md = m.get("metadata") or {} if isinstance(m, dict) else {}
+    title = md.get("title", "")
+    if not title or not isinstance(m.get("content"), str) or "parent_id" in md:
+        return False
+    name = title.split(" ", 1)[-1].split(" ×")[0]
+    return title == "💭 " + t("Thinking") or name in tools or name in ("goal_done", "give_up")
+
+
+def present(view, live=False):
+    """What the chat shows: runs of working steps become one box. While Joshua works, the box shows the latest step
+    and opens on the steps one by one; once the answer comes, it becomes one text with every step, in order.
+    Only the screen changes: the chat is saved as it is."""
+    out, run = [], []
+
+    def flush(at_end):
+        if len(run) < 2:
+            out.extend(run)
+        elif live and at_end:  # still working: the latest step in the title, every step inside it
+            gid = f"steps{len(out)}"
+            out.append({"role": "assistant", "content": "", "metadata": {"title": "⏳ " + run[-1]["metadata"]["title"].split(" ", 1)[-1] + "…", "id": gid, "status": "done", "log": t("{n} steps", n=len(run))}})
+            out.extend({**m, "metadata": {**m["metadata"], "parent_id": gid, "status": "done"}} for m in run)
+        else:  # finished: one text with everything Joshua did
+            text = "\n\n---\n\n".join(f"#### {m['metadata']['title'].split(' ', 1)[-1]}\n\n{m['content'].strip()}" for m in run)
+            out.append({"role": "assistant", "content": text, "metadata": {"title": "🧭 " + t("How Joshua worked"), "status": "done", "log": t("{n} steps", n=len(run))}})
+        run.clear()
+
+    for m in view:
+        if is_step(m):
+            run.append(m)
+        else:
+            flush(False)
+            out.append(m)
+    flush(True)
+    return out
 
 
 JOBS = {}
@@ -1339,6 +1394,12 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
         job.ended = time.time()
         job.running = False
         job.publish(shown)
+    if conv.get("auto_title") and load(cid).get("auto_title") and user_text and not job.stop.is_set():  # the first answer is in: give the chat a title that sums it up
+        answer = (last_answer(shown) or {}).get("content", "")
+        title = make_title(model, user_text, answer if isinstance(answer, str) else "", language) if answer else ""
+        if title:
+            conv["title"], conv["auto_title"] = title, False
+            save(cid, conv)
     if job.stop.is_set():
         QUEUE.pop(cid, None)  # Stop also cancels the messages waiting in line
     elif QUEUE.get(cid):
@@ -1401,7 +1462,8 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
             images.append(str(dst))
     if text:
         shown.append({"role": "user", "content": ("🐝 " if swarm else "") + ("🎯 " if goal else "") + text})
-    conv["title"] = conv["title"] or (text or names[0])[:48]
+    if not conv["title"]:  # for now the first words; after the first answer, a short title that sums up the chat
+        conv["title"], conv["auto_title"] = cap((text or names[0])[:48]), True
     where = f" Your workspace is the user's project folder {work}; use list_files to explore it and edit files with care." if conv.get("project") else ""
     online = " You have no internet access in this chat: you cannot search or read web pages, so answer from what you know and say when something may be out of date." if offline else "" if net else " Code you run has no internet access."
     online += f" The user writes in {language}: always reply in {language}." if language else ""
@@ -1421,7 +1483,7 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     save(cid, conv)
     JOBS[cid] = job = Job(shown)
     threading.Thread(target=worker, args=(job, cid, conv, model, thinking, goal, rounds, net, timeout, int(agents) if swarm else 0, team, mem, text, offline, cloud and not cloudmem), daemon=True).start()
-    return shown, None, cid, gr.Radio(choices=conv_choices(), value=cid), file_list(cid)
+    return present(shown, True), None, cid, gr.Radio(choices=conv_choices(), value=cid), file_list(cid)
 
 
 def stop_chat(cid):
@@ -1439,7 +1501,7 @@ def files_label(cid):
 
 def open_conv(cid):
     conv = load(cid)
-    view = JOBS[cid].view if busy(cid) else conv["display"]
+    view = present(JOBS[cid].view, True) if busy(cid) else present(conv["display"])
     used = conv.get("model")
     return (view, cid, files_label(cid), conv.get("project", ""), used if used in [v for _, v in models()] else gr.skip()) + chat_opts(cid)
 
@@ -1601,7 +1663,7 @@ def rename_save(cid, name):
     name = (name or "").strip()
     if cid and name:
         conv = load(cid)
-        conv["title"] = name[:80]
+        conv["title"], conv["auto_title"] = name[:80], False  # your own name is never replaced
         write_chat(cid, conv)  # not save(): a new name doesn't move the chat to the top
     return gr.Textbox(visible=False), gr.Radio(choices=conv_choices(), value=cid)
 
@@ -1642,7 +1704,7 @@ def poll(cid, request: gr.Request):
     out = []
     job = JOBS.get(cid)
     sig = (cid, job.version) if job else None
-    out.append(job.view if job and seen.get("view") != sig else gr.skip())
+    out.append(present(job.view, job.running) if job and seen.get("view") != sig else gr.skip())
     seen["view"] = sig
     choices = conv_choices()
     out.append(gr.Radio(choices=choices, value=cid) if seen.get("list") != choices else gr.skip())
@@ -2240,6 +2302,11 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+/* ---------- the side column: chats and menu items closer together ---------- */
+body[data-screen^="modern"]:not(#a):not(#b):not(#c) #convs label {padding: .28rem .7rem !important}
+body[data-screen^="modern"]:not(#a):not(#b):not(#c) #panels {gap: 2px !important}
+body[data-screen^="modern"]:not(#a):not(#b):not(#c) #panels > button {margin: 0 !important; padding-top: .32rem !important; padding-bottom: .32rem !important}
+body[data-screen^="modern"]:not(#a):not(#b):not(#c) #panels > #navgap {height: 10px !important; min-height: 10px !important}
 /* ---------- under the message box: desks and modes on the left; the model, what it can do and its price on the right, on one line ---------- */
 body:not(.narrow):not(#a):not(#b):not(#c) #modelrow {flex-wrap: wrap !important; align-items: center !important; column-gap: 6px !important; row-gap: 6px !important}
 body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #deskpick {order: 0}

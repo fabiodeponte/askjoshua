@@ -516,5 +516,7 @@
  "Sees images: you can attach photos, screenshots and scanned pages": "能看图片：你可以附上照片、截图和扫描页",
  "Hears audio: you can attach recordings": "能听音频：你可以附上录音",
  "Thinks before answering: slower, but better at hard questions": "回答前会先思考：较慢，但更擅长难题",
- "{inp} / {out} per M": "每百万 {inp} / {out}"
+ "{inp} / {out} per M": "每百万 {inp} / {out}",
+ "{n} steps": "{n} 步",
+ "How Joshua worked": "Joshua 的工作过程"
 }

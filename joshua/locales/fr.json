@@ -516,5 +516,7 @@
  "Sees images: you can attach photos, screenshots and scanned pages": "Voit les images : tu peux joindre des photos, des captures d'écran et des pages scannées",
  "Hears audio: you can attach recordings": "Entend l'audio : tu peux joindre des enregistrements",
  "Thinks before answering: slower, but better at hard questions": "Réfléchit avant de répondre : plus lent, mais meilleur sur les questions difficiles",
- "{inp} / {out} per M": "{inp} / {out} par M"
+ "{inp} / {out} per M": "{inp} / {out} par M",
+ "{n} steps": "{n} étapes",
+ "How Joshua worked": "Comment Joshua a travaillé"
 }
