@@ -7,7 +7,7 @@ A "piece" is a paragraph, heading, list item or table cell, kept whole with its 
 so it is translated as one sentence. Translations live in tr/<lang>.json, keyed by the English piece.
 Code, terminal examples and commands are never translated.
 """
-import json, re, sys, pathlib
+import html, json, re, sys, pathlib
 from bs4 import BeautifulSoup, NavigableString, Comment
 
 HERE = pathlib.Path(__file__).parent
@@ -129,6 +129,23 @@ SWITCH_JS = """<script>
 </script>"""
 
 
+ICONS = json.loads((HERE.parent / "joshua" / "icons.json").read_text(encoding="utf-8"))  # the same Phosphor icons as the app
+ICON_RE = re.compile("(" + "|".join(sorted(map(re.escape, ICONS["emoji"]), key=len, reverse=True)) + ")\ufe0f?")
+ICON_CSS = ".ji{display:inline-flex;width:1.1em;height:1.1em;vertical-align:-.16em;margin-right:.3em}.ji svg{width:100%;height:100%}"
+
+
+def iconify(soup):
+    """Emoji in the page's text become the app's drawn icons (code, scripts and styles are left alone)."""
+    for node in list(soup.find_all(string=ICON_RE)):
+        if node.parent and node.parent.name in ("script", "style", "code", "pre", "title", "textarea"):
+            continue
+        parts = ICON_RE.split(str(node))
+        new = "".join(f"<span class='ji'>{ICONS['svg'][ICONS['emoji'].get(p) or ICONS['emoji'][p.rstrip(chr(0xFE0F))]]}</span>" if i % 2 else html.escape(p)
+                      for i, p in enumerate(parts))
+        frag = BeautifulSoup(new, "html.parser")
+        node.replace_with(*list(frag.contents))
+
+
 def build(out):
     out = pathlib.Path(out)
     for lang in LANGS:
@@ -167,8 +184,9 @@ def build(out):
                 path = "" if page == "index" else f"{page}.html"
                 link = soup.new_tag("link", rel="alternate", hreflang=code, href=f"https://ask.joshua.earth/{'' if code == 'en' else code + '/'}{path}")
                 head.append(link)
+            iconify(soup)
             style = soup.find("style")
-            style.append(SWITCH_CSS)
+            style.append(SWITCH_CSS + ICON_CSS)
             nav = soup.find("nav")
             nav.append(BeautifulSoup(switcher(lang, page).replace("{}", tr("Language")), "html.parser"))
             body = soup.find("body") or soup
