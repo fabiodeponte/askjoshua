@@ -892,10 +892,24 @@ def is_step(m):
     return title == "💭 " + t("Thinking") or name in tools or name in ("goal_done", "give_up")
 
 
+def wopr_view(view):
+    """A Prof Falken chat is one terminal screen that changes in place: what you typed last, then WOPR's latest screen."""
+    said = [m for m in view if m.get("role") == "user" and isinstance(m.get("content"), str)]
+    answers = [k for k, m in enumerate(view) if m.get("role") == "assistant" and not m.get("metadata") and isinstance(m.get("content"), str) and m["content"].strip()]
+    last_user = max((k for k, m in enumerate(view) if m.get("role") == "user"), default=-1)
+    text = lambda c: c.strip().removeprefix("```wopr").removesuffix("```").strip("\n") if c.lstrip().startswith("```wopr") else c.strip().upper()
+    waiting = not answers or answers[-1] < last_user  # WOPR is still answering (a chat move, not a game move)
+    body = "..." if waiting else text(view[answers[-1]]["content"])
+    typed = ("> " + said[-1]["content"].strip().upper() + "\n\n") if said else ""
+    return [{"role": "assistant", "content": "```wopr\n" + typed + body + "\n```"}]
+
+
 def present(view, live=False):
     """What the chat shows: runs of working steps become one box. While Joshua works, the box shows the latest step
     and opens on the steps one by one; once the answer comes, it becomes one text with every step, in order.
     Only the screen changes: the chat is saved as it is."""
+    if any(isinstance(m.get("content"), str) and m["content"].startswith("```wopr") for m in view):
+        return wopr_view(view)
     out, run = [], []
 
     def flush(at_end):
@@ -3341,7 +3355,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             if (e.key !== 'Enter' || !inp.value.trim()) return;
             e.preventDefault(); e.stopPropagation();
             const ta = document.querySelector('#promptrow textarea'); ta.value = inp.value; ta.dispatchEvent(new Event('input', {bubbles: true}));
-            inp.disabled = true;
+            inp.value = '';
             setTimeout(() => { const b = document.querySelector('#promptrow button.submit-button'); if (b) b.click(); }, 120); });
           setTimeout(() => inp.focus(), 60); };
         new MutationObserver(() => { clearTimeout(window.joshuaWopr); window.joshuaWopr = setTimeout(attach, 200); }).observe(document.body, {childList: true, subtree: true}); }""")
