@@ -5,7 +5,7 @@ import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, su
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, desks, factcheck, monitor, providers, ranking, remote, tune_ui
+import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, remote, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -820,6 +820,11 @@ def team_menu(team=(), n=5):
 
 def starters_html(desk_id):
     """The empty chat's starter cards for a desk: each one puts a ready prompt in the message box."""
+    if desk_id == "falken":  # WOPR's terminal: each game is a line you can click
+        items = "".join(f"<button class='starter wline' data-prompt='{k}' data-send='1'>{k:>2}. {html.escape(g)}</button>" + ("<br>" if k == 14 else "")
+                        for k, g in enumerate(falken.GAMES, 1))
+        return ("<div class='wopr'>GREETINGS PROFESSOR FALKEN.<br><br>SHALL WE PLAY A GAME?<br><br>HOW ABOUT:<br><br>" + items
+                + "<br>PLEASE ENTER YOUR SELECTION:<span class='wcur'>_</span></div>")
     d = desks.get(desk_id)
     if not d:
         return ""
@@ -1460,6 +1465,15 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
         where = (t("From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model, company=providers.company(model))
                  if providers.is_api(model) else t("From here on this chat is answered by **{model}** on Ollama's servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model))
         conv["display"].append({"role": "assistant", "content": "☁ *" + where + ("" if cloudmem else " " + t("Your memory notes are not sent.")) + " " + t("Everything stays stored only on this computer.") + "*"})
+    if desk == "falken" and text and not files:  # Prof Falken: a game move is played by falken.py, at once, without a model
+        reply = falken.play(conv, text)
+        if reply is not None:
+            conv["display"] += [{"role": "user", "content": text}, {"role": "assistant", "content": reply}]
+            conv["llm"] += [{"role": "user", "content": text}, {"role": "assistant", "content": reply}]
+            if not conv["title"]:
+                conv["title"] = "Shall we play a game?"
+            save(cid, conv)
+            return present(conv["display"]), None, cid, gr.Radio(choices=conv_choices(), value=cid), file_list(cid)
     conv["lang"] = agent.lang_for(text, conv.get("lang"))
     conv["region"] = agent.REGIONS.get(conv["lang"], "wt-wt") if conv["lang"] else "wt-wt"
     language = agent.LANGUAGES.get(conv["lang"])
@@ -1607,6 +1621,41 @@ def mem_view(topic=None):
     topic = topic if topic in topics else ("profile" if "profile" in topics else topics[0])
     path = agent._mem(topic)
     return gr.Dropdown(choices=topics, value=topic), path.read_text() if path.exists() else ""
+
+
+def notes_count():
+    return sum(read.count("\n- ") + read.startswith("- ") for read in (agent._mem(x).read_text(encoding="utf-8") for x in agent.memory_topics()))
+
+
+def learn_past(topic):
+    """Reads the chats you've already had, one by one, and keeps the lasting facts about you, as after each reply.
+    Each chat is read once (it's marked "learned"). Chats by programs, scheduled runs and games are skipped."""
+    writer = notes_model(default_model())
+    if is_cloud(writer) and not share_memory_setting():
+        gr.Warning(t("There is no local model to read your chats, and your notes aren't shared with cloud models. Download a local model, or switch on 'Share notes with cloud models'."))
+        yield gr.skip(), gr.skip(), gr.skip()
+        return
+    todo = []
+    for p in ROOT.iterdir():
+        if not (p / "chat.json").exists():
+            continue
+        c = load(p.name)
+        if c.get("learned") or c.get("opts", {}).get("desk") == "falken" or str(c.get("title", ""))[:1] in ("⏰", "📡", "🔌"):
+            continue
+        said = [m["content"] for m in c.get("display", []) if m.get("role") == "user" and isinstance(m.get("content"), str)]
+        if said:
+            todo.append((p.name, "\n\n".join(said)))
+    before, n = notes_count(), len(todo)
+    if not n:
+        yield t("All your chats have already been read."), *mem_view(topic)
+        return
+    for k, (cid, said) in enumerate(todo, 1):
+        yield t("Reading your chats: {k} of {n} · {found} new notes so far", k=k, n=n, found=notes_count() - before), gr.skip(), gr.skip()
+        extract_memory(writer, said[-3000:], "")
+        c = load(cid)
+        c["learned"] = True
+        write_chat(cid, c)  # not save(): reading a chat doesn't move it to the top
+    yield t("Done: {n} chats read, {found} new notes.", n=n, found=notes_count() - before), *mem_view(topic)
 
 
 def mem_save(topic, text):
@@ -2316,6 +2365,16 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+/* ---------- Prof Falken: WOPR's green terminal (strong selectors: the themes style code blocks and fonts too) ---------- */
+body:not(#a):not(#b):not(#c):not(#d) .wopr, body:not(#a):not(#b):not(#c):not(#d) .wopr *, body:not(#a):not(#b):not(#c):not(#d) #chat pre:has(> code.language-wopr), body:not(#a):not(#b):not(#c):not(#d) #chat pre:has(> code.language-wopr) * {font-family: 'VT323', 'Menlo', 'Courier New', ui-monospace, monospace !important; color: #7dff8a !important; letter-spacing: .02em !important; text-shadow: 0 0 6px rgba(125, 255, 138, .45)}
+body:not(#a):not(#b):not(#c):not(#d) .wopr {background: #050805 !important; border-radius: 10px; max-width: 640px; margin: 0 auto 12px; padding: 22px 26px; font-size: 1.3rem !important; line-height: 1.25; text-align: left}
+body:not(#a):not(#b):not(#c):not(#d) .wopr .wline {display: block; background: none !important; border: none !important; font-size: 1.3rem !important; padding: 0 !important; margin: 0 !important; cursor: pointer; text-align: left; white-space: pre; box-shadow: none !important; border-radius: 3px !important; min-height: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d) .wopr .wline:hover {background: rgba(125, 255, 138, .15) !important}
+body:not(#a):not(#b):not(#c):not(#d) #chat pre:has(> code.language-wopr) {background: #050805 !important; border: none !important; border-radius: 10px !important; padding: 16px 20px !important; width: max-content; max-width: 100%}
+body:not(#a):not(#b):not(#c):not(#d) #chat pre:has(> code.language-wopr) code {background: transparent !important; font-size: 1.2rem !important; line-height: 1.2 !important; white-space: pre !important}
+body:not(#a):not(#b):not(#c):not(#d) #chat .code_wrap:has(code.language-wopr) button {display: none !important}
+#chatcol:has(#starters .wopr) #chat .placeholder {visibility: hidden !important}  /* WOPR's greeting replaces Joshua's */
+.wcur {animation: wblink 1s steps(1) infinite} @keyframes wblink {50% {opacity: 0}}
 /* ---------- the side column: chats and menu items closer together ---------- */
 body[data-screen^="modern"]:not(#a):not(#b):not(#c) #convs label {padding: .28rem .7rem !important}
 body[data-screen^="modern"]:not(#a):not(#b):not(#c) #panels {gap: 2px !important}
@@ -2870,6 +2929,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             mem_topic = gr.Dropdown(choices=["profile"], value="profile", label=t("Notes"), elem_id="memtopic")
             mem_text = gr.Textbox(lines=14, max_lines=40, show_label=False, placeholder=t("Nothing remembered yet. Joshua adds notes as you chat, or you can type them here, one per line."))
             mem_btn = gr.Button(t("Save notes"), size="sm")
+            with gr.Row(elem_id="pastrow"):
+                past_btn = gr.Button("📒 " + t("Learn from my past chats"), size="sm", scale=0, min_width=260)
+                past_status = gr.Markdown("", elem_id="paststatus")
+            gr.Markdown(t("Reads each chat you've had so far, once, with a model on this computer when you have one, and adds what it learns about you to these notes. It can take a few minutes."), elem_classes=["updnote"])
         with gr.Column(visible=False, scale=5, elem_id="setpage") as set_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("SETTINGS") + "</div>")
@@ -3139,6 +3202,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     k_save.click(keys_save, [k_provider, k_key], [k_pick, k_status, k_key])
     k_add.click(keys_add, [k_provider, k_pick], [model, k_status]).then(lambda: (closed_html(), cloud_catalog()[1]), outputs=[closed_list, cloud_list], show_progress="hidden")
     mem_topic.input(mem_view, mem_topic, [mem_topic, mem_text])
+    past_btn.click(learn_past, mem_topic, [past_status, mem_topic, mem_text])
     mem_btn.click(mem_save, [mem_topic, mem_text], [mem_topic, mem_text],
                   js="(topic, text) => (text.trim() || confirm(" + JS_TEXT(t("Clear all the notes in '{topic}'? This can't be undone.")) + ".replace('{topic}', topic))) ? [topic, text] : [topic, null]")
     swarm.change(lambda s: gr.Column(visible=s), swarm, swarmpanel)
@@ -3250,7 +3314,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           if (e.target.closest('.fbtn')) { document.body.dataset.files = document.body.dataset.files ? '' : 'open'; return; }  // the folder left of the message box
           const sc = e.target.closest('button.starter');  // a desk's starter card: its prompt goes in the message box, ready to finish
           if (sc) { const g = document.querySelector('#o_goal input'); if (sc.dataset.goal && g && !g.checked) g.click();  // an agent's card (the fact checker) also turns on goal mode
-            const ta = document.querySelector('#promptrow textarea'); ta.value = sc.dataset.prompt; ta.dispatchEvent(new Event('input', {bubbles: true})); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); return; }
+            const ta = document.querySelector('#promptrow textarea'); ta.value = sc.dataset.prompt;
+            ta.dispatchEvent(new Event('input', {bubbles: true}));
+            if (sc.dataset.send) { setTimeout(() => { const b = document.querySelector('#promptrow button.submit-button'); if (b) b.click(); }, 150); return; }  // WOPR: a game starts on click
+            ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); return; }
           const d = e.target.closest('.cmore');
           if (!d) { if (!e.target.closest('#cmenu')) close(); return; }
           if (d.classList.contains('cur')) { e.preventDefault(); open(d, !!document.querySelector('#convs label.selected')); return; }

@@ -518,5 +518,11 @@
  "Thinks before answering: slower, but better at hard questions": "Réfléchit avant de répondre : plus lent, mais meilleur sur les questions difficiles",
  "{inp} / {out} per M": "{inp} / {out} par M",
  "{n} steps": "{n} étapes",
- "How Joshua worked": "Comment Joshua a travaillé"
+ "How Joshua worked": "Comment Joshua a travaillé",
+ "There is no local model to read your chats, and your notes aren't shared with cloud models. Download a local model, or switch on 'Share notes with cloud models'.": "Il n'y a pas de modèle local pour lire tes conversations, et tes notes ne sont pas partagées avec les modèles cloud. Télécharge un modèle local ou active « Partager les notes avec les modèles cloud ».",
+ "Done: {n} chats read, {found} new notes.": "Terminé : {n} conversations lues, {found} nouvelles notes.",
+ "All your chats have already been read.": "Toutes tes conversations ont déjà été lues.",
+ "Reading your chats: {k} of {n} · {found} new notes so far": "Lecture des conversations : {k} sur {n} · {found} nouvelles notes pour l'instant",
+ "Reads each chat you've had so far, once, with a model on this computer when you have one, and adds what it learns about you to these notes. It can take a few minutes.": "Lit une fois chaque conversation que tu as eue jusqu'ici, avec un modèle sur cet ordinateur si tu en as un, et ajoute à ces notes ce qu'il apprend sur toi. Cela peut prendre quelques minutes.",
+ "Learn from my past chats": "Apprendre de mes conversations passées"
 }

@@ -13,3 +13,4 @@ playwright
 segno
 markdown
 odfpy
+chess

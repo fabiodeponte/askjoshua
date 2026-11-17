@@ -88,13 +88,25 @@ def _path(name):
     return p
 
 
+SEARCH_ENGINES = ["google", "yahoo", "brave", "duckduckgo", "startpage", "mojeek"]  # the order changes: the one that answered moves first
+
+
 def search_results(query, region=None, n=5):
+    """Asks one search engine at a time until one answers. The engines often block automated searches for a while,
+    so each one is tried in turn (never 'auto': it fails as a whole when one of its engines, Wikipedia, fails)."""
     region = region or getattr(CTX, "region", "wt-wt")
-    for backend in ("yahoo, duckduckgo, brave, startpage", "auto"):
-        try:
-            return DDGS().text(query, region=region, backend=backend, max_results=n)
-        except Exception:
-            continue
+    for attempt in range(2):
+        for backend in list(SEARCH_ENGINES):
+            try:
+                results = DDGS().text(query, region=region, backend=backend, max_results=n)
+            except Exception:
+                continue
+            if results:
+                SEARCH_ENGINES.remove(backend)
+                SEARCH_ENGINES.insert(0, backend)
+                return results
+        time.sleep(1.5)  # all of them refused: wait a moment, then once more
+    print("web search: no engine answered for", repr(query))
     return []
 
 

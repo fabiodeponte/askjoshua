@@ -518,5 +518,11 @@
  "Thinks before answering: slower, but better at hard questions": "回答前会先思考：较慢，但更擅长难题",
  "{inp} / {out} per M": "每百万 {inp} / {out}",
  "{n} steps": "{n} 步",
- "How Joshua worked": "Joshua 的工作过程"
+ "How Joshua worked": "Joshua 的工作过程",
+ "There is no local model to read your chats, and your notes aren't shared with cloud models. Download a local model, or switch on 'Share notes with cloud models'.": "没有可以读取聊天的本地模型，而你的笔记也不与云端模型共享。请下载一个本地模型，或打开“与云端模型共享笔记”。",
+ "Done: {n} chats read, {found} new notes.": "完成：已读 {n} 个聊天，新增 {found} 条笔记。",
+ "All your chats have already been read.": "你的所有聊天都已读过。",
+ "Reading your chats: {k} of {n} · {found} new notes so far": "正在读取聊天：第 {k} 个，共 {n} 个 · 目前新增 {found} 条笔记",
+ "Reads each chat you've had so far, once, with a model on this computer when you have one, and adds what it learns about you to these notes. It can take a few minutes.": "把你至今的每个聊天读一遍（有本地模型时用本地模型），并把了解到的关于你的信息加入这些笔记。可能需要几分钟。",
+ "Learn from my past chats": "从我过去的聊天中学习"
 }
