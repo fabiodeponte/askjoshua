@@ -165,7 +165,7 @@ def ollama_bin():
 def media(vision, audio=False, thinking=False):
     """What a model can do, said plainly: what it reads, and whether it can think at length before answering."""
     reads = t("text + images + audio") if vision and audio else t("text + images") if vision else t("text + audio") if audio else t("text only")
-    return reads + (" · 💭 " + t("deep thinking") if thinking else "")
+    return reads + (" · " + t("deep thinking") if thinking else "")
 
 
 THINKERS = set()  # models on ollama.com labelled "thinking", seen while reading the library
@@ -667,7 +667,7 @@ def tools_off(value=None):
 
 TOOL_GROUPS = {"web_search": ("🔎 " + t("Web search"), ["web_search"]), "read_page": ("📄 " + t("Read web pages"), ["read_page"]),
                "run_python": ("🐍 " + t("Run Python (sandboxed)"), ["run_python"]), "install_package": ("📦 " + t("Install packages"), ["install_package"]),
-               "list_files": ("🗂️ " + t("Browse folders"), ["list_files"]), "files": ("📂 " + t("Read & 💾 write files (text, Word, PDF)"), ["read_file", "write_file"]),
+               "list_files": ("🗂️ " + t("Browse folders"), ["list_files"]), "files": ("📂 " + t("Read & write files (text, Word, PDF)"), ["read_file", "write_file"]),
                "get_datetime": ("🕒 " + t("Date and time"), ["get_datetime"]), "look_at_image": ("🖼️ " + t("Look at images"), ["look_at_image"]),
                "transcribe": ("🎙️ " + t("Transcribe audio and video (on this computer)"), ["transcribe"]),
                **({"generate_image": ("🎨 " + t("Generate images"), ["generate_image"]), "edit_image": ("🖌️ " + t("Edit your photos"), ["edit_image"])} if "edit_image" in tools else {}),
@@ -1732,6 +1732,9 @@ body:not([data-files="open"]) #chatopts {display: none !important}
 #chatopts {flex-grow: 0 !important; margin: 0 4px 8px !important; padding: 10px 12px !important; border-radius: 12px; background: color-mix(in srgb, var(--brand) 6%, var(--bg)) !important}
 #chatopts .fhead {font-weight: 600; color: var(--brand)}
 .cloudbadge .bicon {cursor: help; margin: 0 1px}
+body:not(#a):not(#b):not(#c) span.ji {display: inline-flex !important; width: 1.2em !important; height: 1.2em !important; vertical-align: -.22em !important; flex: none !important}
+body:not(#a):not(#b):not(#c) #modelrow .modeopt label span.ji, body:not(#a):not(#b):not(#c) #deskpick label span.ji {margin: 0 .35em 0 0 !important; padding: 0 !important}
+body:not(#a):not(#b):not(#c) #convs label span.ji {margin-right: .4em !important; opacity: .75}
 #starters {flex: 0 0 auto !important; padding: 0 !important; background: transparent !important; border: none !important}
 #chatcol:not(:has(#chat .placeholder)) #starters {display: none !important}  /* only on an empty chat */
 .starters {display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0 auto 10px; max-width: 760px}
@@ -2937,7 +2940,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         window.joshuaAct = b.dataset.act; b.disabled = true; b.textContent = '…';
         const g = document.querySelector('#mactgo'); (g.tagName === 'BUTTON' ? g : g.querySelector('button')).click(); }) }""")
     demo.load(None, None, None, js="""() => {  // the ⋯ menu of each chat (pin, rename, delete, its settings, its files), the green pin, dragging pinned chats
-        const PIN = '\\u2063', ICON = "<svg class='pinsvg' viewBox='0 0 24 24'><path d='M14.5 2.5l7 7-2.2.6-3.8 3.8.6 4.6-2.1 2.1-4.1-4.1-5.4 5.4-1.4-1.4 5.4-5.4-4.1-4.1 2.1-2.1 4.6.6 3.8-3.8z'/></svg>";
+        const PIN = '\\u2063', ICON = "<svg class='pinsvg' viewBox='0 0 256 256'><path d='M235.33,104l-53.47,53.65c4.56,12.67,6.45,33.89-13.19,60A15.93,15.93,0,0,1,157,224c-.38,0-.75,0-1.13,0a16,16,0,0,1-11.32-4.69L96.29,171,53.66,213.66a8,8,0,0,1-11.32-11.32L85,159.71l-48.3-48.3A16,16,0,0,1,38,87.63c25.42-20.51,49.75-16.48,60.4-13.14L152,20.7a16,16,0,0,1,22.63,0l60.69,60.68A16,16,0,0,1,235.33,104Z'/></svg>";  // Phosphor push-pin (fill)
         const L = {thinking: """ + JS_TEXT("💭 " + t("Deep thinking")) + """, goal: """ + JS_TEXT("🎯 " + t("Goal mode")) + """, swarm: """ + JS_TEXT("🐝 " + t("Swarm")) + """, offline: """ + JS_TEXT("🚫 " + t("No internet")) + """,
                    pin: """ + JS_TEXT(t("Pin to the top")) + """, unpin: """ + JS_TEXT(t("Unpin")) + """, rename: """ + JS_TEXT("✏ " + t("Rename")) + """, del: """ + JS_TEXT("🗑 " + t("Delete")) + """, files: """ + JS_TEXT("📂 " + t("Files and folder of this chat")) + """};
         const OPT = ['goal', 'swarm', 'offline'];
@@ -3023,7 +3026,52 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
 ICON = (pathlib.Path(__file__).parent / "icon.png").resolve()
 APP_HEAD = (f"<link rel='apple-touch-icon' href='/gradio_api/file={ICON}'>"  # the icon Safari uses for "Add to Dock"
             "<meta name='apple-mobile-web-app-title' content='Joshua'><meta name='application-name' content='Joshua'>")
+
+# Icons: the interface is written with emoji (in labels, buttons, tool boxes); the page swaps each one for a drawn icon
+# from Phosphor (light weight, MIT licence, icons.json). Only interface text is touched, never what you or the model write.
+ICONS = json.loads((pathlib.Path(__file__).parent / "icons.json").read_text(encoding="utf-8"))
+ICON_JS = r"""(() => {
+  const I = window.JOSHUA_ICONS, keys = Object.keys(I.emoji).sort((a, b) => b.length - a.length);
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), alt = keys.map(esc).join('|');
+  const lead = new RegExp('^([\\s\\u2063]*)((?:(?:' + alt + ')\\uFE0F?\\s*)+)'), each = new RegExp('(' + alt + ')\\uFE0F?', 'g');
+  const AREA = 'button, label, .title, h2, h3, .cloudbadge, .starter, .cmenu, th, td, .cloudstat, .fhead, #schedtitle, summary, li, .msub2, .ftitle';
+  const made = new WeakMap();
+  const fix = (node) => {
+    const el = node.parentElement;
+    if (!el || el.closest('.ji, .message-content, textarea, pre, code') || !el.closest(AREA)) return;
+    const was = made.get(node);
+    if (was && was.value === node.nodeValue) return;  // our own change, already done
+    if (was) was.spans.forEach(x => x.remove());      // the text was set again: start over
+    const m = node.nodeValue.match(lead);
+    if (!m) return made.delete(node);
+    const spans = [];
+    for (const e of m[2].match(each)) {
+      const name = I.emoji[e] || I.emoji[e.replace('\uFE0F', '')];
+      if (!name) continue;
+      const s = document.createElement('span'); s.className = 'ji'; s.innerHTML = I.svg[name]; s._for = node;
+      el.insertBefore(s, node); spans.push(s);
+    }
+    const value = m[1] + node.nodeValue.slice(m[0].length);
+    made.set(node, {spans, value});
+    node.nodeValue = value;
+  };
+  const walk = (root) => {
+    if (root.nodeType === 3) return fix(root);
+    if (root.nodeType !== 1 || root.closest?.('.ji')) return;
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
+    while ((n = w.nextNode())) fix(n);
+  };
+  let todo = new Set(), queued = false;
+  const run = () => { queued = false; const list = [...todo]; todo = new Set(); list.forEach(walk); document.querySelectorAll('.ji').forEach(s => { if (!s._for || !s._for.isConnected) s.remove(); }); };
+  new MutationObserver(ms => { for (const m of ms) { if (m.type === 'characterData') todo.add(m.target); else m.addedNodes.forEach(n => todo.add(n)); }
+    if (!queued) { queued = true; requestAnimationFrame(run); } }).observe(document.documentElement, {subtree: true, childList: true, characterData: true});
+  addEventListener('DOMContentLoaded', () => walk(document.body));
+})();"""
+ICON_HEAD = ("<script>window.JOSHUA_ICONS=" + json.dumps({"emoji": ICONS["emoji"], "svg": ICONS["svg"]}, ensure_ascii=False).replace("</", "<\\/") + ";</script>"
+             "<script>" + ICON_JS + "</script>"
+             "<style>.ji{display:inline-flex;width:1.2em;height:1.2em;margin-right:.42em;vertical-align:-.22em;flex:none}.ji svg{width:100%;height:100%}"
+             ".cloudbadge .ji,.sicon .ji{margin-right:.18em}</style>")
 SERVICE = os.environ.get("JOSHUA_SERVICE")  # set when Joshua runs in the background from login (launchd / systemd)
 if remote_setting():
     remote.switch(True, PORT)  # your devices on Tailscale can reach Joshua again after a restart
-demo.launch(inbrowser=not (SERVICE or os.environ.get("JOSHUA_NO_OPEN")), favicon_path=str(ICON), allowed_paths=[str(ROOT), str(ICON), str(pathlib.Path.home())], css=CSS, theme=THEME, head=APP_HEAD + "<link href='https://fonts.googleapis.com/css2?family=VT323&family=Figtree:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:opsz,wght@6..72,500&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap' rel='stylesheet'>")
+demo.launch(inbrowser=not (SERVICE or os.environ.get("JOSHUA_NO_OPEN")), favicon_path=str(ICON), allowed_paths=[str(ROOT), str(ICON), str(pathlib.Path.home())], css=CSS, theme=THEME, head=APP_HEAD + ICON_HEAD + "<link href='https://fonts.googleapis.com/css2?family=VT323&family=Figtree:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:opsz,wght@6..72,500&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap' rel='stylesheet'>")

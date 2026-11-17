@@ -221,7 +221,6 @@
  "Date and time": "日期和时间",
  "Goes to Ollama:": "发送给 Ollama：",
  "Generate images": "生成图片",
- "Read & 💾 write files (text, Word, PDF)": "读取和 💾 写入文件（文本、Word、PDF）",
  "your chats, files and memory notes.": "你的对话、文件和记忆笔记。",
  "Browse folders": "浏览文件夹",
  "Stays here:": "留在本机：",
@@ -498,5 +497,6 @@
  "Other models on this computer": "本机上的其他模型",
  "Used for": "用途",
  "transcribing audio and video, on this computer": "在本机转写音频和视频",
- "The speech model was removed. It downloads again the next time you ask for a transcription.": "语音模型已删除。下次需要转写时会重新下载。"
+ "The speech model was removed. It downloads again the next time you ask for a transcription.": "语音模型已删除。下次需要转写时会重新下载。",
+ "Read & write files (text, Word, PDF)": "读写文件（文本、Word、PDF）"
 }

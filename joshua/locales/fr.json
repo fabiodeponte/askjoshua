@@ -221,7 +221,6 @@
  "Date and time": "Date et heure",
  "Goes to Ollama:": "Part chez Ollama :",
  "Generate images": "Générer des images",
- "Read & 💾 write files (text, Word, PDF)": "Lire et 💾 écrire des fichiers (texte, Word, PDF)",
  "your chats, files and memory notes.": "vos discussions, fichiers et notes de mémoire.",
  "Browse folders": "Parcourir les dossiers",
  "Stays here:": "Reste ici :",
@@ -498,5 +497,6 @@
  "Other models on this computer": "Autres modèles sur cet ordinateur",
  "Used for": "Sert à",
  "transcribing audio and video, on this computer": "transcrire l'audio et la vidéo, sur cet ordinateur",
- "The speech model was removed. It downloads again the next time you ask for a transcription.": "Le modèle vocal a été supprimé. Il se téléchargera à nouveau la prochaine fois que vous demanderez une transcription."
+ "The speech model was removed. It downloads again the next time you ask for a transcription.": "Le modèle vocal a été supprimé. Il se téléchargera à nouveau la prochaine fois que vous demanderez une transcription.",
+ "Read & write files (text, Word, PDF)": "Lire et écrire des fichiers (texte, Word, PDF)"
 }
