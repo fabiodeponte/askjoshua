@@ -2425,7 +2425,7 @@ body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .pro
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose a {color: var(--cyan) !important}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-wrap {max-width: 56rem !important}
 body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user * {font-size: 1.02rem !important; line-height: 1.45 !important; color: #111 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .placeholder::before, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #schedtitle, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #tunetitle {font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important; font-weight: 700 !important; letter-spacing: -.015em !important; color: #000 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #schedtitle, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #tunetitle {font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important; font-weight: 700 !important; letter-spacing: -.015em !important; color: #000 !important}
 #chat button.jcopied {color: var(--brand) !important; transform: scale(1.15); transition: transform .15s}
 /* ---------- phone: the message box and the switches under it take two short lines, not half the screen ---------- */
 body.narrow:not(#a):not(#b):not(#c) #promptrow {padding: 0 !important; gap: 4px !important; align-items: center !important}
