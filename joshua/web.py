@@ -1,4 +1,5 @@
 import functools, os, sys
+os.environ.setdefault("GRADIO_RUN_HISTORY", "false")  # see LAUNCH_EXTRA
 if os.environ.get("JOSHUA_LOG"):  # started without a window (Windows): what Joshua prints goes to this file instead
     sys.stdout = sys.stderr = open(os.environ["JOSHUA_LOG"], "a", buffering=1, encoding="utf-8", errors="replace")
 import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, subprocess, sys, threading, time, zipfile, urllib.parse
@@ -912,7 +913,10 @@ def present(view, live=False):
         return wopr_view(view)
     out, run = [], []
 
-    def flush(at_end):
+    def flush(at_end, after=None):
+        thought_answer = None
+        if run and not (live and at_end) and (after is None or after.get("role") == "user") and run[-1]["metadata"]["title"] == "💭 " + t("Thinking"):
+            thought_answer = run.pop()  # the turn ended with thinking and no answer: that thinking was the answer (chats saved before the fix)
         if len(run) < 2:
             out.extend(run)
         elif live and at_end:  # still working: the latest step in the title, every step inside it
@@ -923,12 +927,14 @@ def present(view, live=False):
             text = "\n\n---\n\n".join(f"#### {m['metadata']['title'].split(' ', 1)[-1]}\n\n{m['content'].strip()}" for m in run)
             out.append({"role": "assistant", "content": text, "metadata": {"title": "🧭 " + t("How Joshua worked"), "status": "done", "log": t("{n} steps", n=len(run))}})
         run.clear()
+        if thought_answer:
+            out.append({"role": "assistant", "content": thought_answer["content"]})
 
     for m in view:
         if is_step(m):
             run.append(m)
         else:
-            flush(False)
+            flush(False, m)
             out.append(m)
     flush(True)
     return out
@@ -994,6 +1000,10 @@ def agent_turn(msgs, shown, toolset, model, thinking, stop, called, limit=25):
             yield shown + live
             if stop.is_set():
                 break
+        if not calls and not content.strip() and thought.strip() and not stop.is_set():
+            # some local models (qwen3.5) write their whole final answer as "thinking" and leave the answer empty:
+            # then that text is the answer, shown as one, not folded away among the steps
+            content, live = thought.strip(), [{"role": "assistant", "content": thought.strip()}]
         shown += live
         msgs.append({"role": "assistant", "content": content, "tool_calls": [{"function": {"name": c.function.name, "arguments": dict(c.function.arguments)}} for c in calls]})
         if thought and providers.is_api(model):  # DeepSeek wants its reasoning back with the tool results
@@ -1775,14 +1785,30 @@ def delete_chat(cid):
 SEEN = {}
 
 
+LIVE_EVERY = 1.5  # seconds between redraws of a chat while Joshua writes it
+
+
+def live_view(cid, request: gr.Request):
+    """The chat Joshua is writing in, redrawn every few seconds (and once more at the end)."""
+    seen = SEEN.setdefault(request.session_hash, {})
+    job = JOBS.get(cid)
+    sig = (cid, job.version) if job else None
+    if not job or seen.get("view") == sig:
+        return gr.skip()
+    seen["view"] = sig
+    return present(job.view, job.running)
+
+
 def poll(cid, request: gr.Request):
-    """Called every second by each open page: sends only what changed (chat view, chat list, files)."""
+    """Called every second by each open page: sends only what changed (chat list, files, status), and switches on
+    the chat's own timer while Joshua writes in it. The chat isn't an output here: Gradio re-processes every output
+    of an event, even unchanged ones, and with a long chat that kept the page busy several times a second."""
     seen = SEEN.setdefault(request.session_hash, {})
     out = []
     job = JOBS.get(cid)
-    sig = (cid, job.version) if job else None
-    out.append(present(job.view, job.running) if job and seen.get("view") != sig else gr.skip())
-    seen["view"] = sig
+    want = bool(job and (job.running or seen.get("view") != (cid, job.version)))  # until the final screen is shown
+    out.append(gr.Timer(active=want) if seen.get("live") != want else gr.skip())
+    seen["live"] = want
     choices = conv_choices()
     out.append(gr.Radio(choices=choices, value=cid) if seen.get("list") != choices else gr.skip())
     seen["list"] = choices
@@ -3251,7 +3277,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     openf.click(open_folder, cid)
     chatbot.retry(retry, [cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, desk, *team], [chatbot, box, cid, convs, files])
     files.delete(delete_file, cid, files)
-    gr.Timer(1).tick(poll, cid, [chatbot, convs, files, working], show_progress="hidden", concurrency_limit=None)
+    live = gr.Timer(LIVE_EVERY, active=False)  # redraws the chat Joshua is writing in: switched on and off by poll()
+    live.tick(live_view, cid, chatbot, show_progress="hidden", concurrency_limit=None)
+    gr.Timer(1).tick(poll, cid, [live, convs, files, working], show_progress="hidden", concurrency_limit=None)
     gr.Timer(60).tick(badge, model, cloudbadge, show_progress="hidden")  # the Ollama credit left goes down as you use cloud models
     feedback.click(None, model, None, js="(m) => { window.open(" + json.dumps(FEEDBACK) + " + '&model=' + encodeURIComponent(m || ''), '_blank') }")
     renbtn.click(rename_open, cid, renbox)
@@ -3288,7 +3316,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         const PIN = '\\u2063', ICON = "<svg class='pinsvg' viewBox='0 0 256 256'><path d='M235.33,104l-53.47,53.65c4.56,12.67,6.45,33.89-13.19,60A15.93,15.93,0,0,1,157,224c-.38,0-.75,0-1.13,0a16,16,0,0,1-11.32-4.69L96.29,171,53.66,213.66a8,8,0,0,1-11.32-11.32L85,159.71l-48.3-48.3A16,16,0,0,1,38,87.63c25.42-20.51,49.75-16.48,60.4-13.14L152,20.7a16,16,0,0,1,22.63,0l60.69,60.68A16,16,0,0,1,235.33,104Z'/></svg>";  // Phosphor push-pin (fill)
         const L = {thinking: """ + JS_TEXT("💭 " + t("Deep thinking")) + """, goal: """ + JS_TEXT("🎯 " + t("Goal mode")) + """, swarm: """ + JS_TEXT("🐝 " + t("Swarm")) + """, offline: """ + JS_TEXT("🚫 " + t("No internet")) + """,
                    pin: """ + JS_TEXT(t("Pin to the top")) + """, unpin: """ + JS_TEXT(t("Unpin")) + """, rename: """ + JS_TEXT("✏ " + t("Rename")) + """, del: """ + JS_TEXT("🗑 " + t("Delete")) + """, files: """ + JS_TEXT("📂 " + t("Files and folder of this chat")) + """};
-        const OPT = ['goal', 'swarm', 'offline'];
+        const OPT = ['offline'];
         const press = (id) => { const g = document.querySelector('#' + id); if (g) (g.tagName === 'BUTTON' ? g : g.querySelector('button, input')).click(); };
         const close = () => { const m = document.querySelector('#cmenu'); if (m) m.remove(); };
         const text = (l) => { const s = l.querySelector('span:not(.cmore)'); return s ? s.textContent : ''; };
@@ -3299,7 +3327,6 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           let h = '';
           if (saved) h += "<button data-k='pin'>" + ICON + ' ' + (pinned ? L.unpin : L.pin) + "</button><button data-k='rename'>" + L.rename + "</button><button data-k='del' class='danger'>" + L.del + '</button><hr>';
           for (const k of OPT) h += "<button data-k='" + k + "'>" + L[k] + (on(k) ? ' <b>✓</b>' : '') + '</button>';
-          h += "<hr><button data-k='files'>" + L.files + (document.body.dataset.files ? ' <b>✓</b>' : '') + '</button>';
           m.innerHTML = h; document.body.appendChild(m);
           const r = anchor.getBoundingClientRect(); m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
           m.style.top = Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8) + 'px';
@@ -3452,4 +3479,7 @@ ICON_HEAD = ("<script>window.JOSHUA_ICONS=" + json.dumps({"emoji": ICONS["emoji"
 SERVICE = os.environ.get("JOSHUA_SERVICE")  # set when Joshua runs in the background from login (launchd / systemd)
 if remote_setting():
     remote.switch(True, PORT)  # your devices on Tailscale can reach Joshua again after a restart
-demo.launch(inbrowser=not (SERVICE or os.environ.get("JOSHUA_NO_OPEN")), favicon_path=str(ICON), allowed_paths=[str(ROOT), str(ICON), str(pathlib.Path.home())], css=CSS, theme=THEME, head=APP_HEAD + ICON_HEAD + "<link href='https://fonts.googleapis.com/css2?family=VT323&family=Figtree:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:opsz,wght@6..72,500&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap' rel='stylesheet'>")
+# Gradio records every event (our once-a-second timers too) in a "run history" kept in the browser, rewriting it
+# each time: with long chats this blocked the page for most of every second. Joshua doesn't need it.
+LAUNCH_EXTRA = {"run_history": False} if "run_history" in inspect.signature(gr.Blocks.launch).parameters else {}
+demo.launch(**LAUNCH_EXTRA, inbrowser=not (SERVICE or os.environ.get("JOSHUA_NO_OPEN")), favicon_path=str(ICON), allowed_paths=[str(ROOT), str(ICON), str(pathlib.Path.home())], css=CSS, theme=THEME, head=APP_HEAD + ICON_HEAD + "<link href='https://fonts.googleapis.com/css2?family=VT323&family=Figtree:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:opsz,wght@6..72,500&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap' rel='stylesheet'>")
