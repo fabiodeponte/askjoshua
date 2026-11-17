@@ -2375,6 +2375,8 @@ body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat pre:has(> cod
 body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat pre:has(> code.language-wopr) code {background: transparent !important; font-size: 1.2rem !important; line-height: 1.2 !important; white-space: pre !important}
 body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat .code_wrap:has(code.language-wopr) button {display: none !important}
 #chatcol:has(#starters .wopr) #chat .placeholder {visibility: hidden !important}  /* WOPR's greeting replaces Joshua's */
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr-in {display: flex; align-items: center; gap: 0; margin-top: 10px; font-family: 'VT323', 'Menlo', 'Courier New', ui-monospace, monospace !important}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr-in input {flex: 1; background: transparent !important; border: none !important; outline: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; color: #7dff8a !important; caret-color: #7dff8a; font-family: inherit !important; font-size: 1.2rem !important; text-transform: uppercase; min-width: 0}
 .wcur {animation: wblink 1s steps(1) infinite} @keyframes wblink {50% {opacity: 0}}
 /* ---------- the side column: chats and menu items closer together ---------- */
 body[data-screen^="modern"]:not(#a):not(#b):not(#c) #convs label {padding: .28rem .7rem !important}
@@ -3325,6 +3327,24 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           const already = d.closest('label').classList.contains('selected');  // the click also opens the chat; its settings arrive a moment later
           setTimeout(() => open(d, true), already ? 0 : 700); }, true);
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); }); }""")
+    demo.load(None, None, None, js="""() => {  // Prof Falken: you type in WOPR's own screen, at a > prompt under the latest one; Enter sends it
+        const attach = () => {
+          const blocks = document.querySelectorAll('#chat code.language-wopr'), last = blocks[blocks.length - 1];
+          const greet = document.querySelector('#starters .wopr'), host = last ? last.parentElement : (greet && greet.offsetParent ? greet : null);
+          document.querySelectorAll('.wopr-in').forEach(i => { if (!host || !host.contains(i)) i.remove(); });
+          if (!host || host.querySelector('.wopr-in')) return;
+          const line = document.createElement('div'); line.className = 'wopr-in';
+          line.innerHTML = '<span>&gt;&nbsp;</span><input type="text" spellcheck="false" autocomplete="off" aria-label="WOPR">';
+          host.appendChild(line);
+          const inp = line.querySelector('input');
+          inp.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' || !inp.value.trim()) return;
+            e.preventDefault(); e.stopPropagation();
+            const ta = document.querySelector('#promptrow textarea'); ta.value = inp.value; ta.dispatchEvent(new Event('input', {bubbles: true}));
+            inp.disabled = true;
+            setTimeout(() => { const b = document.querySelector('#promptrow button.submit-button'); if (b) b.click(); }, 120); });
+          setTimeout(() => inp.focus(), 60); };
+        new MutationObserver(() => { clearTimeout(window.joshuaWopr); window.joshuaWopr = setTimeout(attach, 200); }).observe(document.body, {childList: true, subtree: true}); }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // a cost box closes when you click anywhere else; one open at a time
         document.querySelectorAll('details.mcost[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('details.mcost[open]').forEach(d => d.open = false); }); }""")

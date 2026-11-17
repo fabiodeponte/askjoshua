@@ -5,6 +5,7 @@ searches. play() gets the chat and what you typed, and returns WOPR's reply, or 
 (then the model answers, in WOPR's voice). The state of the game in progress is kept in the chat (conv["falken"]).
 """
 import random
+import re
 import subprocess
 import sys
 
@@ -216,12 +217,13 @@ def chess_draw(board):
 def chess_start(st):
     chess = chess_lib()
     st["fen"] = chess.Board().fen()
-    return "CHESS\n\nYOU PLAY WHITE (CAPITAL LETTERS). ENTER MOVES LIKE e4, Nf3 OR e2e4.\nQUIT TO LEAVE.\n\n" + chess_draw(chess.Board())
+    return "CHESS\n\nYOU PLAY WHITE (CAPITAL LETTERS, AT THE BOTTOM).\nTYPE THE SQUARE A PIECE IS ON, THEN WHERE IT GOES: e2e4.\nQUIT TO LEAVE.\n\n" + chess_draw(chess.Board())
 
 
 def chess_step(st, word, raw):
     chess = chess_lib()
     board = chess.Board(st["fen"])
+    raw = re.sub(r"^([a-hA-H][1-8])\s*[-\s]\s*([a-hA-H][1-8])", r"\1\2", raw.strip())  # e2-e4 and e2 e4 mean e2e4
     try:
         move = board.parse_san(raw)
     except ValueError:
