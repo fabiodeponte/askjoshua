@@ -1752,7 +1752,7 @@ body:not(#a):not(#b):not(#c) #chatbar .opt {border: 1px solid color-mix(in srgb,
 #chatbar .opt:not(:has(input:checked)) {display: none !important}
 /* goal and swarm under the message box: small switches, filled when on */
 body:not(#a):not(#b):not(#c) #modelrow > .form:has(.modeopt) {display: flex !important; flex-direction: row !important; gap: 6px !important; flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; border: none !important; background: transparent !important; box-shadow: none !important; padding: 0 !important}
-body:not(#a):not(#b):not(#c) #modelrow > #cloudbadge {flex: 1 1 auto !important; min-width: max-content !important; text-align: right}
+body:not(#a):not(#b):not(#c) #modelpick > #cloudbadge {flex: 1 1 auto !important; min-width: max-content !important; text-align: right}
 body:not(#a):not(#b):not(#c) #modelrow .cloudbadge {white-space: nowrap !important; overflow: hidden; padding: 2px 0 0 !important}
 body:not(#a):not(#b):not(#c) #modelrow {gap: 8px !important}
 .cloudbadge > span + span::before {content: " · "; color: var(--dim)}
@@ -1894,9 +1894,9 @@ body.noside #leftcol {display: none !important}
 #tune .legend, #tune [class*=legend] {display: none !important}
 #modelrow {flex-wrap: wrap !important; row-gap: 4px !important}
 #modelrow > #working {flex: 0 0 auto !important; width: auto !important; min-width: 0 !important}
-#modelrow > #cloudbadge {flex: 1 1 0 !important; width: auto !important; min-width: 8ch !important}
+#modelpick > #cloudbadge {flex: 1 1 0 !important; width: auto !important; min-width: 8ch !important}
 #cloudbadge .cloudbadge {white-space: normal; overflow: visible; line-height: 1.25}  /* a narrow window wraps it onto a second line instead of cutting it */
-#modelrow > #model {flex: 0 0 auto !important}
+#modelpick > #model {flex: 0 0 auto !important}
 body:not(#a):not(#b):not(#c) #modelrow #model {min-width: 0 !important; width: auto !important}
 body:not(#a):not(#b):not(#c) #modelrow #model input {field-sizing: content; min-width: 12ch; max-width: 30ch}  /* the menu is as wide as the model's name */
 #cloudbadge .cloudbadge {font-size: 1rem; line-height: 1.2; color: var(--amber); padding: 2px 8px 0; text-align: right}
@@ -2198,11 +2198,11 @@ body.narrow:not(#a):not(#b) #promptrow > .form {min-width: 0 !important; flex: 1
 body.narrow:not(#a):not(#b) #stop {min-width: 0 !important; flex: 0 0 auto !important; padding: 0 10px !important}
 body.narrow:not(#a):not(#b) #modelrow {flex-wrap: wrap !important; padding-right: 0 !important; margin-top: 0 !important; gap: 4px 10px !important; row-gap: 2px !important}
 body.narrow:not(#a):not(#b) #modelrow > #working {flex: 1 1 100% !important}
-body.narrow:not(#a):not(#b) #modelrow > #cloudbadge {order: 2; flex: 1 1 0 !important; min-width: 0; font-size: .75rem; white-space: nowrap; text-align: right}
+body.narrow:not(#a):not(#b) #modelpick > #cloudbadge {order: 2; flex: 1 1 0 !important; min-width: 0; font-size: .75rem; white-space: nowrap; text-align: right}
 body.narrow:not(#a):not(#b) #cloudbadge .cloudbadge {white-space: nowrap !important; font-size: .75rem !important; padding: 0 2px !important}
 body.narrow:not(#a):not(#b) #modelrow #model::before {content: none}
 body.narrow:not(#a):not(#b) #modelrow > #working {order: 3}
-body.narrow:not(#a):not(#b) #modelrow > #model {order: 1}
+body.narrow:not(#a):not(#b) #modelpick > #model {order: 1}
 body.narrow:not(#a):not(#b) #modelrow > :not(.form):not(#deskpick) label, body.narrow:not(#a):not(#b) #modelrow > :not(.form):not(#deskpick) .label {display: none !important}
 body.narrow:not(#a):not(#b) button.fbtn {width: 34px; height: 34px}
 body.narrow:not(#a):not(#b) #starters .starters {gap: 6px} body.narrow:not(#a):not(#b) button.starter {padding: 7px 11px; font-size: .85rem}
@@ -2245,11 +2245,15 @@ body:not(.narrow):not(#a):not(#b):not(#c) #modelrow {flex-wrap: wrap !important;
 body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #deskpick {order: 0}
 body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > .form:has(.modeopt) {order: 1}
 body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #working {order: 2}
-body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #model {order: 3; margin-left: auto !important; flex: 0 1 auto !important; width: auto !important; min-width: 0 !important}
-body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #cloudbadge {order: 4; flex: 0 0 auto !important; min-width: 0 !important; width: auto !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #modelpick > #model {order: 3; flex: 0 1 auto !important; width: auto !important; min-width: 0 !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #modelpick > #cloudbadge {order: 4; flex: 0 0 auto !important; min-width: 0 !important; width: auto !important}
 body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge, body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge .html-container, body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge .cloudbadge {overflow: visible !important}
-body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge .cloudbadge {padding: 0 4px 0 0 !important; white-space: nowrap !important; font-size: .85rem !important; color: var(--dim) !important}
-body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #model input {font-size: .85rem !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge .cloudbadge, body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge .cloudbadge * {font-size: .85rem !important; color: var(--dim) !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #cloudbadge .cloudbadge {padding: 0 4px 0 0 !important; white-space: nowrap !important}
+body:not(#a):not(#b):not(#c) #modelpick {flex: 0 0 auto !important; width: auto !important; min-width: 0 !important; gap: 8px !important; flex-wrap: nowrap !important; align-items: center !important; padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #modelrow > #modelpick {order: 3; margin-left: auto !important}
+body.narrow:not(#a):not(#b):not(#c) #modelrow > #modelpick {order: 1; flex: 1 1 0 !important; min-width: 0 !important; gap: 4px !important}
+body:not(.narrow):not(#a):not(#b):not(#c) #modelpick > #model input {font-size: .85rem !important}
 /* the explanation of an icon or a price shows at once on hover, above it */
 #cloudbadge [data-tip] {position: relative; cursor: default}
 #cloudbadge [data-tip]:hover::after {content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); right: -6px; z-index: 60; width: max-content; max-width: 280px; white-space: normal; text-align: left;
@@ -2302,9 +2306,9 @@ body.narrow:not(#a):not(#b):not(#c) #deskpick label {padding: 1px 6px !important
 body.narrow:not(#a):not(#b):not(#c) #modelrow > .form:has(.modeopt) {order: 0; flex: 0 0 auto !important; gap: 3px !important}
 body.narrow:not(#a):not(#b):not(#c) #modelrow .modeopt {padding: 1px 6px !important}
 body.narrow:not(#a):not(#b):not(#c) #modelrow .modeopt label, body.narrow:not(#a):not(#b):not(#c) #modelrow .modeopt label span {font-size: .74rem !important}
-body.narrow:not(#a):not(#b):not(#c) #modelrow > #model {order: 1; flex: 0 1 auto !important; min-width: 0 !important; width: auto !important; max-width: 48vw}
+body.narrow:not(#a):not(#b):not(#c) #modelpick > #model {order: 1; flex: 0 1 auto !important; min-width: 0 !important; width: auto !important; max-width: 48vw}
 body.narrow:not(#a):not(#b):not(#c) #modelrow #model input {font-size: .8rem !important}
-body.narrow:not(#a):not(#b):not(#c) #modelrow > #cloudbadge {order: 2; flex: 1 1 0 !important; min-width: 0 !important; text-align: left}
+body.narrow:not(#a):not(#b):not(#c) #modelpick > #cloudbadge {order: 2; flex: 1 1 0 !important; min-width: 0 !important; text-align: left}
 body.narrow:not(#a):not(#b):not(#c) #cloudbadge .html-container, body.narrow:not(#a):not(#b):not(#c) #working .html-container {padding: 0 !important}
 body.narrow:not(#a):not(#b):not(#c) #cloudbadge .cloudbadge {font-size: .72rem !important; padding: 0 !important; white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis}
 body.narrow:not(#a):not(#b):not(#c) #modelrow > #working {order: 3; flex: 0 0 auto !important; font-size: .72rem}
@@ -2932,8 +2936,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), elem_classes=["opt", "modeopt"], elem_id="o_goal", info=t("Give a goal; it keeps working until done"))
                 swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes=["opt", "modeopt"], elem_id="o_swarm", info=t("Several agents answer in parallel, then one combines the best answer"))
                 working = gr.HTML("", elem_id="working")
-                cloudbadge = gr.HTML(badge(default_model()), elem_id="cloudbadge")
-                model = gr.Dropdown(choices=models(True), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200)
+                with gr.Row(elem_id="modelpick"):  # the model and its abilities and price stay together, on one line
+                    model = gr.Dropdown(choices=models(True), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200)
+                    cloudbadge = gr.HTML(badge(default_model()), elem_id="cloudbadge")
 
     box.submit(send, [box, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, desk, *team], [chatbot, box, cid, convs, files], concurrency_limit=None)
     desk.change(starters_html, desk, starters, show_progress="hidden")
