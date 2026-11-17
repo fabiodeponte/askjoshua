@@ -510,5 +510,6 @@
  "Not finished: the check found gaps (round {i} of {n})": "Nicht fertig: Die Prüfung hat Lücken gefunden (Runde {i} von {n})",
  "{n} new": "{n} neu",
  "nothing new": "nichts Neues",
- "Monitor: report only what's new since the last run": "Beobachtung: nur melden, was seit dem letzten Lauf neu ist"
+ "Monitor: report only what's new since the last run": "Beobachtung: nur melden, was seit dem letzten Lauf neu ist",
+ "Paper": "Papier"
 }

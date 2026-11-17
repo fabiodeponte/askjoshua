@@ -510,5 +510,6 @@
  "Not finished: the check found gaps (round {i} of {n})": "Pas fini : la vérification a trouvé des lacunes (tour {i} sur {n})",
  "{n} new": "{n} nouveautés",
  "nothing new": "rien de nouveau",
- "Monitor: report only what's new since the last run": "Veille : signaler seulement ce qui est nouveau depuis la dernière fois"
+ "Monitor: report only what's new since the last run": "Veille : signaler seulement ce qui est nouveau depuis la dernière fois",
+ "Paper": "Papier"
 }

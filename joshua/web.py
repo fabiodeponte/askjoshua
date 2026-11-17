@@ -1658,7 +1658,7 @@ def poll(cid, request: gr.Request):
 
 
 CSS = """
-body:not([data-screen="green"]):not([data-screen="amber"]):not([data-screen="modern"]):not([data-screen="modern-night"]):not([data-screen="blue"]):not([data-screen="black"]):not([data-screen="white"]) {--bg: #dfdbc3; --bg-hi: #e9e5cf; --panel: #e7e3cc; --codebg: #d4cfb3; --line: rgba(90, 60, 40, .45); --cyan: #9c3b1c; --glow: transparent; --ink: #3b2322; --dim: #7a6250; --amber: #9c3b1c; --red: #b3261e; --codeink: #3b2322; --shadow: none}
+body:not([data-screen="green"]):not([data-screen="amber"]):not([data-screen="modern"]):not([data-screen="modern-night"]):not([data-screen="modern-paper"]):not([data-screen="blue"]):not([data-screen="black"]):not([data-screen="white"]) {--bg: #dfdbc3; --bg-hi: #e9e5cf; --panel: #e7e3cc; --codebg: #d4cfb3; --line: rgba(90, 60, 40, .45); --cyan: #9c3b1c; --glow: transparent; --ink: #3b2322; --dim: #7a6250; --amber: #9c3b1c; --red: #b3261e; --codeink: #3b2322; --shadow: none}
 body[data-screen="black"] {--bg: #000308; --bg-hi: #040a14; --panel: #050a14; --codebg: #02050a; --line: #8fe9ff; --cyan: #8fe9ff; --glow: rgba(80, 200, 255, .55); --ink: #a6e6ff; --dim: #5d8ea6; --amber: #ffb347; --red: #ff5a4e; --codeink: #59f08a; --shadow: 0 0 8px rgba(80, 200, 255, .55); --check: #ffb347}
 body[data-screen="black"] {--bw: 2px; --panel-shadow: 0 0 8px var(--glow), inset 0 0 18px rgba(80, 200, 255, .12); --case: uppercase; --tglow: 0 0 3px rgba(120, 220, 255, .35); --flick: flick 3s infinite; --pbw: 2px; --pline: var(--amber); --pglow: 0 0 8px rgba(255, 179, 71, .35)}
 body[data-screen="black"]::after {content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, .22) 0, rgba(0, 0, 0, .22) 1px, transparent 1px, transparent 3px)}
@@ -2240,6 +2240,35 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+/* ---------- Paper: the look of a well-set document (like a PDF in macOS Preview) ----------
+   Arial / Helvetica, near-black on white, a clear size step between headings and text, lines of 1.5,
+   and tables drawn with thin grey rules and a pale header row. */
+body[data-screen="modern-paper"] {--bg: #f4f4f6; --bg-hi: #f4f4f6; --panel: #ffffff; --codebg: #f3f4f6; --line: rgba(0, 0, 0, .12); --cyan: #24665a; --glow: transparent; --ink: #111111; --dim: #6b6b70; --amber: #24665a; --red: #b3261e; --codeink: #111111; --shadow: none; --check: #24665a; --userbg: #eef0f3; --green: #24665a; --soft: rgba(0, 0, 0, .05)}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) {--side: #ececef}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container *:not(svg):not(path):not(code):not(pre):not(pre *):not(#brand):not(#brand *) {font-family: Arial, 'Helvetica Neue', Helvetica, 'Liberation Sans', sans-serif !important; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose * {font-size: 1.06rem !important; line-height: 1.5 !important; color: var(--ink)}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose * {opacity: 1 !important}  /* the answer in full black, not faded like the folded parts */
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose p {margin: .45em 0 .8em !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h1, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h1 * {font-size: 1.75rem !important; line-height: 1.2 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h2, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h2 * {font-size: 1.5rem !important; line-height: 1.22 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h3, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h3 * {font-size: 1.22rem !important; line-height: 1.25 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h4, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h4 * {font-size: 1.06rem !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(h1, h2, h3, h4) {font-weight: 700 !important; color: #000 !important; letter-spacing: -.01em !important; margin: 1.15em 0 .4em !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(h1, h2, h3, h4):first-child {margin-top: .2em !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose strong, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose b {font-weight: 700 !important; color: #000 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(ul, ol) {padding-left: 1.5em !important; margin: .3em 0 .9em !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose li {margin: .25em 0 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose ul > li {list-style: disc !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose table {border-collapse: collapse !important; width: 100% !important; margin: .7em 0 1.4em !important; border: 1px solid #d3d6db !important; display: table !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) {border: 1px solid #d3d6db !important; padding: .6em .85em !important; text-align: left !important; vertical-align: middle !important; background: #fff !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th * {background: #e8eaee !important; font-weight: 700 !important; color: #000 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) p {margin: 0 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose blockquote {border-left: 3px solid #d3d6db !important; padding-left: 1em !important; color: #333 !important; margin: .6em 0 1em !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose a {color: var(--cyan) !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-wrap {max-width: 56rem !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user * {font-size: 1.02rem !important; line-height: 1.45 !important; color: #111 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .placeholder::before, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #schedtitle, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #tunetitle {font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important; font-weight: 700 !important; letter-spacing: -.015em !important; color: #000 !important}
+body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chatcol {background: #ffffff !important}
 #chat button.jcopied {color: var(--brand) !important; transform: scale(1.15); transition: transform .15s}
 /* ---------- phone: the message box and the switches under it take two short lines, not half the screen ---------- */
 body.narrow:not(#a):not(#b):not(#c) #promptrow {padding: 0 !important; gap: 4px !important; align-items: center !important}
@@ -2749,7 +2778,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 set_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Look") + "</h2>")
-                screen = gr.Radio([(t("Novel"), "novel"), (t("Black"), "black"), (t("White"), "white"), (t("Green"), "green"), (t("Amber"), "amber"), (t("Blue"), "blue"), (t("Modern"), "modern"), (t("Modern night"), "modern-night")], value="modern", label=t("Look"), elem_id="screen")
+                screen = gr.Radio([(t("Paper"), "modern-paper"), (t("Novel"), "novel"), (t("Black"), "black"), (t("White"), "white"), (t("Green"), "green"), (t("Amber"), "amber"), (t("Blue"), "blue"), (t("Modern"), "modern"), (t("Modern night"), "modern-night")], value="modern-paper", label=t("Look"), elem_id="screen")
                 textsize = gr.Radio([("90%", "0.9"), ("100%", "1"), ("110%", "1.1"), ("125%", "1.25"), ("140%", "1.4")], value="1", label=t("Text size"), elem_id="textsize")
                 language = gr.Dropdown([(t("Language: automatic"), "auto")] + [(name, code) for code, name in LANGS.items()], value=i18n.chosen() if i18n.chosen() in LANGS else "auto", label=t("Language"), elem_id="language")
             with gr.Column(elem_classes=["mzone", "mz0"]):
@@ -3058,7 +3087,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             while ((n = w.nextNode())) { const k = n.nodeValue.trim(), M = n.parentElement && n.parentElement.closest('#wfiles') ? F : T;
               if (k in M && M[k] !== k) n.nodeValue = n.nodeValue.replace(k, M[k]); } };
           fix(document.body); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(x => x.nodeType === 1 ? fix(x) : x.nodeType === 3 && fix(x.parentNode || document.body)))).observe(document.body, {childList: true, subtree: true}); }""")
-    screen.change(None, screen, None, js="(v) => { document.body.dataset.screen = v; try { localStorage.setItem('joshua-screen2', v) } catch (e) {} }")
+    screen.change(None, screen, None, js="(v) => { document.body.dataset.screen = v; try { localStorage.setItem('joshua-screen3', v) } catch (e) {} }")
     demo.load(None, None, None, js="""() => { new MutationObserver(() => document.querySelectorAll('.dlp').forEach(d => {  // a download's progress, drawn in its row
         const slot = document.querySelector('.mslot[data-slot="' + d.dataset.slot + '"]'); if (!slot) return;
         slot.innerHTML = "<span class='mbar dl' title='" + d.dataset.label + "'><i style='width:" + d.dataset.pct + "%'></i></span> " + d.dataset.pct + '%'; d.remove(); }))
@@ -3146,7 +3175,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
         document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
         b.classList.add('jcopied'); setTimeout(() => b.classList.remove('jcopied'), 1200); }, true) }""")
-    demo.load(None, None, screen, js="() => { let v = 'modern'; try { v = localStorage.getItem('joshua-screen2') || 'modern' } catch (e) {} document.body.dataset.screen = v; return v }")
+    demo.load(None, None, screen, js="() => { let v = 'modern-paper'; try { v = localStorage.getItem('joshua-screen3') || 'modern-paper' } catch (e) {} document.body.dataset.screen = v; return v }")
     textsize.change(None, textsize, None, js="(v) => { document.documentElement.style.fontSize = (16 * v) + 'px'; try { localStorage.setItem('joshua-zoom', v) } catch (e) {} }")
     demo.load(None, None, textsize, js="() => { let v = '1'; try { v = localStorage.getItem('joshua-zoom') || '1' } catch (e) {} document.documentElement.style.fontSize = (16 * v) + 'px'; return v }")
     sidetoggle.click(None, None, None, js="""() => {

@@ -510,5 +510,6 @@
  "Not finished: the check found gaps (round {i} of {n})": "Non finito: il controllo ha trovato lacune (giro {i} di {n})",
  "{n} new": "{n} novità",
  "nothing new": "niente di nuovo",
- "Monitor: report only what's new since the last run": "Monitoraggio: riporta solo le novità dall'ultima volta"
+ "Monitor: report only what's new since the last run": "Monitoraggio: riporta solo le novità dall'ultima volta",
+ "Paper": "Carta"
 }

@@ -510,5 +510,6 @@
  "Not finished: the check found gaps (round {i} of {n})": "未完成：检查发现了缺漏（第 {i} 轮，共 {n} 轮）",
  "{n} new": "{n} 条新内容",
  "nothing new": "没有新内容",
- "Monitor: report only what's new since the last run": "监测：只报告自上次运行以来的新内容"
+ "Monitor: report only what's new since the last run": "监测：只报告自上次运行以来的新内容",
+ "Paper": "纸张"
 }
