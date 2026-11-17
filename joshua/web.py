@@ -2366,13 +2366,14 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[dat
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
 /* ---------- Prof Falken: WOPR's green terminal (strong selectors: the themes style code blocks and fonts too) ---------- */
-body:not(#a):not(#b):not(#c):not(#d) .wopr, body:not(#a):not(#b):not(#c):not(#d) .wopr *, body:not(#a):not(#b):not(#c):not(#d) #chat pre:has(> code.language-wopr), body:not(#a):not(#b):not(#c):not(#d) #chat pre:has(> code.language-wopr) * {font-family: 'VT323', 'Menlo', 'Courier New', ui-monospace, monospace !important; color: #7dff8a !important; letter-spacing: .02em !important; text-shadow: 0 0 6px rgba(125, 255, 138, .45)}
-body:not(#a):not(#b):not(#c):not(#d) .wopr {background: #050805 !important; border-radius: 10px; max-width: 640px; margin: 0 auto 12px; padding: 22px 26px; font-size: 1.3rem !important; line-height: 1.25; text-align: left}
-body:not(#a):not(#b):not(#c):not(#d) .wopr .wline {display: block; background: none !important; border: none !important; font-size: 1.3rem !important; padding: 0 !important; margin: 0 !important; cursor: pointer; text-align: left; white-space: pre; box-shadow: none !important; border-radius: 3px !important; min-height: 0 !important}
-body:not(#a):not(#b):not(#c):not(#d) .wopr .wline:hover {background: rgba(125, 255, 138, .15) !important}
-body:not(#a):not(#b):not(#c):not(#d) #chat pre:has(> code.language-wopr) {background: #050805 !important; border: none !important; border-radius: 10px !important; padding: 16px 20px !important; width: max-content; max-width: 100%}
-body:not(#a):not(#b):not(#c):not(#d) #chat pre:has(> code.language-wopr) code {background: transparent !important; font-size: 1.2rem !important; line-height: 1.2 !important; white-space: pre !important}
-body:not(#a):not(#b):not(#c):not(#d) #chat .code_wrap:has(code.language-wopr) button {display: none !important}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr, body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr *, body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat pre:has(> code.language-wopr), body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat pre:has(> code.language-wopr) * {font-family: 'VT323', 'Menlo', 'Courier New', ui-monospace, monospace !important; color: #7dff8a !important; letter-spacing: .02em !important; text-shadow: 0 0 6px rgba(125, 255, 138, .45)}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr {background: #050805 !important; border-radius: 10px; max-width: 560px; margin: 0 auto 12px; padding: 18px 22px; text-align: left}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr, body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr * {font-size: 1.1rem !important; line-height: 1.3 !important; font-weight: 400 !important}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr .wline {display: block; background: none !important; border: none !important; padding: 0 !important; margin: 0 !important; cursor: pointer; text-align: left; white-space: pre; box-shadow: none !important; border-radius: 3px !important; min-height: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr .wline:hover {background: rgba(125, 255, 138, .15) !important}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat pre:has(> code.language-wopr) {background: #050805 !important; border: none !important; border-radius: 10px !important; padding: 16px 20px !important; width: max-content; max-width: 100%}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat pre:has(> code.language-wopr) code {background: transparent !important; font-size: 1.2rem !important; line-height: 1.2 !important; white-space: pre !important}
+body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat .code_wrap:has(code.language-wopr) button {display: none !important}
 #chatcol:has(#starters .wopr) #chat .placeholder {visibility: hidden !important}  /* WOPR's greeting replaces Joshua's */
 .wcur {animation: wblink 1s steps(1) infinite} @keyframes wblink {50% {opacity: 0}}
 /* ---------- the side column: chats and menu items closer together ---------- */
