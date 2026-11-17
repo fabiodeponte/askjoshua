@@ -769,7 +769,7 @@ def conv_choices():
     order = sorted(convs, key=lambda x: (not x[0].get("pinned"), x[0].get("pin_order", 0), -x[0]["updated"]))  # pinned chats first, in your order; then the most recent
     # PIN is an invisible character: the page script sees it and draws the green pin
     icons = {k: d.get("icon", "") for k, d in desks.desks()}  # a chat at a desk shows the desk's icon
-    return [((PIN if c.get("pinned") else "") + ("⏳ " if busy(cid) else "") + (icons.get(c.get("opts", {}).get("desk"), "") + " " if icons.get(c.get("opts", {}).get("desk")) else "")
+    return [((PIN if c.get("pinned") else "") + ("⏺ " if busy(cid) else "") + (icons.get(c.get("opts", {}).get("desk"), "") + " " if icons.get(c.get("opts", {}).get("desk")) else "")
              + (cap(c["title"]) or t("New chat")), cid) for c, cid in order]
 
 
@@ -2379,6 +2379,13 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+/* a chat Joshua is working on: a green dot that blinks next to its title */
+body:not(#a):not(#b):not(#c):not(#d) #convs label span.ji-busy, body:not(#a):not(#b):not(#c):not(#d) #convs label span.ji-busy * {color: #2e8b3e !important; fill: #2e8b3e !important; opacity: 1}
+body:not(#a):not(#b):not(#c):not(#d) #convs label span.ji-busy {animation: busyblink 1.2s ease-in-out infinite; -webkit-mask-image: none !important; mask-image: none !important}  /* the fade at the end of long titles must not touch the dot */
+#convs .ji-busy {display: inline-flex !important; align-items: center; vertical-align: middle; margin-right: .35em !important}
+#convs .ji-busy svg {width: .8em !important; height: .8em !important}
+@keyframes busyblink {0%, 100% {opacity: 1} 50% {opacity: .3}}
+@media (prefers-reduced-motion: reduce) {body:not(#a):not(#b):not(#c):not(#d) #convs label span.ji-busy {animation: none}}
 /* ---------- Prof Falken: WOPR's green terminal (strong selectors: the themes style code blocks and fonts too) ---------- */
 body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr, body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr *, body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat pre:has(> code.language-wopr), body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) #chat pre:has(> code.language-wopr) * {font-family: 'VT323', 'Menlo', 'Courier New', ui-monospace, monospace !important; color: #7dff8a !important; letter-spacing: .02em !important; text-shadow: 0 0 6px rgba(125, 255, 138, .45)}
 body:not(#a):not(#b):not(#c):not(#d):not(#e):not(#f):not(#g) .wopr {background: #050805 !important; border-radius: 10px; max-width: 560px; margin: 0 auto 12px; padding: 18px 22px; text-align: left}
@@ -3303,7 +3310,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         const rename = () => {  // the chat's name becomes a text field: Enter saves, Esc cancels
           const l = document.querySelector('#convs label.selected'); if (!l) return;
           // the field floats over the name, outside the list: inside it, every click and key would also go to the list
-          const old = text(l).replace(PIN, '').replace(/^⏳ /, ''), r = l.getBoundingClientRect();
+          const old = text(l).replace(PIN, '').replace(/^⏺ /, ''), r = l.getBoundingClientRect();
           const f = document.createElement('input'); f.className = 'renfield'; f.value = old;
           Object.assign(f.style, {left: r.left + 'px', top: r.top + 'px', width: (r.width - 6) + 'px', height: r.height + 'px'});
           document.body.appendChild(f); let done = false;
@@ -3419,7 +3426,7 @@ ICON_JS = r"""(() => {
     for (const e of m[2].match(each)) {
       const name = I.emoji[e] || I.emoji[e.replace('\uFE0F', '')];
       if (!name) continue;
-      const s = document.createElement('span'); s.className = 'ji'; s.innerHTML = I.svg[name]; s._for = node;
+      const s = document.createElement('span'); s.className = 'ji ji-' + name; s.innerHTML = I.svg[name]; s._for = node;
       el.insertBefore(s, node); spans.push(s);
     }
     const value = m[1] + node.nodeValue.slice(m[0].length);
