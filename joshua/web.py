@@ -1489,6 +1489,8 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
         where = (t("From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model, company=providers.company(model))
                  if providers.is_api(model) else t("From here on this chat is answered by **{model}** on Ollama's servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model))
         conv["display"].append({"role": "assistant", "content": "☁ *" + where + ("" if cloudmem else " " + t("Your memory notes are not sent.")) + " " + t("Everything stays stored only on this computer.") + "*"})
+    if desk == "falken":
+        conv["ephemeral"] = True  # a game isn't kept: deleted when you leave it (forget_games)
     if desk == "falken" and text and not files:  # Prof Falken: a game move is played by falken.py, at once, without a model
         reply = falken.play(conv, text)
         if reply is not None:
@@ -1551,7 +1553,20 @@ def files_label(cid):
     return gr.File(value=file_list(cid), label=t("Project: {name}", name=pathlib.Path(project).name) if project else t("Files in this chat"))
 
 
+def forget_games(keep=None):
+    """Prof Falken chats aren't kept: once you leave one (another chat, a new chat, or Joshua restarts), it's deleted."""
+    for p in ROOT.iterdir():
+        if p.name != keep and (p / "chat.json").exists() and not busy(p.name):
+            try:
+                if json.loads((p / "chat.json").read_text(encoding="utf-8")).get("ephemeral"):
+                    shutil.rmtree(p, ignore_errors=True)
+                    JOBS.pop(p.name, None)
+            except Exception:
+                pass
+
+
 def open_conv(cid):
+    forget_games(keep=cid)
     conv = load(cid)
     view = present(JOBS[cid].view, True) if busy(cid) else present(conv["display"])
     used = conv.get("model")
@@ -1559,6 +1574,7 @@ def open_conv(cid):
 
 
 def new_chat():
+    forget_games()
     return [], None, gr.Radio(choices=conv_choices(), value=None), files_label(None), "", *chat_opts(None)
 
 
@@ -2937,6 +2953,7 @@ def task_action(name, action):
 
 
 threading.Thread(target=scheduler, daemon=True).start()
+forget_games()  # games left from the last session
 
 
 def css_text(text):
