@@ -3379,9 +3379,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           setTimeout(() => open(d, true), already ? 0 : 700); }, true);
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); }); }""")
     demo.load(None, None, None, js="""() => {  // Prof Falken: you type in WOPR's own screen, at a > prompt under the latest one; Enter sends it.
-        // WOPR can also speak (🔊, off by default): only its words, never boards, mazes or lists, with the browser's own voice.
+        // WOPR also speaks (on unless you switch it off): only its words, never boards, mazes or lists, with the browser's own voice.
         const synth = window.speechSynthesis;
-        const voiceOn = () => { try { return localStorage.getItem('joshua-wopr-voice') === '1' } catch (e) { return false } };
+        const voiceOn = () => { try { return localStorage.getItem('joshua-wopr-voice') !== '0' } catch (e) { return true } };  // on unless you switched it off
         const pickVoice = () => { const vs = synth ? synth.getVoices() : []; for (const n of ['Fred', 'Zarvox', 'Ralph', 'Albert', 'Microsoft David', 'Google US English'])
           { const v = vs.find(x => x.name.startsWith(n)); if (v) return v; } return vs.find(x => x.lang && x.lang.startsWith('en')) || null; };
         const words = (txt) => txt.split(/\\n\\s*\\n/).map(par => par.split('\\n').map(l => l.trim()).filter(l => l && !l.startsWith('>')
@@ -3403,7 +3403,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             const b = document.createElement('button'); b.className = 'wopr-voice'; b.type = 'button';
             const show = () => { b.textContent = voiceOn() ? 'VOICE ON' : 'VOICE OFF'; b.title = voiceOn() ? 'WOPR speaks: click to mute' : 'Click to let WOPR speak'; };
             show();
-            b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { localStorage.setItem('joshua-wopr-voice', voiceOn() ? '' : '1') } catch (x) {}
+            b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { localStorage.setItem('joshua-wopr-voice', voiceOn() ? '0' : '1') } catch (x) {}
               show(); if (voiceOn()) say(host.innerText); else if (synth) synth.cancel(); });
             host.appendChild(b); }
           if (host.querySelector('.wopr-in')) return;
