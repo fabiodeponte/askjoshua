@@ -202,6 +202,18 @@ def _file(book_id):
     return LIB / f"{re.sub(r'[^a-z0-9]', '', book_id)}.json"
 
 
+def _store(book_id, title, source, paras):
+    if _file(book_id).exists():  # already in the library: keep its place
+        return book_id
+    if not paras:
+        raise ValueError("no text")
+    LIB.mkdir(parents=True, exist_ok=True)
+    book = {"id": book_id, "title": title, "file": source, "lang": language(paras), "paras": paras, "pos": 0,
+            "added": time.time(), "opened": time.time()}
+    _file(book_id).write_text(json.dumps(book, ensure_ascii=False), encoding="utf-8")
+    return book_id
+
+
 def add(path, name=None):
     """Adds a document to the library and returns its id. The same file added again keeps its place."""
     path = pathlib.Path(path)
@@ -209,13 +221,42 @@ def add(path, name=None):
     if _file(book_id).exists():
         return book_id
     title, paras = extract(path)
-    if not paras:
-        raise ValueError("no text")
-    LIB.mkdir(parents=True, exist_ok=True)
-    book = {"id": book_id, "title": title, "file": name or path.name, "lang": language(paras), "paras": paras, "pos": 0,
-            "added": time.time(), "opened": time.time()}
-    _file(book_id).write_text(json.dumps(book, ensure_ascii=False), encoding="utf-8")
-    return book_id
+    return _store(book_id, title, name or path.name, paras)
+
+
+def _title(paras, fallback):
+    first = paras[0] if paras else ""
+    return first if len(first) <= 90 else (" ".join(first.split()[:10]) + "…") if first else fallback
+
+
+def add_text(text):
+    """Pasted text. Paragraphs are separated by an empty line; text copied from a web page often has one paragraph per line."""
+    text = (text or "").replace("\r\n", "\n").strip()
+    paras = _blocks(text)
+    if len(paras) == 1 and text.count("\n") >= 2:
+        paras = [_clean(l) for l in text.splitlines() if _clean(l)]
+    return _store("t" + hashlib.sha1(text.encode()).hexdigest()[:11], _title(paras, "Text"), "", paras)
+
+
+def add_url(url):
+    """A web page: only its main text (no menus, adverts or comments), with the page's title."""
+    import trafilatura
+    url = url.strip()
+    if not re.match(r"https?://", url):
+        url = "https://" + url
+    raw = trafilatura.fetch_url(url)
+    if not raw:
+        raise ValueError("the page couldn't be downloaded")
+    text = trafilatura.extract(raw, include_comments=False, include_tables=False, favor_recall=True) or ""
+    paras = [_clean(l) for l in text.splitlines() if _clean(l)]
+    meta = trafilatura.extract_metadata(raw)
+    title = (meta.title if meta and meta.title else "") or _title(paras, url)
+    return _store("u" + hashlib.sha1((url + "\n" + text).encode()).hexdigest()[:11], title, url, paras)
+
+
+def is_url(value):
+    v = (value or "").strip()
+    return bool(re.fullmatch(r"(https?://|www\.)\S+", v)) or bool(re.fullmatch(r"[\w-]+(\.[\w-]+)*\.[a-z]{2,}(/\S*)?", v))  # one word that looks like an address
 
 
 def get(book_id):

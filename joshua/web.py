@@ -2259,6 +2259,19 @@ def rd_add(path):
     return rd_show(book_id) + (None,)
 
 
+def rd_paste(value):
+    """A web address or pasted text, added to the library and opened."""
+    value = (value or "").strip()
+    if not value:
+        return (gr.skip(),) * 7
+    try:
+        book_id = reader.add_url(value) if reader.is_url(value) else reader.add_text(value)
+    except Exception as e:
+        gr.Warning((t("Joshua couldn't read that page.") if reader.is_url(value) else t("Joshua couldn't find text to read in this file.")) + (f" ({e})" if str(e) != "no text" else ""))
+        return (gr.skip(),) * 7
+    return rd_show(book_id) + ("",)
+
+
 def rd_remove(book_id):
     if book_id:
         reader.remove(book_id)
@@ -3659,6 +3672,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             with gr.Column() as rd_libcol:
                 gr.Markdown(t("Add a book or a document: Joshua reads it aloud with this computer's voice for its language, and keeps your place, even after you close it. You can go back to the chat while it reads."))
                 rd_upload = gr.File(label=t("Add a book or a document"), file_types=reader.TYPES, type="filepath", height=110)
+                with gr.Row(equal_height=True):
+                    rd_text_in = gr.Textbox(show_label=False, placeholder=t("…or paste a web address, or some text"), lines=1, max_lines=8, scale=5, elem_id="rdpaste")
+                    rd_text_add = gr.Button("＋ " + t("Add"), size="sm", scale=0, min_width=110)
                 rd_list = gr.HTML("")
                 with gr.Column(visible=False) as rd_controls:
                     rd_pick = gr.Dropdown([], label=t("Choose a book"))
@@ -4028,6 +4044,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     rd_lib.click(rd_library, outputs=RD)
     rd_open.click(rd_show, rd_pick, RD)
     rd_upload.upload(rd_add, rd_upload, RD + [rd_upload])
+    rd_text_add.click(rd_paste, rd_text_in, RD + [rd_text_in])
     rd_del.click(rd_remove, rd_pick, RD, js="(c) => (c && confirm(" + JS_TEXT(t("Remove this book from the library? Your file isn't touched.")) + ")) ? c : null")
     rd_pos.change(rd_save, rd_pos, None, show_progress="hidden", queue=False)
     tm_new.click(wiz_open, outputs=WIZ + [tm_listcol, tm_wiz])
