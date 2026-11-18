@@ -648,5 +648,7 @@
  "Text read aloud": "朗读的文字",
  "As written": "原文",
  "Without citations": "去掉引注",
- "Simpler sentences": "更简单的句子"
+ "Simpler sentences": "更简单的句子",
+ "Press ▶ to start reading.": "按 ▶ 开始朗读。",
+ "This paragraph couldn't be played. Press ▶ to try again.": "这一段无法播放。按 ▶ 重试。"
 }

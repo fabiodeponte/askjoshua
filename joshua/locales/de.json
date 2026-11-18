@@ -648,5 +648,7 @@
  "Text read aloud": "Vorgelesener Text",
  "As written": "Wie geschrieben",
  "Without citations": "Ohne Quellenangaben",
- "Simpler sentences": "Einfachere Sätze"
+ "Simpler sentences": "Einfachere Sätze",
+ "Press ▶ to start reading.": "Drücke ▶, um mit dem Vorlesen zu beginnen.",
+ "This paragraph couldn't be played. Press ▶ to try again.": "Dieser Absatz konnte nicht abgespielt werden. Drücke ▶, um es erneut zu versuchen."
 }

@@ -648,5 +648,7 @@
  "Text read aloud": "Czytany tekst",
  "As written": "Jak napisano",
  "Without citations": "Bez przypisów",
- "Simpler sentences": "Prostsze zdania"
+ "Simpler sentences": "Prostsze zdania",
+ "Press ▶ to start reading.": "Naciśnij ▶, aby zacząć czytanie.",
+ "This paragraph couldn't be played. Press ▶ to try again.": "Nie udało się odtworzyć tego akapitu. Naciśnij ▶, aby spróbować ponownie."
 }

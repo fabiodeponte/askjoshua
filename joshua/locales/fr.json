@@ -648,5 +648,7 @@
  "Text read aloud": "Texte lu",
  "As written": "Tel quel",
  "Without citations": "Sans références",
- "Simpler sentences": "Phrases plus simples"
+ "Simpler sentences": "Phrases plus simples",
+ "Press ▶ to start reading.": "Appuyez sur ▶ pour commencer la lecture.",
+ "This paragraph couldn't be played. Press ▶ to try again.": "Ce paragraphe n'a pas pu être lu. Appuyez sur ▶ pour réessayer."
 }
