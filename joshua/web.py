@@ -6,7 +6,7 @@ import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, su
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, remote, tune_ui
+import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, remote, teams, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -21,7 +21,7 @@ ROOT = (pathlib.Path(__file__).parent / "conversations").resolve()
 ROOT.mkdir(exist_ok=True)
 IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 LOGO = "<g transform='translate(-4 3)'><path d='M54 44 V64 A15 15 0 0 1 24 64' stroke='#3f8a49' stroke-width='9' fill='none' stroke-linecap='round'/><path d='M54 44 C47 22 64 3 94 3 C96 28 78 49 54 44 Z' fill='#7fb86a'/><path d='M58 40 L86 11 M65 33 V20 M72 26 H84' stroke='#f3efdc' stroke-width='2.2' fill='none' stroke-linecap='round'/><circle cx='86' cy='11' r='2.8' fill='#f3efdc'/><circle cx='65' cy='20' r='2.8' fill='#f3efdc'/><circle cx='84' cy='26' r='2.8' fill='#f3efdc'/><circle cx='39' cy='64' r='8.5' fill='#2a6bb5'/><path d='M34.5 59.5 C37.5 57.5 41.5 58.5 41.5 61.5 C41.5 64.5 37.5 64.5 35.5 66.5 C33.5 64.5 32.5 61.5 34.5 59.5 Z' fill='#7fb86a'/></g>"  # the sprout J, the same drawing as the website's img/logo.svg
-ICONS = {"web_search": "🔎", "read_page": "📄", "run_python": "🐍", "read_file": "📂", "write_file": "💾", "get_datetime": "🕒", "look_at_image": "🖼️", "generate_image": "🎨", "edit_image": "🖌️", "goal_done": "✅", "give_up": "🛑", "install_package": "📦", "list_files": "🗂️", "remember": "🧠", "forget": "🧹", "read_memory": "📒", "browser_open": "🧭", "browser_read": "🧭", "browser_click": "🖱️", "browser_type": "⌨️", "browser_scroll": "🧭", "browser_back": "🧭"}
+ICONS = {"web_search": "🔎", "read_page": "📄", "run_python": "🐍", "read_file": "📂", "write_file": "💾", "get_datetime": "🕒", "look_at_image": "🖼️", "generate_image": "🎨", "edit_image": "🖌️", "goal_done": "✅", "give_up": "🛑", "ask_member": "👥", "install_package": "📦", "list_files": "🗂️", "remember": "🧠", "forget": "🧹", "read_memory": "📒", "browser_open": "🧭", "browser_read": "🧭", "browser_click": "🖱️", "browser_type": "⌨️", "browser_scroll": "🧭", "browser_back": "🧭"}
 SKIP = (gr.skip(),) * 4
 
 IMAGE_RULE = " When the user asks to change, combine or add to photos they shared, use edit_image with those photo files and never answer with an invented picture; use generate_image only for brand-new pictures." if "edit_image" in tools else " You cannot create or edit pictures on this computer: say so if asked."
@@ -849,41 +849,43 @@ def desk_editor_load(desk_id):
     """The editor shows one desk: what Joshua is told there, its tools and its tasks (in the language you see)."""
     d = desks.get(desk_id)
     if not d:  # a new desk
-        return ("", "", "", [k for k in TOOL_GROUPS if k != "browser"], gr.Button(visible=False), gr.Button(visible=False), "", *task_fields([]))
+        return ("", "", "", [k for k in TOOL_GROUPS if k != "browser"], gr.Button(visible=False), gr.Button(visible=False), "", *desk_task_fields([]))
     rows = [[s.get("icon", ""), desks.text(s["title"], i18n.LANG), desks.text(s["prompt"], i18n.LANG)] for s in d.get("starters", [])]
     builtin = not d.get("mine")
     note = "<div class='cloudstat'>" + (t("Made by you") if not builtin else t("Built into Joshua, changed by you") if desks.edited(desk_id) else t("Built into Joshua")) + "</div>"
     return (d.get("icon", ""), desks.text(d["name"], i18n.LANG), d.get("instructions", ""), [k for k in d.get("tools", []) if k in TOOL_GROUPS],
-            gr.Button(visible=builtin and desks.edited(desk_id)), gr.Button(visible=True), note, *task_fields(rows))
+            gr.Button(visible=builtin and desks.edited(desk_id)), gr.Button(visible=True), note, *desk_task_fields(rows))
 
 
 MAX_TASKS = 12
 
 
-def task_fields(rows):
+def desk_task_fields(rows):
     """The task lines of the desk editor: the values of every field, then which lines are shown."""
-    rows = [r for r in rows if any(x.strip() for x in r)][:MAX_TASKS]
+    rows = rows[:MAX_TASKS]
     values = [x for r in rows for x in r] + [""] * 3 * (MAX_TASKS - len(rows))
     return values + [gr.Row(visible=k < max(len(rows), 1)) for k in range(MAX_TASKS)]
 
 
-def task_rows(values):
+def desk_task_rows(values):
     return [list(values[k:k + 3]) for k in range(0, 3 * MAX_TASKS, 3)]
 
 
-def task_add(*values):
-    rows = [r for r in task_rows(values) if any(x.strip() for x in r)]
-    return task_fields(rows + [["", "", ""]]) if len(rows) < MAX_TASKS else [gr.skip()] * (4 * MAX_TASKS)
+def desk_task_add(*values):
+    rows = [r for r in desk_task_rows(values) if any(x.strip() for x in r)]
+    return desk_task_fields(rows + [["", "", ""]]) if len(rows) < MAX_TASKS else [gr.skip()] * (4 * MAX_TASKS)
 
 
-def task_remove(k, *values):
-    rows = task_rows(values)
+def desk_task_remove(k, *values):
+    rows = desk_task_rows(values)
     del rows[k]
-    return task_fields(rows)
+    while rows and not any(x.strip() for x in rows[-1]):  # the hidden empty lines at the end aren't tasks
+        rows.pop()
+    return desk_task_fields(rows)
 
 
 def _rows(values):
-    return [{"icon": (r[0] or "").strip()[:4], "title": (r[1] or "").strip(), "prompt": (r[2] or "").strip()} for r in task_rows(values) if (r[1] or "").strip()]
+    return [{"icon": (r[0] or "").strip()[:4], "title": (r[1] or "").strip(), "prompt": (r[2] or "").strip()} for r in desk_task_rows(values) if (r[1] or "").strip()]
 
 
 def desk_editor_save(desk_id, icon, name, instructions, tools, *cells):
@@ -928,8 +930,9 @@ def chat_opts(cid):
     o = load(cid).get("opts", {}) if cid else {}
     n = int(o.get("agents", 5))
     desk = o.get("desk", "") if desks.get(o.get("desk")) else ""
-    return (tuple(gr.Checkbox(value=True if k == "thinking" else bool(o.get(k))) for k in OPTS) + (gr.Slider(value=n),) + tuple(team_menu(o.get("team", ()), n))
-            + (gr.Radio(value=desk), starters_html(desk)))
+    solo = not (cid and teams.get(load(cid).get("team")))  # in a team chat each member has its own settings: no desks, goal or swarm here
+    return (tuple(gr.Checkbox(value=True if k == "thinking" else bool(o.get(k)), **({"visible": solo} if k in ("goal", "swarm") else {})) for k in OPTS)
+            + (gr.Slider(value=n),) + tuple(team_menu(o.get("team", ()), n)) + (gr.Radio(value=desk, visible=solo), starters_html(desk)))
 
 
 def save_opts(cid, *values):
@@ -1377,6 +1380,144 @@ def run_swarm(job, cid, conv, model, thinking, n, pool, net, timeout, toolset, j
     return called
 
 
+# ---------- teams of agents ----------
+# A team chat is answered by the team's lead. When the team has other members, the lead gets one more tool,
+# ask_member: it hands a task to a member, who works on it alone (its own instructions, model, tools, goal mode)
+# and returns its finished work to the lead. The lead checks it and writes the answer.
+
+LEAD = "\n\nIn this chat you are {name}, {role}, the lead of the team \"{team}\".{purpose} Your own instructions:\n{instructions}"
+CREW = "\n\nYour colleagues in the team:\n{crew}\nHand them the parts of the work that fit their roles with ask_member: give each one a complete task with everything they need, because they can't see this conversation. Then check what they return, fix or ask again if something is wrong or missing, and write the final answer for the user yourself. Do a part yourself only when no colleague fits it."
+MEMBER = " In this task you are {name}, {role}, a member of the team \"{team}\". The team lead, {lead}, gives you the task below. The lead sees only your final reply, not your tool results, so put everything they need in it. Your instructions:\n{instructions}"
+
+
+def installed_or(model, fallback):
+    return model if model and model in {v for _, v in models()} else fallback
+
+
+def member_tools(member, base):
+    names = {n for g in member.get("tools", []) if g in TOOL_GROUPS for n in TOOL_GROUPS[g][1]}
+    return {k: v for k, v in base.items() if k in names}
+
+
+def member_run(member, task, team, job, shown, chat_model, thinking, base, language):
+    """A member works on the lead's task alone, in a box of its own in the chat, and returns its final reply."""
+    model = installed_or(member.get("model"), chat_model)
+    goal = bool(member.get("goal"))
+    toolset = member_tools(member, base)
+    if goal:
+        toolset.update(goal_done=goal_done, give_up=give_up)
+    system = SYSTEM.format(now=agent.get_datetime()) + MEMBER.format(name=member["name"], role=member.get("role") or "-", team=team["name"], lead=teams.lead(team)["name"], instructions=member.get("instructions") or "-") \
+        + (GOAL_RULES if goal else "") + (f" Always reply in {language}." if language else "")
+    msgs = [{"role": "system", "content": system}, {"role": "user", "content": ("GOAL: " if goal else "") + task}]
+    box = {"role": "assistant", "content": t("Working…"), "metadata": {"title": f"{member.get('icon') or '👤'} {member['name']} · {model.removesuffix(':latest')}", "status": "done"}}
+    shown.append(box)
+    job.publish(shown)
+    log, answer, finished = [], "", False
+    think = think_mode(model, thinking)
+    for r in range(3 if goal else 1):  # in goal mode a member gets up to 3 rounds to finish its part
+        for step in range(15):
+            if job.stop.is_set():
+                break
+            last = step == 14
+            if last:
+                msgs.append({"role": "user", "content": WRAP})
+            try:
+                m = ollama.chat(model, messages=msgs, tools=[] if last or not toolset else list(toolset.values()), options={"num_ctx": 16384}, **think).message
+            except Exception as e:
+                log.append(f"⚠️ {e}")
+                break
+            calls = [] if last else m.tool_calls or []
+            content = split_think(m.content or "")[0].strip() or ("" if calls else (m.thinking or "").strip())
+            msgs.append({"role": "assistant", "content": content, "tool_calls": [{"function": {"name": c.function.name, "arguments": dict(c.function.arguments)}} for c in calls]})
+            if not calls:
+                answer = content
+                break
+            for c in calls:
+                name, args = c.function.name, dict(c.function.arguments)
+                finished = finished or name in ("goal_done", "give_up")
+                log.append(f"{ICONS.get(name, '🔧')} {name} `{json.dumps(args, ensure_ascii=False)[:100]}`")
+                box["content"] = t("Working…") + "\n\n" + "\n".join(f"- {line}" for line in log)
+                job.publish(shown)
+                try:
+                    result = str(toolset[name](**args)) if name in toolset else f"Error: no tool called {name}"
+                except Exception as e:
+                    result = f"Error: {e}"
+                msgs.append({"role": "tool", "tool_name": name, "content": result})
+        if not goal or finished or job.stop.is_set():
+            break
+        msgs.append({"role": "user", "content": NUDGE})
+    steps = "\n".join(f"- {line}" for line in log)
+    box["content"] = (steps + "\n\n---\n\n" if steps else "") + (answer or t("(no answer)"))
+    job.publish(shown)
+    return answer
+
+
+def run_team(job, conv, chat_model, thinking, base, rounds, language):
+    """The lead answers in the chat; the other members work when the lead asks them."""
+    team = teams.get(conv.get("team"))
+    shown, msgs = conv["display"], conv["llm"]
+    head = teams.lead(team)
+    model = installed_or(head.get("model"), chat_model)
+    goal = bool(head.get("goal"))
+    toolset = member_tools(head, base)
+    crew = teams.others(team)
+
+    def ask_member(name: str, task: str) -> str:
+        """Give a task to a colleague in your team and get their finished work back. They can't see this conversation, so write a complete task with everything they need.
+
+        Args:
+            name: The colleague's name
+            task: The complete task, with all the details and material the colleague needs
+        """
+        member = teams.find(team, name)
+        if not member:
+            return f"No colleague called {name}. Your colleagues: " + ", ".join(m["name"] for m in crew)
+        answer = member_run(member, task, team, job, shown, chat_model, thinking, base, language)
+        return f"{member['name']}'s work:\n\n{answer}" if answer else f"{member['name']} returned no answer."
+
+    if crew:
+        toolset["ask_member"] = ask_member
+    if goal:
+        toolset.update(goal_done=goal_done, give_up=give_up)
+    msgs[0]["content"] += LEAD.format(name=head["name"], role=head.get("role") or "-", team=team["name"], purpose=f" The team's purpose: {team['purpose']}." if team.get("purpose") else "", instructions=head.get("instructions") or "-") \
+        + (CREW.format(crew="\n".join(f"- {m['name']}: {m.get('role') or '-'}" for m in crew)) if crew else "") + (GOAL_RULES if goal else "")
+    if goal and msgs[-1]["role"] == "user" and not msgs[-1]["content"].startswith("GOAL: "):
+        msgs[-1]["content"] = "GOAL: " + msgs[-1]["content"]
+    rounds = int(rounds) if goal else 1
+    for r in range(1, rounds + 1):
+        called = []
+        for view in agent_turn(msgs, shown, toolset, model, thinking, job.stop, called):
+            job.publish(view)
+        if job.stop.is_set():
+            shown.append({"role": "assistant", "content": t("You stopped this task. Send a message to continue."), "metadata": {"title": "⏹ " + t("Stopped"), "status": "done"}})
+            return
+        if not goal or {"goal_done", "give_up"} & set(called):
+            return
+        if r == rounds:
+            shown.append({"role": "assistant", "content": t("The goal wasn't marked as done after {n} rounds. Send a message to continue.", n=rounds), "metadata": {"title": "⏹ " + t("Stopped"), "status": "done"}})
+            return
+        shown.append({"role": "assistant", "content": t("Not marked as done yet, continuing."), "metadata": {"title": "🔁 " + t("Round {i} of {n}", i=r + 1, n=rounds), "status": "done"}})
+        msgs.append({"role": "user", "content": NUDGE})
+        job.publish(shown)
+
+
+def team_chat(team_id):
+    """A new chat with a team: it starts with who is in it."""
+    team = teams.get(team_id)
+    if not team:
+        gr.Warning(t("Pick a team first."))
+        return None
+    cid = new_conv()
+    conv = load(cid)
+    head = teams.lead(team)
+    who = "\n".join(f"- {m.get('icon') or '👤'} **{m['name']}**" + (f" · {m['role']}" if m.get("role") else "") + (" · " + t("leads") if m is head else "") + (" · 🎯" if m.get("goal") else "") for m in team["members"])
+    intro = f"{team.get('icon') or '👥'} **{team['name']}**" + (f"  \n{team['purpose']}" if team.get("purpose") else "") + "\n\n" + who + "\n\n" + (
+        t("Write the team's task below. {lead} reads it, hands parts of the work to the others and writes the answer.", lead=head["name"]) if teams.others(team) else t("Write the task below: {lead} works on it.", lead=head["name"]))
+    conv.update(team=team_id, title=f"{team.get('icon') or '👥'} {team['name']}", auto_title=True, display=[{"role": "assistant", "content": intro}])
+    save(cid, conv)
+    return cid
+
+
 # ---------- long-term memory ----------
 
 EXTRACT = """You keep long-term memory notes about the user of an AI assistant. The current notes:
@@ -1435,8 +1576,12 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     evidence = asked = None
     role = conv.pop("agent", None) or {}  # a monitor's run: what to search for, and what its sites and feeds said
     checking = goal and conv.get("opts", {}).get("desk") == "journalism" and factcheck.asked(user_text)  # the fact checker
+    in_team = teams.get(conv.get("team"))
     try:
-        if not offline and user_text and "web_search" not in off:
+        if in_team:  # a team chat: the lead answers, and the members work when the lead asks them
+            run_team(job, conv, model, thinking, base, rounds, language)
+            rounds = 0
+        if not in_team and not offline and user_text and "web_search" not in off:
             box = {"role": "assistant", "content": "", "metadata": {"title": "🔎 " + t("Looking online…"), "status": "done"}}
 
             def show():  # the box appears only once Joshua has decided to search
@@ -1526,6 +1671,8 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     if conv.get("auto_title") and load(cid).get("auto_title") and user_text and not job.stop.is_set():  # the first answer is in: give the chat a title that sums it up
         answer = (last_answer(shown) or {}).get("content", "")
         title = make_title(model, user_text, answer if isinstance(answer, str) else "", language) if answer else ""
+        if title and in_team:  # a team's chats keep its icon in front
+            title = (in_team.get("icon") or "👥") + " " + title
         if title:
             conv["title"], conv["auto_title"] = title, False
             save(cid, conv)
@@ -1568,6 +1715,10 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
         return gr.skip(), *SKIP
     cid = cid or new_conv()
     conv = load(cid)
+    if teams.get(conv.get("team")):  # a team chat: each member has its own goal mode and tools; desks and swarm don't apply
+        goal = swarm = False
+        desk, picked = "", []
+        team_cloud = any(is_cloud(installed_or(m.get("model"), model)) for m in teams.get(conv["team"])["members"])  # memory notes stay private then
     conv["model"] = choice
     conv["opts"] = dict(zip(OPTS, map(bool, (thinking, goal, swarm, offline))), agents=int(agents), team=[v or "" for v in (list(team) + [""] * TEAM)[:TEAM]], desk=desk or "")
     if cloud and conv.get("cloud_notice") != model:  # say it once in the chat, each time a new cloud model is picked
@@ -1619,7 +1770,7 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     pool = [model] + [m for m in dict.fromkeys(resolve(v, thinking) for _, v in models()) if m != model and (cloud or not is_cloud(m))]  # "Automatic": a local chat never borrows a cloud model
     auto = iter(pool * TEAM)
     team = [m or next(auto) for m in picked]  # the agents you gave a model use it; the others take the menu's models in turn
-    cloud = cloud or any(is_cloud(m) for m in team)  # memory notes stay private if any agent runs in the cloud
+    cloud = cloud or any(is_cloud(m) for m in team) or teams.get(conv.get("team")) is not None and team_cloud  # memory notes stay private if any agent runs in the cloud
     save(cid, conv)
     JOBS[cid] = job = Job(shown)
     threading.Thread(target=worker, args=(job, cid, conv, model, thinking, goal, rounds, net, timeout, int(agents) if swarm else 0, team, mem, text, offline, cloud and not cloudmem), daemon=True).start()
@@ -1929,6 +2080,138 @@ def bin_empty(go):
     if go:
         shutil.rmtree(BIN, ignore_errors=True)
     return bin_view()
+
+
+# ---------- the Teams page and its wizard ----------
+
+NEW_MEMBER = {"name": "", "icon": "", "role": "", "instructions": "", "model": "", "tools": [], "goal": False}
+STEPS_WIZ = ("The team", "Members", "Lead", "Check")
+
+
+def team_list_html():
+    cards = []
+    for team in teams.all():
+        head = teams.lead(team)
+        who = " · ".join(html.escape((m.get("icon") or "👤") + " " + m["name"]) + (" ★" if m is head else "") for m in team["members"])
+        cards.append(f"<div class='task'><b>{html.escape((team.get('icon') or '👥') + ' ' + team['name'])}</b>"
+                     + (f"<br><span>{html.escape(team['purpose'])}</span>" if team.get("purpose") else "") + f"<br><span>{who}</span></div>")
+    return "".join(cards) or "<div class='cloudstat'>" + t("No teams yet. Press “New team” to create the first one.") + "</div>"
+
+
+def team_page(pick=None):
+    """The list of teams (the wizard closed)."""
+    choices = [((tm.get("icon") or "👥") + " " + tm["name"], tm["id"]) for tm in teams.all()]
+    return (team_list_html(), gr.Dropdown(choices=choices, value=pick if pick in {v for _, v in choices} else choices[0][1] if choices else None), gr.Column(visible=bool(choices)),
+            gr.Column(visible=True), gr.Column(visible=False))
+
+
+def team_delete(team_id):
+    if team_id:
+        teams.delete(team_id)
+        gr.Info(t("Team deleted. Its chats stay in the list."))
+    return team_page()
+
+
+def wiz_render(state, step, sel):
+    """Every field of the wizard, drawn from its state: which step is shown, and the member being edited."""
+    members = state["members"]
+    m = members[sel] if 0 <= sel < len(members) else dict(NEW_MEMBER, tools=[k for k in TOOL_GROUPS if k != "browser"])
+    head = "<div class='wsteps'>" + "".join(f"<span class='wstep{' on' if k + 1 == step else ' done' if k + 1 < step else ''}'>{k + 1}. {t(name)}</span>" for k, name in enumerate(STEPS_WIZ)) + "</div>"
+    listing = t("Describe the first member below. A team can have just one.") if not members else t("Pick a member to change it, or add another one below.")
+    lead = state.get("lead") if state.get("lead") in {x["id"] for x in members} else (members[0]["id"] if members else None)
+    review = ""
+    if step == 4:
+        rows = "".join(f"<div class='task'><b>{html.escape((x.get('icon') or '👤') + ' ' + x['name'])}</b>" + (" · " + t("leads") if x["id"] == lead else "")
+                       + f"<br><span>{html.escape(x.get('role') or '')}</span><br><span>"
+                       + html.escape(" · ".join(filter(None, [x.get("model") or t("Same model as the chat"), "🎯 " + t("Goal mode") if x.get("goal") else "",
+                                                              t("{n} tools", n=len(x.get("tools", [])))]))) + "</span></div>" for x in members)
+        review = f"<div class='task'><b>{html.escape((state.get('icon') or '👥') + ' ' + state['name'])}</b><br><span>{html.escape(state.get('purpose') or '')}</span></div>" + rows
+    return (state, step, sel,
+            *(gr.Column(visible=step == k) for k in (1, 2, 3, 4)), head,
+            gr.Button(visible=step > 1), gr.Button(visible=step < 4), gr.Button(visible=step == 4, value="✓ " + (t("Save team") if state.get("id") else t("Create team"))),
+            state.get("name", ""), state.get("icon", ""), state.get("purpose", ""),
+            listing, gr.Radio(choices=[((x.get("icon") or "👤") + " " + x["name"], k) for k, x in enumerate(members)] + [("＋ " + t("New member"), -1)], value=sel),
+            m["name"], m.get("icon", ""), m.get("role", ""), m.get("instructions", ""),
+            gr.Dropdown(choices=[(t("Same model as the chat"), "")] + models(), value=m.get("model", "")), m.get("tools", []), bool(m.get("goal")),
+            gr.Button(value=t("Save member") if sel >= 0 else "＋ " + t("Add to the team")), gr.Button(visible=sel >= 0),
+            gr.Radio(choices=[((x.get("icon") or "👤") + " " + x["name"], x["id"]) for x in members], value=lead), review)
+
+
+def wiz_collect(state, step, sel, name, icon, purpose, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, lead):
+    """What you typed in the step you're on goes into the wizard's state."""
+    state = copy.deepcopy(state)
+    if step == 1:
+        state.update(name=(name or "").strip(), icon=(icon or "").strip()[:4], purpose=(purpose or "").strip())
+    elif step == 2 and (m_name or "").strip():
+        member = {"name": m_name.strip(), "icon": (m_icon or "").strip()[:4], "role": (m_role or "").strip(), "instructions": (m_instr or "").strip(),
+                  "model": m_model or "", "tools": list(m_tools or []), "goal": bool(m_goal)}
+        if 0 <= sel < len(state["members"]):
+            state["members"][sel] = dict(state["members"][sel], **member)
+        elif len(state["members"]) < teams.MAX_MEMBERS:
+            state["members"].append(dict(member, id=secrets.token_hex(3)))
+            sel = len(state["members"]) - 1
+    elif step == 3 and lead:
+        state["lead"] = lead
+    return state, sel
+
+
+def wiz_open(team_id=None):
+    team = teams.get(team_id)
+    state = copy.deepcopy(team) if team else {"id": None, "name": "", "icon": "", "purpose": "", "lead": None, "members": []}
+    return wiz_render(state, 1, -1) + (gr.Column(visible=False), gr.Column(visible=True))
+
+
+def wiz_move(delta, *values):
+    state, step = values[0], values[1]
+    state, sel = wiz_collect(*values)
+    if delta > 0 and step == 1 and not state["name"]:
+        gr.Warning(t("Give the team a name."))
+        return wiz_render(state, step, sel)
+    if delta > 0 and step == 2 and not state["members"]:
+        gr.Warning(t("Add at least one member."))
+        return wiz_render(state, step, sel)
+    step += delta
+    if step == 3 and len(state["members"]) == 1:  # one member: it leads, nothing to choose
+        step += delta
+    return wiz_render(state, step, -1)
+
+
+def wiz_pick(*values):
+    """Another member picked in the list: the one you were editing is kept first."""
+    state, sel = wiz_collect(*values[:-1])
+    return wiz_render(state, 2, values[-1] if values[-1] is not None else -1)
+
+
+def wiz_member_save(*values):
+    state, sel = wiz_collect(*values)
+    if not (values[6] or "").strip():
+        gr.Warning(t("Give the member a name."))
+    return wiz_render(state, 2, -1)
+
+
+def wiz_member_remove(*values):
+    state, sel = copy.deepcopy(values[0]), values[2]
+    if 0 <= sel < len(state["members"]):
+        del state["members"][sel]
+    return wiz_render(state, 2, -1)
+
+
+def wiz_finish(*values):
+    state, _ = wiz_collect(*values)
+    if not state["name"] or not state["members"]:
+        gr.Warning(t("Give the team a name and at least one member."))
+        return (gr.skip(),) * 5
+    team_id = teams.save(state)
+    gr.Info(t("Team saved: pick it and press “Start a chat”."))
+    return team_page(team_id)
+
+
+def team_open_chat(team_id):
+    new_id = team_chat(team_id)
+    if not new_id:
+        return (gr.skip(),) * (len(OPENED) + 4)
+    forget_games(keep=new_id)
+    return open_conv(new_id) + (gr.Radio(choices=conv_choices(), value=new_id), gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True))
 
 
 LIVE_EVERY = 1.5  # seconds between redraws of a chat while Joshua writes it
@@ -2495,7 +2778,7 @@ body.narrow:not(#a):not(#b):not(.mside) #leftcol {display: none !important}
 body.narrow.mside:not(#a):not(#b) #leftcol {display: flex !important; position: fixed !important; inset: 0 !important; z-index: 900 !important; width: 100vw !important; max-width: 100vw !important; flex-basis: auto !important; height: 100dvh !important; max-height: 100dvh !important; border-radius: 0 !important; padding: 56px 16px 24px !important; overflow-y: auto !important}
 body.narrow.noside #leftcol {display: none}
 body.narrow:not(#a):not(#b) #sidetoggle {position: fixed !important; top: 10px !important; left: 10px !important; z-index: 950 !important; font-size: 1.25rem !important; width: 40px !important; height: 40px !important; opacity: .85}
-body.narrow:not(#a):not(#b) #chatcol, body.narrow:not(#a):not(#b) #modelspage, body.narrow:not(#a):not(#b) #schedpanel, body.narrow:not(#a):not(#b) #tune, body.narrow:not(#a):not(#b) #mempage, body.narrow:not(#a):not(#b) #setpage {min-width: 0 !important; width: 100vw !important; max-width: 100vw !important; flex: 1 1 100% !important; padding: 8px 10px 6px !important; border-radius: 0 !important}
+body.narrow:not(#a):not(#b) #chatcol, body.narrow:not(#a):not(#b) #modelspage, body.narrow:not(#a):not(#b) #schedpanel, body.narrow:not(#a):not(#b) #tune, body.narrow:not(#a):not(#b) #mempage, body.narrow:not(#a):not(#b) #setpage, body.narrow:not(#a):not(#b) #teampage {min-width: 0 !important; width: 100vw !important; max-width: 100vw !important; flex: 1 1 100% !important; padding: 8px 10px 6px !important; border-radius: 0 !important}
 body.narrow:not(#a):not(#b) #chatcol {height: 100dvh !important; max-height: 100dvh !important}
 body.narrow:not(#a):not(#b) #chatbar {padding-left: 48px !important; min-height: 40px !important}
 body.narrow:not(#a):not(#b) #chat {min-height: 0 !important}
@@ -2552,6 +2835,14 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+#teampage .wsteps {display: flex; gap: 18px; flex-wrap: wrap; margin: 4px 0 10px; font-size: .92rem}
+#teampage .wstep {color: var(--dim)}
+#teampage .wstep.on {color: var(--brand); font-weight: 600}
+#teampage .wstep.done {color: var(--text, inherit)}
+#teampage #wiznav {margin-top: 12px; gap: 8px !important}
+#teampage button {min-height: 0 !important}
+#teampage > .column, #teampage .column {flex-grow: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d) #tmdel, body:not(#a):not(#b):not(#c):not(#d) #mremove {color: var(--red) !important}
 #setpage .dkhead {margin: 10px 0 2px}
 #setpage .dkrow {gap: 6px !important; margin: 0 !important; align-items: flex-start !important}
 #setpage .dkrow textarea, #setpage .dkrow input {font-size: .9rem !important}
@@ -3118,8 +3409,8 @@ def css_text(text):
 
 
 CSS = CSS.replace("@@WHAT_HELP@@", css_text(t("Hello. What would you like to do today?"))).replace("@@ASK_HINT@@", css_text(t("Everything you write here is stored only on this computer."))).replace("@@MODEL@@", css_text(t("Model:")))
-CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
-CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
+CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage", "#teampage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
+CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn", "#teambtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
 CSS += "\n#modelspage .mz0, #setpage .mz0 {background: color-mix(in srgb, var(--ink) 4%, var(--bg)) !important}"
 JS_TEXT = lambda text: json.dumps(text, ensure_ascii=False).replace("'", "\\'")  # a text inside the js="..." handlers below
 
@@ -3145,6 +3436,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
             with gr.Column(elem_id="panels"):
                 sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
+                team_btn = gr.Button("👥  " + t("Teams"), size="sm", elem_id="teambtn")
                 models_btn = gr.Button("🧩  " + t("Models"), size="sm", elem_id="modelsbtn")
                 mem_btn_open = gr.Button("🧠  " + t("Background"), size="sm", elem_id="membtn")  # what Joshua knows about you
                 tune = gr.Button("🧪  " + t("Fine-tuning"), size="sm", elem_id="tunebtn")
@@ -3153,6 +3445,55 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 set_btn = gr.Button("⚙  " + t("Settings"), size="sm", elem_id="setbtn")
                 feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
         tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
+        with gr.Column(visible=False, scale=5, elem_id="teampage") as team_panel:
+            with gr.Row():
+                gr.HTML("<div id='schedtitle'>" + t("TEAMS OF AGENTS") + "</div>")
+                team_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
+            with gr.Column() as tm_listcol:
+                gr.Markdown(t("A team is a group of agents, each with a role, its own instructions, model and tools. In a chat with a team you write to its lead: the lead hands parts of the work to the others, checks what they return and writes the answer. A team can also have a single member: an agent of its own."))
+                tm_new = gr.Button("＋ " + t("New team"), size="sm", scale=0, min_width=180, elem_id="tmnew")
+                tm_list = gr.HTML("")
+                with gr.Column(visible=False) as tm_controls:
+                    tm_pick = gr.Dropdown([], label=t("Choose a team"))
+                    with gr.Row():
+                        tm_go = gr.Button("💬 " + t("Start a chat"), size="sm", scale=0, min_width=160)
+                        tm_edit = gr.Button("✏ " + t("Change"), size="sm", scale=0, min_width=160)
+                        tm_del = gr.Button(t("Delete team"), size="sm", scale=0, min_width=160, elem_id="tmdel")
+            with gr.Column(visible=False, elem_id="teamwiz") as tm_wiz:
+                tw_state, tw_step, tw_sel = gr.State({"members": []}), gr.State(1), gr.State(-1)
+                tw_head = gr.HTML("", elem_id="wsteps")
+                with gr.Column() as tw_s1:
+                    gr.Markdown(t("**What is the team for?** For example: an editorial staff that turns notes into finished articles, or a research group that prepares briefings."))
+                    with gr.Row():
+                        tw_icon = gr.Textbox(label=t("Icon"), placeholder="👥", max_lines=1, scale=0, min_width=80)
+                        tw_name = gr.Textbox(label=t("Name"), placeholder=t("Editorial staff"), max_lines=1)
+                    tw_purpose = gr.Textbox(label=t("Purpose"), placeholder=t("Turns my notes and sources into checked, finished articles."), lines=2)
+                with gr.Column(visible=False) as tw_s2:
+                    tw_mlist = gr.Markdown("")
+                    tw_mpick = gr.Radio([], show_label=False, elem_id="twmpick")
+                    with gr.Row():
+                        m_icon = gr.Textbox(label=t("Icon"), placeholder="👤", max_lines=1, scale=0, min_width=80)
+                        m_name = gr.Textbox(label=t("Name"), placeholder=t("Reporter"), max_lines=1, scale=2)
+                        m_role = gr.Textbox(label=t("Role"), placeholder=t("finds facts and sources"), max_lines=1, scale=3)
+                    m_instr = gr.Textbox(label=t("Instructions"), placeholder=t("How this member works: what it does, how, and what it hands back."), lines=4)
+                    with gr.Row():
+                        m_model = gr.Dropdown([], label=t("Model"), scale=2)
+                        m_goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), info=t("Keeps working on its part until it's done and checked"), scale=3)
+                    m_tools = gr.CheckboxGroup([(label, k) for k, (label, _) in TOOL_GROUPS.items()], label=t("Tools"))
+                    with gr.Row():
+                        m_save = gr.Button("＋ " + t("Add to the team"), size="sm", scale=0, min_width=180)
+                        m_remove = gr.Button(t("Remove member"), size="sm", scale=0, min_width=160, visible=False, elem_id="mremove")
+                with gr.Column(visible=False) as tw_s3:
+                    gr.Markdown(t("**Who leads?** The lead is the one you write to: it hands out the work and writes the answer. Pick the member whose role sums up the job, such as an editor-in-chief."))
+                    tw_lead = gr.Radio([], show_label=False)
+                with gr.Column(visible=False) as tw_s4:
+                    gr.Markdown(t("**Check the team**, then save it. You can change it later."))
+                    tw_review = gr.HTML("")
+                with gr.Row(elem_id="wiznav"):
+                    tw_cancel = gr.Button(t("Cancel"), size="sm", scale=0, min_width=120)
+                    tw_prev = gr.Button("← " + t("Back"), size="sm", scale=0, min_width=120, visible=False)
+                    tw_next = gr.Button(t("Next") + " →", size="sm", scale=0, min_width=120)
+                    tw_done = gr.Button("✓ " + t("Create team"), size="sm", scale=0, min_width=160, visible=False)
         with gr.Column(visible=False, scale=5, elem_id="binpage") as bin_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("BIN") + "</div>")
@@ -3431,9 +3772,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     t_del.click(lambda n: task_action(n, "delete"), t_pick, [task_list, t_pick, t_controls], js="(n) => (n && confirm(" + JS_TEXT(t("Delete '{name}'? It won't run again.")) + ".replace('{name}', n))) ? n : null")
     OTHER = [models_panel, sched_panel, tune_panel]
     DK = [dk_icon, dk_name, dk_instr, dk_tools, dk_reset, dk_remove, dk_note] + dk_cells + dk_rows
-    dk_add.click(task_add, dk_cells, dk_cells + dk_rows, show_progress="hidden")
+    dk_add.click(desk_task_add, dk_cells, dk_cells + dk_rows, show_progress="hidden")
     for k, row_ in enumerate(dk_rows):
-        row_.dk_del.click(functools.partial(task_remove, k), dk_cells, dk_cells + dk_rows, show_progress="hidden")
+        row_.dk_del.click(functools.partial(desk_task_remove, k), dk_cells, dk_cells + dk_rows, show_progress="hidden")
     dk_pick.input(desk_editor_load, dk_pick, DK)
     set_btn.click(desk_editor_load, dk_pick, DK)
     dk_save.click(desk_editor_save, [dk_pick, dk_icon, dk_name, dk_instr, dk_tools] + dk_cells, [dk_pick, desk] + DK)
@@ -3442,14 +3783,31 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     js="(d) => (d && confirm(" + JS_TEXT(t("Remove this desk? Its chats stay, at no desk. One of Joshua's desks can be brought back later.")) + ")) ? d : null")
     dk_back.click(desk_editor_back, dk_hidden, [dk_pick, desk] + DK + [dk_hiddenrow, dk_hidden])
 
-    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back), (bin_btn, bin_panel, bin_back)]:
-        rest = [x for x in (mem_panel, set_panel, bin_panel) if x is not panel]
+    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back), (bin_btn, bin_panel, bin_back), (team_btn, team_panel, team_back)]:
+        rest = [x for x in (mem_panel, set_panel, bin_panel, team_panel) if x is not panel]
         btn.click(lambda n=len(OTHER + rest): (gr.Column(visible=True),) + (gr.Column(visible=False),) * (2 + n), outputs=[panel, chatcol, rightcol] + OTHER + rest)
         back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True)), outputs=[panel, chatcol, rightcol])
         for o in (models_btn, sched, tune):  # opening another page closes this one
             o.click(lambda: gr.Column(visible=False), outputs=panel)
     mem_btn_open.click(mem_view, mem_topic, [mem_topic, mem_text])
     bin_btn.click(bin_view, outputs=[bin_list, bin_pick, bin_controls])
+    OPENED = [chatbot, cid, files, project, model, thinking, goal, swarm, offline, agents, *team, desk, starters]  # what opening a chat fills
+    TM_PAGE = [tm_list, tm_pick, tm_controls, tm_listcol, tm_wiz]
+    WIZ = [tw_state, tw_step, tw_sel, tw_s1, tw_s2, tw_s3, tw_s4, tw_head, tw_prev, tw_next, tw_done, tw_name, tw_icon, tw_purpose,
+           tw_mlist, tw_mpick, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, m_save, m_remove, tw_lead, tw_review]
+    W_IN = [tw_state, tw_step, tw_sel, tw_name, tw_icon, tw_purpose, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, tw_lead]
+    team_btn.click(team_page, outputs=TM_PAGE)
+    tm_new.click(wiz_open, outputs=WIZ + [tm_listcol, tm_wiz])
+    tm_edit.click(wiz_open, tm_pick, WIZ + [tm_listcol, tm_wiz])
+    tm_del.click(team_delete, tm_pick, TM_PAGE, js="(c) => (c && confirm(" + JS_TEXT(t("Delete this team? Its chats stay in the list.")) + ")) ? c : null")
+    tw_cancel.click(team_page, outputs=TM_PAGE)
+    tw_next.click(functools.partial(wiz_move, 1), W_IN, WIZ)
+    tw_prev.click(functools.partial(wiz_move, -1), W_IN, WIZ)
+    tw_mpick.input(wiz_pick, W_IN + [tw_mpick], WIZ)
+    m_save.click(wiz_member_save, W_IN, WIZ)
+    m_remove.click(wiz_member_remove, W_IN, WIZ)
+    tw_done.click(wiz_finish, W_IN, TM_PAGE)
+    tm_go.click(team_open_chat, tm_pick, OPENED + [convs, team_panel, chatcol, rightcol])
     bin_back_btn.click(bin_restore, bin_pick, [bin_list, bin_pick, bin_controls, convs])
     bin_del.click(bin_forever, bin_pick, [bin_list, bin_pick, bin_controls], js="(c) => (c && confirm(" + JS_TEXT(t("Delete this chat and its files for good? This can't be undone.")) + ")) ? c : null")
     bin_all.click(bin_empty, bin_all, [bin_list, bin_pick, bin_controls], js="() => confirm(" + JS_TEXT(t("Delete every chat in the bin for good? This can't be undone.")) + ")")
@@ -3482,7 +3840,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     stop.click(stop_chat, cid, concurrency_limit=None)
     goal.change(lambda g: (gr.Column(visible=g), gr.MultimodalTextbox(placeholder=t("Describe a goal for Joshua to accomplish…") if g else t("Message Joshua, or drop files here…"))), goal, [goalpanel, box])
     new.click(new_chat, outputs=[chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters])
-    convs.input(open_conv, convs, [chatbot, cid, files, project, model, thinking, goal, swarm, offline, agents, *team, desk, starters]).then(badge, model, cloudbadge)
+    convs.input(open_conv, convs, OPENED).then(badge, model, cloudbadge)
     to_chat = lambda: (gr.Column(visible=True), gr.Column(visible=True)) + (gr.Column(visible=False),) * 5
     for e in (convs.input, new.click):  # a chat or New chat in the side column closes Models, Settings and the other pages
         e(to_chat, outputs=[chatcol, rightcol, models_panel, sched_panel, tune_panel, mem_panel, set_panel], show_progress="hidden")
@@ -3725,7 +4083,7 @@ APP_HEAD = LOOK_EARLY + (f"<link rel='apple-touch-icon' href='/gradio_api/file={
 
 # Icons: the interface is written with emoji (in labels, buttons, tool boxes); the page swaps each one for a drawn icon
 # from Phosphor (light weight, MIT licence, icons.json). Only interface text is touched, never what you or the model write.
-ICONS = json.loads((pathlib.Path(__file__).parent / "icons.json").read_text(encoding="utf-8"))
+UI_ICONS = json.loads((pathlib.Path(__file__).parent / "icons.json").read_text(encoding="utf-8"))
 ICON_JS = r"""(() => {
   const I = window.JOSHUA_ICONS, keys = Object.keys(I.emoji).sort((a, b) => b.length - a.length);
   const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), alt = keys.map(esc).join('|');
@@ -3763,7 +4121,7 @@ ICON_JS = r"""(() => {
     if (!queued) { queued = true; requestAnimationFrame(run); } }).observe(document.documentElement, {subtree: true, childList: true, characterData: true});
   addEventListener('DOMContentLoaded', () => walk(document.body));
 })();"""
-ICON_HEAD = ("<script>window.JOSHUA_ICONS=" + json.dumps({"emoji": ICONS["emoji"], "svg": ICONS["svg"]}, ensure_ascii=False).replace("</", "<\\/") + ";</script>"
+ICON_HEAD = ("<script>window.JOSHUA_ICONS=" + json.dumps({"emoji": UI_ICONS["emoji"], "svg": UI_ICONS["svg"]}, ensure_ascii=False).replace("</", "<\\/") + ";</script>"
              "<script>" + ICON_JS + "</script>"
              "<style>.ji{display:inline-flex;width:1.2em;height:1.2em;margin-right:.42em;vertical-align:-.22em;flex:none}.ji svg{width:100%;height:100%}"
              ".cloudbadge .ji,.sicon .ji{margin-right:.18em}</style>")
