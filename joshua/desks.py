@@ -20,9 +20,12 @@ def _read(p):
 def data():
     """The default desks with the user's changes on top."""
     found = copy.deepcopy(_read(DEFAULT)) or {"desks": {}}
-    for desk_id, change in _read(EDITS).items():
-        if desk_id in found["desks"]:
+    edits = _read(EDITS)
+    for desk_id, change in edits.items():
+        if desk_id in found["desks"] and isinstance(change, dict):
             found["desks"][desk_id].update(change)
+    for desk_id in edits.get("_hidden", []):  # Joshua's desks you removed
+        found["desks"].pop(desk_id, None)
     for desk_id, d in _read(MINE).items():
         found["desks"][desk_id] = dict(d, mine=True)
     return found
@@ -68,7 +71,7 @@ def get(desk_id):
 
 
 def edited(desk_id):
-    return desk_id in _read(EDITS)
+    return isinstance(_read(EDITS).get(desk_id), dict)
 
 
 def default_instructions(desk_id):
@@ -84,6 +87,74 @@ def set_instructions(desk_id, text):
         edits.pop(desk_id, None)
     EDITS.parent.mkdir(exist_ok=True)
     EDITS.write_text(json.dumps(edits, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def _write(p, value):
+    p.parent.mkdir(exist_ok=True)
+    p.write_text(json.dumps(value, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def default(desk_id):
+    return _read(DEFAULT).get("desks", {}).get(desk_id)
+
+
+def save(desk_id, name, icon, instructions, tools, starters, lang):
+    """Saves a desk from Settings: yours entirely; for one of Joshua's, only what differs from its default (in the
+    language shown), so the rest keeps its translations and gets better with updates. Returns the desk's id."""
+    starters = [s for s in starters if s.get("title", "").strip() and s.get("prompt", "").strip()]
+    if not desk_id or is_mine(desk_id):
+        desk_id = save_mine(desk_id, name, icon, instructions, tools)
+        found = _read(MINE)
+        found[desk_id]["starters"] = starters
+        _write(MINE, found)
+        return desk_id
+    d, edits = default(desk_id) or {}, _read(EDITS)
+    shown = [{"icon": s.get("icon", ""), "title": text(s["title"], lang), "prompt": text(s["prompt"], lang)} for s in d.get("starters", [])]
+    plain = [{k: s.get(k, "") for k in ("icon", "title", "prompt")} for s in starters]
+    extras = {text(s["title"], lang): {k: v for k, v in s.items() if k not in ("icon", "title", "prompt")} for s in d.get("starters", [])}
+    starters = [dict(extras.get(s["title"], {}), **s) for s in plain]  # a card that turns on goal mode keeps doing so
+    change = {}
+    if name.strip() and name.strip() != text(d.get("name"), lang):
+        change["name"] = name.strip()
+    if icon.strip() != d.get("icon", ""):
+        change["icon"] = icon.strip()
+    if instructions.strip() and instructions.strip() != d.get("instructions", "").strip():
+        change["instructions"] = instructions.strip()
+    if sorted(tools) != sorted(d.get("tools", [])):
+        change["tools"] = list(tools)
+    if plain != shown:
+        change["starters"] = starters
+    if change:
+        edits[desk_id] = change
+    else:
+        edits.pop(desk_id, None)
+    _write(EDITS, edits)
+    return desk_id
+
+
+def reset(desk_id):
+    edits = _read(EDITS)
+    edits.pop(desk_id, None)
+    _write(EDITS, edits)
+
+
+def remove(desk_id):
+    """Yours: deleted. Joshua's: hidden, and can be brought back (hidden(), unhide())."""
+    if is_mine(desk_id):
+        return delete_mine(desk_id)
+    edits = _read(EDITS)
+    edits["_hidden"] = sorted(set(edits.get("_hidden", [])) | {desk_id})
+    _write(EDITS, edits)
+
+
+def hidden():
+    return [k for k in _read(EDITS).get("_hidden", []) if default(k)]
+
+
+def unhide(desk_id):
+    edits = _read(EDITS)
+    edits["_hidden"] = [k for k in edits.get("_hidden", []) if k != desk_id]
+    _write(EDITS, edits)
 
 
 def text(value, lang):

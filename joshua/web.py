@@ -6,7 +6,7 @@ import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, su
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, remote, tune_ui
+import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, remote, teams, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -21,7 +21,7 @@ ROOT = (pathlib.Path(__file__).parent / "conversations").resolve()
 ROOT.mkdir(exist_ok=True)
 IMAGES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 LOGO = "<g transform='translate(-4 3)'><path d='M54 44 V64 A15 15 0 0 1 24 64' stroke='#3f8a49' stroke-width='9' fill='none' stroke-linecap='round'/><path d='M54 44 C47 22 64 3 94 3 C96 28 78 49 54 44 Z' fill='#7fb86a'/><path d='M58 40 L86 11 M65 33 V20 M72 26 H84' stroke='#f3efdc' stroke-width='2.2' fill='none' stroke-linecap='round'/><circle cx='86' cy='11' r='2.8' fill='#f3efdc'/><circle cx='65' cy='20' r='2.8' fill='#f3efdc'/><circle cx='84' cy='26' r='2.8' fill='#f3efdc'/><circle cx='39' cy='64' r='8.5' fill='#2a6bb5'/><path d='M34.5 59.5 C37.5 57.5 41.5 58.5 41.5 61.5 C41.5 64.5 37.5 64.5 35.5 66.5 C33.5 64.5 32.5 61.5 34.5 59.5 Z' fill='#7fb86a'/></g>"  # the sprout J, the same drawing as the website's img/logo.svg
-ICONS = {"web_search": "🔎", "read_page": "📄", "run_python": "🐍", "read_file": "📂", "write_file": "💾", "get_datetime": "🕒", "look_at_image": "🖼️", "generate_image": "🎨", "edit_image": "🖌️", "goal_done": "✅", "give_up": "🛑", "install_package": "📦", "list_files": "🗂️", "remember": "🧠", "forget": "🧹", "read_memory": "📒", "browser_open": "🧭", "browser_read": "🧭", "browser_click": "🖱️", "browser_type": "⌨️", "browser_scroll": "🧭", "browser_back": "🧭"}
+ICONS = {"web_search": "🔎", "read_page": "📄", "run_python": "🐍", "read_file": "📂", "write_file": "💾", "get_datetime": "🕒", "look_at_image": "🖼️", "generate_image": "🎨", "edit_image": "🖌️", "goal_done": "✅", "give_up": "🛑", "ask_member": "👥", "install_package": "📦", "list_files": "🗂️", "remember": "🧠", "forget": "🧹", "read_memory": "📒", "browser_open": "🧭", "browser_read": "🧭", "browser_click": "🖱️", "browser_type": "⌨️", "browser_scroll": "🧭", "browser_back": "🧭"}
 SKIP = (gr.skip(),) * 4
 
 IMAGE_RULE = " When the user asks to change, combine or add to photos they shared, use edit_image with those photo files and never answer with an invented picture; use generate_image only for brand-new pictures." if "edit_image" in tools else " You cannot create or edit pictures on this computer: say so if asked."
@@ -91,6 +91,7 @@ def models(add=False):
     cl = lambda v: is_cloud(FAST) if v == PAIR else is_cloud(v)
     local = abc(c for c in choices if not cl(c[1]))
     cloud_open = abc([c for c in choices if cl(c[1])] + providers.menu(open_weights=True))
+    cloud_open.sort(key=lambda c: not re.sub(r"^\W+", "", c[0]).lower().startswith("nemotron"))  # Nemotron first: the cheapest of the big ones
     choices = local + cloud_open + abc(providers.menu(open_weights=False))
     mine = model_order()  # the order you set on the Models page; models you haven't placed keep theirs, after
     choices.sort(key=lambda c: mine.index(c[1]) if c[1] in mine else len(mine))
@@ -111,7 +112,11 @@ def default_model():
     if qwen:  # otherwise a Qwen model, when one is installed: the newest version first (qwen3.5 before qwen3)
         return sorted(qwen, key=lambda v: [int(x) if x.isdigit() else 0 for x in re.findall(r"\d+", v.split(":")[0])], reverse=True)[0]
     local.sort(key=lambda v: v == apple.NAME)  # Apple Intelligence only if there's nothing else here
-    return (local or [models()[0][1]])[0]  # start on a local model; cloud is always a choice you make
+    if local:
+        return local[0]  # start on a local model; cloud is always a choice you make
+    cloud = [v for _, v in models()]
+    nemotron = [v for v in cloud if v.startswith("nemotron")]  # nothing local: Nemotron is the cloud model Joshua starts with
+    return PAIR if PAIR in cloud else (nemotron or cloud)[0]
 
 
 CLOUD_BADGE = "<div class='cloudbadge' title='" + html.escape(t("☁ Cloud model: messages go to Ollama's servers; everything stays stored here"), quote=True) + "'>☁ " + t("on Ollama's servers") + "</div>"
@@ -837,33 +842,88 @@ def starters_html(desk_id):
     return "<div class='starters'>" + cards + "</div>"
 
 
-def my_desk_choices():
-    return [("＋ " + t("New desk"), "")] + [(desks.label(k, i18n.LANG), k) for k, _ in desks.mine()]
+def desk_editor_choices():
+    return [("＋ " + t("New desk"), "")] + [(desks.label(k, i18n.LANG) + ("" if d.get("mine") or not desks.edited(k) else "  · " + t("changed")), k) for k, d in desks.desks()]
 
 
-def my_desk_load(desk_id):
-    d = desks.get(desk_id) if desks.is_mine(desk_id) else None
-    if not d:
-        return "", "", "", [k for k in TOOL_GROUPS if k != "browser"], gr.Button(visible=False)
-    return d.get("icon", ""), desks.text(d["name"], i18n.LANG), d.get("instructions", ""), [k for k in d.get("tools", []) if k in TOOL_GROUPS], gr.Button(visible=True)
+def hidden_desk_choices():
+    return [(desks.text(desks.default(k)["name"], i18n.LANG), k) for k in desks.hidden()]
 
 
-def my_desk_save(desk_id, icon, name, instructions, tools):
+def desk_editor_load(desk_id):
+    """The editor shows one desk: what Joshua is told there, its tools and its tasks (in the language you see)."""
+    d = desks.get(desk_id)
+    if not d:  # a new desk
+        return ("", "", "", [k for k in TOOL_GROUPS if k != "browser"], gr.Button(visible=False), gr.Button(visible=False), "", *desk_task_fields([]))
+    rows = [[s.get("icon", ""), desks.text(s["title"], i18n.LANG), desks.text(s["prompt"], i18n.LANG)] for s in d.get("starters", [])]
+    builtin = not d.get("mine")
+    note = "<div class='cloudstat'>" + (t("Made by you") if not builtin else t("Built into Joshua, changed by you") if desks.edited(desk_id) else t("Built into Joshua")) + "</div>"
+    return (d.get("icon", ""), desks.text(d["name"], i18n.LANG), d.get("instructions", ""), [k for k in d.get("tools", []) if k in TOOL_GROUPS],
+            gr.Button(visible=builtin and desks.edited(desk_id)), gr.Button(visible=True), note, *desk_task_fields(rows))
+
+
+MAX_TASKS = 12
+
+
+def desk_task_fields(rows):
+    """The task lines of the desk editor: the values of every field, then which lines are shown."""
+    rows = rows[:MAX_TASKS]
+    values = [x for r in rows for x in r] + [""] * 3 * (MAX_TASKS - len(rows))
+    return values + [gr.Row(visible=k < max(len(rows), 1)) for k in range(MAX_TASKS)]
+
+
+def desk_task_rows(values):
+    return [list(values[k:k + 3]) for k in range(0, 3 * MAX_TASKS, 3)]
+
+
+def desk_task_add(*values):
+    rows = [r for r in desk_task_rows(values) if any(x.strip() for x in r)]
+    return desk_task_fields(rows + [["", "", ""]]) if len(rows) < MAX_TASKS else [gr.skip()] * (4 * MAX_TASKS)
+
+
+def desk_task_remove(k, *values):
+    rows = desk_task_rows(values)
+    del rows[k]
+    while rows and not any(x.strip() for x in rows[-1]):  # the hidden empty lines at the end aren't tasks
+        rows.pop()
+    return desk_task_fields(rows)
+
+
+def _rows(values):
+    return [{"icon": (r[0] or "").strip()[:4], "title": (r[1] or "").strip(), "prompt": (r[2] or "").strip()} for r in desk_task_rows(values) if (r[1] or "").strip()]
+
+
+def desk_editor_save(desk_id, icon, name, instructions, tools, *cells):
     if not (name or "").strip() or not (instructions or "").strip():
         gr.Warning(t("Give the desk a name and write its instructions."))
-        return gr.skip(), gr.skip(), gr.skip()
-    desk_id = desks.save_mine(desk_id if desks.is_mine(desk_id) else "", name, (icon or "").strip()[:4], instructions, tools or [])
-    gr.Info(t("Saved: {name} is among the desks under the message box.", name=name.strip()))
-    return gr.Dropdown(choices=my_desk_choices(), value=desk_id), gr.Radio(choices=desk_choices()), gr.Button(visible=True)
+        return (gr.skip(),) * (9 + 4 * MAX_TASKS)
+    desk_id = desks.save(desk_id, name, icon or "", instructions, tools or [], _rows(cells), i18n.LANG)
+    gr.Info(t("Saved: chats at this desk follow it from the next message."))
+    return (gr.Dropdown(choices=desk_editor_choices(), value=desk_id), gr.Radio(choices=desk_choices())) + desk_editor_load(desk_id)
 
 
-def my_desk_delete(desk_id):
+def desk_editor_reset(desk_id):
+    desks.reset(desk_id)
+    gr.Info(t("Joshua's own version is back."))
+    return (gr.Dropdown(choices=desk_editor_choices(), value=desk_id), gr.Radio(choices=desk_choices())) + desk_editor_load(desk_id)
+
+
+def desk_editor_remove(desk_id):
     if desk_id is None:  # you cancelled
-        return (gr.skip(),) * 7
-    if desk_id and desks.is_mine(desk_id):
-        desks.delete_mine(desk_id)
-        gr.Info(t("Desk deleted. Its chats stay, at no desk."))
-    return (gr.Dropdown(choices=my_desk_choices(), value=""), gr.Radio(choices=desk_choices())) + my_desk_load("")
+        return (gr.skip(),) * (11 + 4 * MAX_TASKS)
+    if desk_id:
+        desks.remove(desk_id)
+        gr.Info(t("Desk removed. Its chats stay, at no desk."))
+    first = desk_editor_choices()[1][1] if len(desk_editor_choices()) > 1 else ""
+    return ((gr.Dropdown(choices=desk_editor_choices(), value=first), gr.Radio(choices=desk_choices())) + desk_editor_load(first)
+            + (gr.Row(visible=bool(desks.hidden())), gr.Dropdown(choices=hidden_desk_choices(), value=None)))
+
+
+def desk_editor_back(desk_id):
+    if desk_id:
+        desks.unhide(desk_id)
+    return (gr.Dropdown(choices=desk_editor_choices(), value=desk_id or gr.skip()), gr.Radio(choices=desk_choices())) + desk_editor_load(desk_id) + (
+        gr.Row(visible=bool(desks.hidden())), gr.Dropdown(choices=hidden_desk_choices(), value=None))
 
 
 def desk_choices():
@@ -875,8 +935,9 @@ def chat_opts(cid):
     o = load(cid).get("opts", {}) if cid else {}
     n = int(o.get("agents", 5))
     desk = o.get("desk", "") if desks.get(o.get("desk")) else ""
-    return (tuple(gr.Checkbox(value=True if k == "thinking" else bool(o.get(k))) for k in OPTS) + (gr.Slider(value=n),) + tuple(team_menu(o.get("team", ()), n))
-            + (gr.Radio(value=desk), starters_html(desk)))
+    solo = not (cid and teams.get(load(cid).get("team")))  # in a team chat each member has its own settings: no desks, goal or swarm here
+    return (tuple(gr.Checkbox(value=True if k == "thinking" else bool(o.get(k)), **({"visible": solo} if k in ("goal", "swarm") else {})) for k in OPTS)
+            + (gr.Slider(value=n),) + tuple(team_menu(o.get("team", ()), n)) + (gr.Radio(value=desk, visible=solo), starters_html(desk)))
 
 
 def save_opts(cid, *values):
@@ -1324,6 +1385,144 @@ def run_swarm(job, cid, conv, model, thinking, n, pool, net, timeout, toolset, j
     return called
 
 
+# ---------- teams of agents ----------
+# A team chat is answered by the team's lead. When the team has other members, the lead gets one more tool,
+# ask_member: it hands a task to a member, who works on it alone (its own instructions, model, tools, goal mode)
+# and returns its finished work to the lead. The lead checks it and writes the answer.
+
+LEAD = "\n\nIn this chat you are {name}, {role}, the lead of the team \"{team}\".{purpose} Your own instructions:\n{instructions}"
+CREW = "\n\nYour colleagues in the team:\n{crew}\nHand them the parts of the work that fit their roles with ask_member: give each one a complete task with everything they need, because they can't see this conversation. Then check what they return, fix or ask again if something is wrong or missing, and write the final answer for the user yourself. Do a part yourself only when no colleague fits it."
+MEMBER = " In this task you are {name}, {role}, a member of the team \"{team}\". The team lead, {lead}, gives you the task below. The lead sees only your final reply, not your tool results, so put everything they need in it. Your instructions:\n{instructions}"
+
+
+def installed_or(model, fallback):
+    return model if model and model in {v for _, v in models()} else fallback
+
+
+def member_tools(member, base):
+    names = {n for g in member.get("tools", []) if g in TOOL_GROUPS for n in TOOL_GROUPS[g][1]}
+    return {k: v for k, v in base.items() if k in names}
+
+
+def member_run(member, task, team, job, shown, chat_model, thinking, base, language):
+    """A member works on the lead's task alone, in a box of its own in the chat, and returns its final reply."""
+    model = installed_or(member.get("model"), chat_model)
+    goal = bool(member.get("goal"))
+    toolset = member_tools(member, base)
+    if goal:
+        toolset.update(goal_done=goal_done, give_up=give_up)
+    system = SYSTEM.format(now=agent.get_datetime()) + MEMBER.format(name=member["name"], role=member.get("role") or "-", team=team["name"], lead=teams.lead(team)["name"], instructions=member.get("instructions") or "-") \
+        + (GOAL_RULES if goal else "") + (f" Always reply in {language}." if language else "")
+    msgs = [{"role": "system", "content": system}, {"role": "user", "content": ("GOAL: " if goal else "") + task}]
+    box = {"role": "assistant", "content": t("Working…"), "metadata": {"title": f"{member.get('icon') or '👤'} {member['name']} · {model.removesuffix(':latest')}", "status": "done"}}
+    shown.append(box)
+    job.publish(shown)
+    log, answer, finished = [], "", False
+    think = think_mode(model, thinking)
+    for r in range(3 if goal else 1):  # in goal mode a member gets up to 3 rounds to finish its part
+        for step in range(15):
+            if job.stop.is_set():
+                break
+            last = step == 14
+            if last:
+                msgs.append({"role": "user", "content": WRAP})
+            try:
+                m = ollama.chat(model, messages=msgs, tools=[] if last or not toolset else list(toolset.values()), options={"num_ctx": 16384}, **think).message
+            except Exception as e:
+                log.append(f"⚠️ {e}")
+                break
+            calls = [] if last else m.tool_calls or []
+            content = split_think(m.content or "")[0].strip() or ("" if calls else (m.thinking or "").strip())
+            msgs.append({"role": "assistant", "content": content, "tool_calls": [{"function": {"name": c.function.name, "arguments": dict(c.function.arguments)}} for c in calls]})
+            if not calls:
+                answer = content
+                break
+            for c in calls:
+                name, args = c.function.name, dict(c.function.arguments)
+                finished = finished or name in ("goal_done", "give_up")
+                log.append(f"{ICONS.get(name, '🔧')} {name} `{json.dumps(args, ensure_ascii=False)[:100]}`")
+                box["content"] = t("Working…") + "\n\n" + "\n".join(f"- {line}" for line in log)
+                job.publish(shown)
+                try:
+                    result = str(toolset[name](**args)) if name in toolset else f"Error: no tool called {name}"
+                except Exception as e:
+                    result = f"Error: {e}"
+                msgs.append({"role": "tool", "tool_name": name, "content": result})
+        if not goal or finished or job.stop.is_set():
+            break
+        msgs.append({"role": "user", "content": NUDGE})
+    steps = "\n".join(f"- {line}" for line in log)
+    box["content"] = (steps + "\n\n---\n\n" if steps else "") + (answer or t("(no answer)"))
+    job.publish(shown)
+    return answer
+
+
+def run_team(job, conv, chat_model, thinking, base, rounds, language):
+    """The lead answers in the chat; the other members work when the lead asks them."""
+    team = teams.get(conv.get("team"))
+    shown, msgs = conv["display"], conv["llm"]
+    head = teams.lead(team)
+    model = installed_or(head.get("model"), chat_model)
+    goal = bool(head.get("goal"))
+    toolset = member_tools(head, base)
+    crew = teams.others(team)
+
+    def ask_member(name: str, task: str) -> str:
+        """Give a task to a colleague in your team and get their finished work back. They can't see this conversation, so write a complete task with everything they need.
+
+        Args:
+            name: The colleague's name
+            task: The complete task, with all the details and material the colleague needs
+        """
+        member = teams.find(team, name)
+        if not member:
+            return f"No colleague called {name}. Your colleagues: " + ", ".join(m["name"] for m in crew)
+        answer = member_run(member, task, team, job, shown, chat_model, thinking, base, language)
+        return f"{member['name']}'s work:\n\n{answer}" if answer else f"{member['name']} returned no answer."
+
+    if crew:
+        toolset["ask_member"] = ask_member
+    if goal:
+        toolset.update(goal_done=goal_done, give_up=give_up)
+    msgs[0]["content"] += LEAD.format(name=head["name"], role=head.get("role") or "-", team=team["name"], purpose=f" The team's purpose: {team['purpose']}." if team.get("purpose") else "", instructions=head.get("instructions") or "-") \
+        + (CREW.format(crew="\n".join(f"- {m['name']}: {m.get('role') or '-'}" for m in crew)) if crew else "") + (GOAL_RULES if goal else "")
+    if goal and msgs[-1]["role"] == "user" and not msgs[-1]["content"].startswith("GOAL: "):
+        msgs[-1]["content"] = "GOAL: " + msgs[-1]["content"]
+    rounds = int(rounds) if goal else 1
+    for r in range(1, rounds + 1):
+        called = []
+        for view in agent_turn(msgs, shown, toolset, model, thinking, job.stop, called):
+            job.publish(view)
+        if job.stop.is_set():
+            shown.append({"role": "assistant", "content": t("You stopped this task. Send a message to continue."), "metadata": {"title": "⏹ " + t("Stopped"), "status": "done"}})
+            return
+        if not goal or {"goal_done", "give_up"} & set(called):
+            return
+        if r == rounds:
+            shown.append({"role": "assistant", "content": t("The goal wasn't marked as done after {n} rounds. Send a message to continue.", n=rounds), "metadata": {"title": "⏹ " + t("Stopped"), "status": "done"}})
+            return
+        shown.append({"role": "assistant", "content": t("Not marked as done yet, continuing."), "metadata": {"title": "🔁 " + t("Round {i} of {n}", i=r + 1, n=rounds), "status": "done"}})
+        msgs.append({"role": "user", "content": NUDGE})
+        job.publish(shown)
+
+
+def team_chat(team_id):
+    """A new chat with a team: it starts with who is in it."""
+    team = teams.get(team_id)
+    if not team:
+        gr.Warning(t("Pick a team first."))
+        return None
+    cid = new_conv()
+    conv = load(cid)
+    head = teams.lead(team)
+    who = "\n".join(f"- {m.get('icon') or '👤'} **{m['name']}**" + (f" · {m['role']}" if m.get("role") else "") + (" · " + t("leads") if m is head else "") + (" · 🎯" if m.get("goal") else "") for m in team["members"])
+    intro = f"{team.get('icon') or '👥'} **{team['name']}**" + (f"  \n{team['purpose']}" if team.get("purpose") else "") + "\n\n" + who + "\n\n" + (
+        t("Write the team's task below. {lead} reads it, hands parts of the work to the others and writes the answer.", lead=head["name"]) if teams.others(team) else t("Write the task below: {lead} works on it.", lead=head["name"]))
+    conv.update(team=team_id, title=f"{team.get('icon') or '👥'} {team['name']}", auto_title=True, display=[{"role": "assistant", "content": intro}])
+    save(cid, conv)
+    return cid
+
+
 # ---------- long-term memory ----------
 
 EXTRACT = """You keep long-term memory notes about the user of an AI assistant. The current notes:
@@ -1382,8 +1581,12 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     evidence = asked = None
     role = conv.pop("agent", None) or {}  # a monitor's run: what to search for, and what its sites and feeds said
     checking = goal and conv.get("opts", {}).get("desk") == "journalism" and factcheck.asked(user_text)  # the fact checker
+    in_team = teams.get(conv.get("team"))
     try:
-        if not offline and user_text and "web_search" not in off:
+        if in_team:  # a team chat: the lead answers, and the members work when the lead asks them
+            run_team(job, conv, model, thinking, base, rounds, language)
+            rounds = 0
+        if not in_team and not offline and user_text and "web_search" not in off:
             box = {"role": "assistant", "content": "", "metadata": {"title": "🔎 " + t("Looking online…"), "status": "done"}}
 
             def show():  # the box appears only once Joshua has decided to search
@@ -1473,6 +1676,8 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     if conv.get("auto_title") and load(cid).get("auto_title") and user_text and not job.stop.is_set():  # the first answer is in: give the chat a title that sums it up
         answer = (last_answer(shown) or {}).get("content", "")
         title = make_title(model, user_text, answer if isinstance(answer, str) else "", language) if answer else ""
+        if title and in_team:  # a team's chats keep its icon in front
+            title = (in_team.get("icon") or "👥") + " " + title
         if title:
             conv["title"], conv["auto_title"] = title, False
             save(cid, conv)
@@ -1515,6 +1720,10 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
         return gr.skip(), *SKIP
     cid = cid or new_conv()
     conv = load(cid)
+    if teams.get(conv.get("team")):  # a team chat: each member has its own goal mode and tools; desks and swarm don't apply
+        goal = swarm = False
+        desk, picked = "", []
+        team_cloud = any(is_cloud(installed_or(m.get("model"), model)) for m in teams.get(conv["team"])["members"])  # memory notes stay private then
     conv["model"] = choice
     conv["opts"] = dict(zip(OPTS, map(bool, (thinking, goal, swarm, offline))), agents=int(agents), team=[v or "" for v in (list(team) + [""] * TEAM)[:TEAM]], desk=desk or "")
     if cloud and conv.get("cloud_notice") != model:  # say it once in the chat, each time a new cloud model is picked
@@ -1566,7 +1775,7 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
     pool = [model] + [m for m in dict.fromkeys(resolve(v, thinking) for _, v in models()) if m != model and (cloud or not is_cloud(m))]  # "Automatic": a local chat never borrows a cloud model
     auto = iter(pool * TEAM)
     team = [m or next(auto) for m in picked]  # the agents you gave a model use it; the others take the menu's models in turn
-    cloud = cloud or any(is_cloud(m) for m in team)  # memory notes stay private if any agent runs in the cloud
+    cloud = cloud or any(is_cloud(m) for m in team) or teams.get(conv.get("team")) is not None and team_cloud  # memory notes stay private if any agent runs in the cloud
     save(cid, conv)
     JOBS[cid] = job = Job(shown)
     threading.Thread(target=worker, args=(job, cid, conv, model, thinking, goal, rounds, net, timeout, int(agents) if swarm else 0, team, mem, text, offline, cloud and not cloudmem), daemon=True).start()
@@ -1811,27 +2020,210 @@ def delete_chat(cid):
     if busy(cid):
         gr.Warning(t("Joshua is still answering in this chat. Press Stop first, then you can delete it."))
         return nothing
-    title = re.sub(r"[^\w -]+", "", load(cid)["title"] or "chat")[:40].strip() or "chat"
-    dest = f"Joshua chat - {title} - {cid}"
-    try:
-        if agent.MAC:
-            shutil.move(str(ROOT / cid), str(pathlib.Path.home() / ".Trash" / dest))
-        elif agent.WIN:  # the Recycle Bin, through Windows' own file operations
-            subprocess.run(["powershell", "-NoProfile", "-Command", "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory("
-                            + json.dumps(str(ROOT / cid)) + ", 'OnlyErrorDialogs', 'SendToRecycleBin')"], check=True, timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
-        else:  # the Linux desktop Trash: the files, plus a note saying where they came from
-            trash = pathlib.Path.home() / ".local" / "share" / "Trash"
-            (trash / "files").mkdir(parents=True, exist_ok=True), (trash / "info").mkdir(parents=True, exist_ok=True)
-            (trash / "info" / f"{dest}.trashinfo").write_text(f"[Trash Info]\nPath={ROOT / cid}\nDeletionDate={time.strftime('%Y-%m-%dT%H:%M:%S')}\n")
-            shutil.move(str(ROOT / cid), str(trash / "files" / dest))
-    except Exception:
-        shutil.rmtree(ROOT / cid, ignore_errors=True)
+    conv = load(cid)
+    conv["deleted_at"] = time.time()
+    write_chat(cid, conv)
+    BIN.mkdir(exist_ok=True)
+    shutil.rmtree(BIN / cid, ignore_errors=True)
+    shutil.move(str(ROOT / cid), str(BIN / cid))
     JOBS.pop(cid, None)
-    gr.Info(t("Chat deleted (moved to the Trash)."))
+    gr.Info(t("Chat moved to the bin: you can restore it there for {n} days.", n=BIN_DAYS))
     return new_chat()
 
 
 SEEN = {}
+
+# ---------- the bin: deleted chats wait here for 30 days, then they're gone ----------
+
+BIN = ROOT / ".bin"  # inside the chats folder: it moves and is backed up with your chats, and updates never touch it
+BIN_DAYS = 30
+
+
+def bin_items():
+    """The chats in the bin, the most recently deleted first: (id, title, deleted at)."""
+    out = []
+    for p in BIN.iterdir() if BIN.exists() else []:
+        try:
+            c = json.loads((p / "chat.json").read_text(encoding="utf-8"))
+            out.append((p.name, cap(c.get("title") or t("New chat")), c.get("deleted_at") or p.stat().st_mtime))
+        except Exception:
+            pass
+    return sorted(out, key=lambda x: -x[2])
+
+
+def bin_purge():
+    for cid, _, when in bin_items():
+        if time.time() - when > BIN_DAYS * 86400:
+            shutil.rmtree(BIN / cid, ignore_errors=True)
+
+
+def bin_view():
+    items = bin_items()
+    rows = "".join(f"<div class='task'><b>{html.escape(title)}</b><br><span>{t('deleted {when}', when=time.strftime('%d/%m %H:%M', time.localtime(when)))}"
+                   f" · {t('gone in {n} days', n=max(0, BIN_DAYS - int((time.time() - when) // 86400)))}</span></div>" for _, title, when in items)
+    listing = rows or "<div class='cloudstat'>" + t("The bin is empty.") + "</div>"
+    return listing, gr.Dropdown(choices=[(title, cid) for cid, title, _ in items], value=None), gr.Column(visible=bool(items))
+
+
+def bin_restore(cid):
+    if cid and (BIN / cid).exists():
+        shutil.move(str(BIN / cid), str(ROOT / cid))
+        conv = load(cid)
+        conv.pop("deleted_at", None)
+        write_chat(cid, conv)
+        gr.Info(t("Restored: the chat is back in the list."))
+    return bin_view() + (gr.Radio(choices=conv_choices()),)
+
+
+def bin_forever(cid):
+    if cid:
+        shutil.rmtree(BIN / cid, ignore_errors=True)
+    return bin_view()
+
+
+def bin_empty(go):
+    if go:
+        shutil.rmtree(BIN, ignore_errors=True)
+    return bin_view()
+
+
+# ---------- the Teams page and its wizard ----------
+
+ICON_CHOICES = list({svg: e for e, svg in reversed(json.loads((pathlib.Path(__file__).parent / "icons.json").read_text(encoding="utf-8"))["emoji"].items()) if svg != "busy"}.values())[::-1]  # one emoji for each icon Joshua draws
+
+
+def icon_pick(label=None, value="", placeholder="", **kw):
+    """An icon field: pick from the icons Joshua draws, or type any emoji."""
+    return gr.Dropdown(ICON_CHOICES, value=value or None, label=label, allow_custom_value=True, filterable=True, **kw)
+
+NEW_MEMBER = {"name": "", "icon": "", "role": "", "instructions": "", "model": "", "tools": [], "goal": False}
+STEPS_WIZ = ("The team", "Members", "Lead", "Check")
+
+
+def team_list_html():
+    cards = []
+    for team in teams.all():
+        head = teams.lead(team)
+        who = " · ".join(html.escape((m.get("icon") or "👤") + " " + m["name"]) + (" ★" if m is head else "") for m in team["members"])
+        cards.append(f"<div class='task'><b>{html.escape((team.get('icon') or '👥') + ' ' + team['name'])}</b>"
+                     + (f"<br><span>{html.escape(team['purpose'])}</span>" if team.get("purpose") else "") + f"<br><span>{who}</span></div>")
+    return "".join(cards) or "<div class='cloudstat'>" + t("No teams yet. Press “New team” to create the first one.") + "</div>"
+
+
+def team_page(pick=None):
+    """The list of teams (the wizard closed)."""
+    choices = [((tm.get("icon") or "👥") + " " + tm["name"], tm["id"]) for tm in teams.all()]
+    return (team_list_html(), gr.Dropdown(choices=choices, value=pick if pick in {v for _, v in choices} else choices[0][1] if choices else None), gr.Column(visible=bool(choices)),
+            gr.Column(visible=True), gr.Column(visible=False))
+
+
+def team_delete(team_id):
+    if team_id:
+        teams.delete(team_id)
+        gr.Info(t("Team deleted. Its chats stay in the list."))
+    return team_page()
+
+
+def wiz_render(state, step, sel):
+    """Every field of the wizard, drawn from its state: which step is shown, and the member being edited."""
+    members = state["members"]
+    m = members[sel] if 0 <= sel < len(members) else dict(NEW_MEMBER, tools=[k for k in TOOL_GROUPS if k != "browser"])
+    head = "<div class='wsteps'>" + "".join(f"<span class='wstep{' on' if k + 1 == step else ' done' if k + 1 < step else ''}'>{k + 1}. {t(name)}</span>" for k, name in enumerate(STEPS_WIZ)) + "</div>"
+    listing = t("Describe the first member below. A team can have just one.") if not members else t("Pick a member to change it, or add another one below.")
+    lead = state.get("lead") if state.get("lead") in {x["id"] for x in members} else (members[0]["id"] if members else None)
+    review = ""
+    if step == 4:
+        rows = "".join(f"<div class='task'><b>{html.escape((x.get('icon') or '👤') + ' ' + x['name'])}</b>" + (" · " + t("leads") if x["id"] == lead else "")
+                       + f"<br><span>{html.escape(x.get('role') or '')}</span><br><span>"
+                       + html.escape(" · ".join(filter(None, [x.get("model") or t("Same model as the chat"), "🎯 " + t("Goal mode") if x.get("goal") else "",
+                                                              t("{n} tools", n=len(x.get("tools", [])))]))) + "</span></div>" for x in members)
+        review = f"<div class='task'><b>{html.escape((state.get('icon') or '👥') + ' ' + state['name'])}</b><br><span>{html.escape(state.get('purpose') or '')}</span></div>" + rows
+    return (state, step, sel,
+            *(gr.Column(visible=step == k) for k in (1, 2, 3, 4)), head,
+            gr.Button(visible=step > 1), gr.Button(visible=step < 4), gr.Button(visible=step == 4, value="✓ " + (t("Save team") if state.get("id") else t("Create team"))),
+            state.get("name", ""), state.get("icon") or None, state.get("purpose", ""),
+            listing, gr.Radio(choices=[((x.get("icon") or "👤") + " " + x["name"], k) for k, x in enumerate(members)] + [("＋ " + t("New member"), -1)], value=sel),
+            m["name"], m.get("icon") or None, m.get("role", ""), m.get("instructions", ""),
+            gr.Dropdown(choices=[(t("Same model as the chat"), "")] + models(), value=m.get("model", "")), m.get("tools", []), bool(m.get("goal")),
+            gr.Button(value=t("Save member") if sel >= 0 else "＋ " + t("Add to the team")), gr.Button(visible=sel >= 0),
+            gr.Radio(choices=[((x.get("icon") or "👤") + " " + x["name"], x["id"]) for x in members], value=lead), review)
+
+
+def wiz_collect(state, step, sel, name, icon, purpose, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, lead):
+    """What you typed in the step you're on goes into the wizard's state."""
+    state = copy.deepcopy(state)
+    if step == 1:
+        state.update(name=(name or "").strip(), icon=(icon or "").strip()[:4], purpose=(purpose or "").strip())
+    elif step == 2 and (m_name or "").strip():
+        member = {"name": m_name.strip(), "icon": (m_icon or "").strip()[:4], "role": (m_role or "").strip(), "instructions": (m_instr or "").strip(),
+                  "model": m_model or "", "tools": list(m_tools or []), "goal": bool(m_goal)}
+        if 0 <= sel < len(state["members"]):
+            state["members"][sel] = dict(state["members"][sel], **member)
+        elif len(state["members"]) < teams.MAX_MEMBERS:
+            state["members"].append(dict(member, id=secrets.token_hex(3)))
+            sel = len(state["members"]) - 1
+    elif step == 3 and lead:
+        state["lead"] = lead
+    return state, sel
+
+
+def wiz_open(team_id=None):
+    team = teams.get(team_id)
+    state = copy.deepcopy(team) if team else {"id": None, "name": "", "icon": "", "purpose": "", "lead": None, "members": []}
+    return wiz_render(state, 1, -1) + (gr.Column(visible=False), gr.Column(visible=True))
+
+
+def wiz_move(delta, *values):
+    state, step = values[0], values[1]
+    state, sel = wiz_collect(*values)
+    if delta > 0 and step == 1 and not state["name"]:
+        gr.Warning(t("Give the team a name."))
+        return wiz_render(state, step, sel)
+    if delta > 0 and step == 2 and not state["members"]:
+        gr.Warning(t("Add at least one member."))
+        return wiz_render(state, step, sel)
+    step += delta
+    if step == 3 and len(state["members"]) == 1:  # one member: it leads, nothing to choose
+        step += delta
+    return wiz_render(state, step, -1)
+
+
+def wiz_pick(*values):
+    """Another member picked in the list: the one you were editing is kept first."""
+    state, sel = wiz_collect(*values[:-1])
+    return wiz_render(state, 2, values[-1] if values[-1] is not None else -1)
+
+
+def wiz_member_save(*values):
+    state, sel = wiz_collect(*values)
+    if not (values[6] or "").strip():
+        gr.Warning(t("Give the member a name."))
+    return wiz_render(state, 2, -1)
+
+
+def wiz_member_remove(*values):
+    state, sel = copy.deepcopy(values[0]), values[2]
+    if 0 <= sel < len(state["members"]):
+        del state["members"][sel]
+    return wiz_render(state, 2, -1)
+
+
+def wiz_finish(*values):
+    state, _ = wiz_collect(*values)
+    if not state["name"] or not state["members"]:
+        gr.Warning(t("Give the team a name and at least one member."))
+        return (gr.skip(),) * 5
+    team_id = teams.save(state)
+    gr.Info(t("Team saved: pick it and press “Start a chat”."))
+    return team_page(team_id)
+
+
+def team_open_chat(team_id):
+    new_id = team_chat(team_id)
+    if not new_id:
+        return (gr.skip(),) * (len(OPENED) + 4)
+    forget_games(keep=new_id)
+    return open_conv(new_id) + (gr.Radio(choices=conv_choices(), value=new_id), gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True))
 
 
 LIVE_EVERY = 1.5  # seconds between redraws of a chat while Joshua writes it
@@ -1872,13 +2264,14 @@ def poll(cid, request: gr.Request):
 
 
 CSS = """
-body:not([data-screen="green"]):not([data-screen="amber"]):not([data-screen="modern"]):not([data-screen="modern-night"]):not([data-screen="modern-paper"]):not([data-screen="blue"]):not([data-screen="black"]):not([data-screen="white"]) {--bg: #dfdbc3; --bg-hi: #e9e5cf; --panel: #e7e3cc; --codebg: #d4cfb3; --line: rgba(90, 60, 40, .45); --cyan: #9c3b1c; --glow: transparent; --ink: #3b2322; --dim: #7a6250; --amber: #9c3b1c; --red: #b3261e; --codeink: #3b2322; --shadow: none}
+body:not([data-screen="green"]):not([data-screen="amber"]):not([data-screen="modern"]):not([data-screen="modern-night"]):not([data-screen="modern-paper"]):not([data-screen="modern-paper-night"]):not([data-screen="blue"]):not([data-screen="black"]):not([data-screen="white"]) {--bg: #dfdbc3; --bg-hi: #e9e5cf; --panel: #e7e3cc; --codebg: #d4cfb3; --line: rgba(90, 60, 40, .45); --cyan: #9c3b1c; --glow: transparent; --ink: #3b2322; --dim: #7a6250; --amber: #9c3b1c; --red: #b3261e; --codeink: #3b2322; --shadow: none}
 body[data-screen="black"] {--bg: #000308; --bg-hi: #040a14; --panel: #050a14; --codebg: #02050a; --line: #8fe9ff; --cyan: #8fe9ff; --glow: rgba(80, 200, 255, .55); --ink: #a6e6ff; --dim: #5d8ea6; --amber: #ffb347; --red: #ff5a4e; --codeink: #59f08a; --shadow: 0 0 8px rgba(80, 200, 255, .55); --check: #ffb347}
-body[data-screen="black"] {--bw: 2px; --panel-shadow: 0 0 8px var(--glow), inset 0 0 18px rgba(80, 200, 255, .12); --case: uppercase; --tglow: 0 0 3px rgba(120, 220, 255, .35); --flick: flick 3s infinite; --pbw: 2px; --pline: var(--amber); --pglow: 0 0 8px rgba(255, 179, 71, .35)}
-body[data-screen="black"]::after {content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, .22) 0, rgba(0, 0, 0, .22) 1px, transparent 1px, transparent 3px)}
+body[data-screen="black"], body[data-screen="green"] {--bw: 2px; --panel-shadow: 0 0 8px var(--glow), inset 0 0 18px rgba(80, 200, 255, .12); --case: uppercase; --tglow: 0 0 3px rgba(120, 220, 255, .35); --flick: flick 3s infinite; --pbw: 2px; --pline: var(--amber); --pglow: 0 0 8px rgba(255, 179, 71, .35)}
+body[data-screen="black"]::after, body[data-screen="green"]::after {content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, .22) 0, rgba(0, 0, 0, .22) 1px, transparent 1px, transparent 3px)}
 body {--bw: 1px; --panel-shadow: 0 0 8px var(--glow); --case: none; --tglow: none; --flick: none; --pbw: 1px; --pline: color-mix(in srgb, var(--amber) 70%, transparent); --pglow: 0 0 5px color-mix(in srgb, var(--amber) 25%, transparent)}
 body[data-screen="white"] {--bg: #ffffff; --bg-hi: #ffffff; --panel: #fbfbfb; --codebg: #f1f1f1; --line: rgba(0, 0, 0, .26); --cyan: #000000; --glow: transparent; --ink: #141414; --dim: #6b6b6b; --amber: #1f5fbf; --red: #c4271d; --codeink: #141414; --shadow: none}
-body[data-screen="green"] {--bg: #0e1a14; --bg-hi: #1a3024; --panel: #13241b; --codebg: #09130e; --line: rgba(140, 255, 180, .42); --cyan: #8dffb4; --glow: rgba(120, 255, 170, .2); --ink: #d4f7df; --dim: #86b096; --amber: #ffd27a; --red: #ff6b5e; --codeink: #8dffb4; --shadow: 0 0 6px rgba(120, 255, 170, .35)}
+body[data-screen="green"] {--bg: #000300; --bg-hi: #010801; --panel: #020802; --codebg: #010501; --line: #33ff66; --cyan: #7dff8a; --glow: rgba(60, 255, 110, .5); --ink: #7dff8a; --dim: #3c9a4a; --amber: #d6ffb8; --red: #ff6b5e; --codeink: #7dff8a; --shadow: 0 0 8px rgba(60, 255, 110, .5); --check: #d6ffb8}  /* Black, in the green of WOPR's screens */
+body[data-screen="green"] {--panel-shadow: 0 0 8px var(--glow), inset 0 0 18px rgba(60, 255, 110, .1); --tglow: 0 0 3px rgba(90, 255, 130, .35); --pglow: 0 0 8px rgba(214, 255, 184, .3)}
 body[data-screen="amber"] {--bg: #1c120c; --bg-hi: #2e1d13; --panel: #25170f; --codebg: #140c07; --line: rgba(255, 180, 100, .45); --cyan: #ffb866; --glow: rgba(255, 170, 80, .2); --ink: #ffe5c8; --dim: #bf9370; --amber: #9fe3ff; --red: #ff6b5e; --codeink: #ffd08a; --shadow: 0 0 6px rgba(255, 170, 80, .35)}
 body[data-screen="blue"] {--bg: #08101b; --bg-hi: #10203a; --panel: #0d1625; --codebg: #060b14; --line: rgba(143, 233, 255, .5); --cyan: #8fe9ff; --glow: rgba(80, 200, 255, .26); --ink: #d6ecf5; --dim: #7fa3b5; --amber: #ffbf66; --red: #ff6b5e; --codeink: #6fe8a0; --shadow: 0 0 6px rgba(80, 200, 255, .4)}
 :root body, :root body .dark {--green: #6fe8a0; --checkbox-background-color-selected: var(--check, var(--cyan)); --checkbox-border-color-selected: var(--check, var(--cyan)); --checkbox-border-color: var(--dim); --slider-color: var(--cyan); --button-primary-background-fill: var(--panel); --button-primary-text-color: var(--cyan); --button-primary-border-color: var(--line);
@@ -1927,7 +2320,7 @@ textarea::placeholder {color: var(--dim) !important; opacity: .85}
 #screen input, #textsize input, #kprov input {display: none}
 .side {padding: 12px !important}
 body {--brand: #3f8a49}  /* the logo's green; lighter on the dark screens */
-body[data-screen="black"], body[data-screen="green"], body[data-screen="amber"], body[data-screen="blue"], body[data-screen="modern-night"] {--brand: #7fb86a}
+body[data-screen="black"], body[data-screen="green"], body[data-screen="amber"], body[data-screen="blue"], body[data-screen="modern-night"], body[data-screen="modern-paper-night"] {--brand: #7fb86a}
 #brand, body:not(#a):not(#b) #brand {font-family: 'VT323', monospace !important; font-size: 3.2rem !important; font-weight: 400 !important; letter-spacing: .1em; text-transform: uppercase !important; color: var(--brand) !important; padding: 26px 4px 0 18px !important; text-shadow: none; line-height: 1; white-space: nowrap}
 body:not(#a):not(#b) #brand svg {display: inline-block !important; width: 5.3rem !important; height: 5.3rem !important; max-width: none !important; vertical-align: -.73rem !important; margin: -1.96rem -1.74rem 0 -.81rem !important}  /* the logo is the J, as tall as the letters */
 #brand::after, body:not(#a):not(#b) #brand::after {content: none !important}  /* the cursor now shows when Joshua is working */
@@ -2397,7 +2790,7 @@ body.narrow:not(#a):not(#b):not(.mside) #leftcol {display: none !important}
 body.narrow.mside:not(#a):not(#b) #leftcol {display: flex !important; position: fixed !important; inset: 0 !important; z-index: 900 !important; width: 100vw !important; max-width: 100vw !important; flex-basis: auto !important; height: 100dvh !important; max-height: 100dvh !important; border-radius: 0 !important; padding: 56px 16px 24px !important; overflow-y: auto !important}
 body.narrow.noside #leftcol {display: none}
 body.narrow:not(#a):not(#b) #sidetoggle {position: fixed !important; top: 10px !important; left: 10px !important; z-index: 950 !important; font-size: 1.25rem !important; width: 40px !important; height: 40px !important; opacity: .85}
-body.narrow:not(#a):not(#b) #chatcol, body.narrow:not(#a):not(#b) #modelspage, body.narrow:not(#a):not(#b) #schedpanel, body.narrow:not(#a):not(#b) #tune, body.narrow:not(#a):not(#b) #mempage, body.narrow:not(#a):not(#b) #setpage {min-width: 0 !important; width: 100vw !important; max-width: 100vw !important; flex: 1 1 100% !important; padding: 8px 10px 6px !important; border-radius: 0 !important}
+body.narrow:not(#a):not(#b) #chatcol, body.narrow:not(#a):not(#b) #modelspage, body.narrow:not(#a):not(#b) #schedpanel, body.narrow:not(#a):not(#b) #tune, body.narrow:not(#a):not(#b) #mempage, body.narrow:not(#a):not(#b) #setpage, body.narrow:not(#a):not(#b) #teampage {min-width: 0 !important; width: 100vw !important; max-width: 100vw !important; flex: 1 1 100% !important; padding: 8px 10px 6px !important; border-radius: 0 !important}
 body.narrow:not(#a):not(#b) #chatcol {height: 100dvh !important; max-height: 100dvh !important}
 body.narrow:not(#a):not(#b) #chatbar {padding-left: 48px !important; min-height: 40px !important}
 body.narrow:not(#a):not(#b) #chat {min-height: 0 !important}
@@ -2454,6 +2847,28 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+/* a field with the cursor in it keeps its look's colour (Gradio's own focus colour is the dark one of its base theme) */
+input, textarea, .wrap {--input-background-fill-focus: var(--input-background-fill)}
+/* with the side menu on screen, its buttons are the way back: no "Back to chat" */
+body:not(.noside):not(.narrow) button.backbtn {display: none !important}
+#teampage .wsteps {display: flex; gap: 18px; flex-wrap: wrap; margin: 4px 0 10px; font-size: .92rem}
+#teampage .wstep {color: var(--dim)}
+#teampage .wstep.on {color: var(--brand); font-weight: 600}
+#teampage .wstep.done {color: var(--text, inherit)}
+#teampage #wiznav {margin-top: 12px; gap: 8px !important}
+#teampage button {min-height: 0 !important}
+#teampage > .column, #teampage .column {flex-grow: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d) #tmdel, body:not(#a):not(#b):not(#c):not(#d) #mremove {color: var(--red) !important}
+#setpage .dkhead {margin: 10px 0 2px}
+#setpage .dkrow {gap: 6px !important; margin: 0 !important; align-items: flex-start !important}
+#setpage .dkrow textarea, #setpage .dkrow input {font-size: .9rem !important}
+body:not(#a):not(#b):not(#c):not(#d) #setpage button.dkdel {background: transparent !important; border: none !important; box-shadow: none !important; color: var(--dim) !important; min-width: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d) #setpage button.dkdel:hover {color: var(--red) !important}
+/* the desk editor: its buttons alike (Remove in red), and a readable selected row in the tasks table */
+#dksave, #dkremove, #setpage button.dkbtn {min-height: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d) #dkremove {color: var(--red) !important}
+body:not(#a):not(#b):not(#c):not(#d) #dkstarters :is(tr.selected, td.selected, .selected, [aria-selected="true"]) {background: color-mix(in srgb, var(--brand) 12%, transparent) !important; color: var(--ink) !important}
+body:not(#a):not(#b):not(#c):not(#d) #dkstarters :is(tr.selected, td.selected, .selected, [aria-selected="true"]) * {color: var(--ink) !important}
 body.narrow:not(#a):not(#b):not(#c):not(#d):not(#e) #modelrow > .form:has(.modeopt) {border-left: none !important; padding-left: 2px !important; margin-left: 0 !important}
 /* ---------- under the message box: desks are one choice (a segmented control); goal and swarm are switches ---------- */
 body:not(#a):not(#b):not(#c):not(#d) #deskpick .wrap {display: inline-flex !important; gap: 0 !important; padding: 2px !important; border: 1px solid color-mix(in srgb, var(--line) 85%, transparent) !important; border-radius: 999px !important; background: color-mix(in srgb, var(--ink) 4%, transparent) !important; width: auto !important}
@@ -2525,31 +2940,32 @@ body:not(.narrow):not(#a):not(#b):not(#c) #modelpick > #model input {font-size: 
 /* ---------- Paper: the look of a well-set document (like a PDF in macOS Preview) ----------
    Arial / Helvetica, near-black on white, a clear size step between headings and text, lines of 1.5,
    and tables drawn with thin grey rules and a pale header row. */
-body[data-screen="modern-paper"] {--bg: #f6f4ef; --bg-hi: #f6f4ef; --panel: #fffdf9; --codebg: #f1eee7; --line: rgba(0, 0, 0, .12); --cyan: #24665a; --glow: transparent; --ink: #111111; --dim: #6b6b70; --amber: #24665a; --red: #b3261e; --codeink: #111111; --shadow: none; --check: #24665a; --userbg: #ebe7de; --green: #24665a; --soft: rgba(0, 0, 0, .05)}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) {--side: #efebe3}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container *:not(svg):not(path):not(code):not(pre):not(pre *):not(#brand):not(#brand *) {font-family: Arial, 'Helvetica Neue', Helvetica, 'Liberation Sans', sans-serif !important; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose * {font-size: 1.06rem !important; line-height: 1.5 !important; color: var(--ink)}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose * {opacity: 1 !important}  /* the answer in full black, not faded like the folded parts */
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose p {margin: .45em 0 .8em !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h1, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h1 * {font-size: 1.75rem !important; line-height: 1.2 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h2, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h2 * {font-size: 1.5rem !important; line-height: 1.22 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h3, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h3 * {font-size: 1.22rem !important; line-height: 1.25 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h4, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h4 * {font-size: 1.06rem !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(h1, h2, h3, h4) {font-weight: 700 !important; color: #000 !important; letter-spacing: -.01em !important; margin: 1.15em 0 .4em !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(h1, h2, h3, h4):first-child {margin-top: .2em !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose strong, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose b {font-weight: 700 !important; color: #000 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(ul, ol) {padding-left: 1.5em !important; margin: .3em 0 .9em !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose li {margin: .25em 0 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose ul > li {list-style: disc !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose table {border-collapse: collapse !important; width: 100% !important; margin: .7em 0 1.4em !important; border: 1px solid #dbd5c9 !important; display: table !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) {border: 1px solid #dbd5c9 !important; padding: .6em .85em !important; text-align: left !important; vertical-align: middle !important; background: transparent !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th * {background: #ece7dd !important; font-weight: 700 !important; color: #000 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) p {margin: 0 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose blockquote {border-left: 3px solid #dbd5c9 !important; padding-left: 1em !important; color: #333 !important; margin: .6em 0 1em !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose a {color: var(--cyan) !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-wrap {max-width: 56rem !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user * {font-size: 1.02rem !important; line-height: 1.45 !important; color: #111 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #schedtitle, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #tunetitle {font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important; font-weight: 700 !important; letter-spacing: -.015em !important; color: #000 !important}
+body[data-screen="modern-paper-night"] {--pp-strong: #fbf7f0; --pp-th: #34302b; --pp-rule: #4a453e; --pp-quote: #cfc8be; --pp-user: #ece6dc; --bg: #1e1c19; --bg-hi: #1e1c19; --panel: #26231f; --codebg: #191714; --line: rgba(255, 240, 220, .11); --cyan: #7cc4b2; --glow: transparent; --ink: #ece6dc; --dim: #a39a8e; --amber: #7cc4b2; --red: #e07a6a; --codeink: #ece6dc; --shadow: none; --check: #7cc4b2; --userbg: #33302b; --green: #7cc4b2; --soft: rgba(124, 196, 178, .1)}
+body[data-screen="modern-paper"] {--pp-strong: #000; --pp-th: var(--pp-th); --pp-rule: var(--pp-rule); --pp-quote: #333; --pp-user: #111; --bg: #f6f4ef; --bg-hi: #f6f4ef; --panel: #fffdf9; --codebg: #f1eee7; --line: rgba(0, 0, 0, .12); --cyan: #24665a; --glow: transparent; --ink: #111111; --dim: #6b6b70; --amber: #24665a; --red: #b3261e; --codeink: #111111; --shadow: none; --check: #24665a; --userbg: #ebe7de; --green: #24665a; --soft: rgba(0, 0, 0, .05)}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) {--side: #efebe3}
+body[data-screen="modern-paper-night"]:not(#a):not(#b):not(#c):not(#d) {--side: #23201c}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container *:not(svg):not(path):not(code):not(pre):not(pre *):not(#brand):not(#brand *) {font-family: Arial, 'Helvetica Neue', Helvetica, 'Liberation Sans', sans-serif !important; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose * {font-size: 1.06rem !important; line-height: 1.5 !important; color: var(--ink)}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose * {opacity: 1 !important}  /* the answer in full black, not faded like the folded parts */
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose p {margin: .45em 0 .8em !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h1, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h1 * {font-size: 1.75rem !important; line-height: 1.2 !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h2, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h2 * {font-size: 1.5rem !important; line-height: 1.22 !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h3, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h3 * {font-size: 1.22rem !important; line-height: 1.25 !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h4, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h4 * {font-size: 1.06rem !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(h1, h2, h3, h4) {font-weight: 700 !important; color: var(--pp-strong) !important; letter-spacing: -.01em !important; margin: 1.15em 0 .4em !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(h1, h2, h3, h4):first-child {margin-top: .2em !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose strong, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose b {font-weight: 700 !important; color: var(--pp-strong) !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(ul, ol) {padding-left: 1.5em !important; margin: .3em 0 .9em !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose li {margin: .25em 0 !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose ul > li {list-style: disc !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose table {border-collapse: collapse !important; width: 100% !important; margin: .7em 0 1.4em !important; border: 1px solid var(--pp-rule) !important; display: table !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) {border: 1px solid var(--pp-rule) !important; padding: .6em .85em !important; text-align: left !important; vertical-align: middle !important; background: transparent !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th * {background: var(--pp-th) !important; font-weight: 700 !important; color: var(--pp-strong) !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) p {margin: 0 !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose blockquote {border-left: 3px solid var(--pp-rule) !important; padding-left: 1em !important; color: var(--pp-quote) !important; margin: .6em 0 1em !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose a {color: var(--cyan) !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user * {font-size: 1.02rem !important; line-height: 1.45 !important; color: var(--pp-user) !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #schedtitle, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #tunetitle {font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important; font-weight: 700 !important; letter-spacing: -.015em !important; color: var(--pp-strong) !important}
 #chat button.jcopied {color: var(--brand) !important; transform: scale(1.15); transition: transform .15s}
 /* ---------- phone: the message box and the switches under it take two short lines, not half the screen ---------- */
 body.narrow:not(#a):not(#b):not(#c) #promptrow {padding: 0 !important; gap: 4px !important; align-items: center !important}
@@ -3000,6 +3416,7 @@ def task_action(name, action):
 
 threading.Thread(target=scheduler, daemon=True).start()
 forget_games()  # games left from the last session
+bin_purge()  # chats deleted more than 30 days ago
 
 
 def css_text(text):
@@ -3008,8 +3425,8 @@ def css_text(text):
 
 
 CSS = CSS.replace("@@WHAT_HELP@@", css_text(t("Hello. What would you like to do today?"))).replace("@@ASK_HINT@@", css_text(t("Everything you write here is stored only on this computer."))).replace("@@MODEL@@", css_text(t("Model:")))
-CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
-CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
+CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage", "#teampage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
+CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn", "#teambtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
 CSS += "\n#modelspage .mz0, #setpage .mz0 {background: color-mix(in srgb, var(--ink) 4%, var(--bg)) !important}"
 JS_TEXT = lambda text: json.dumps(text, ensure_ascii=False).replace("'", "\\'")  # a text inside the js="..." handlers below
 
@@ -3035,17 +3452,80 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             dele = gr.Button("🗑  " + t("Delete this chat"), size="sm", elem_id="delchat")
             with gr.Column(elem_id="panels"):
                 sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
+                team_btn = gr.Button("👥  " + t("Teams"), size="sm", elem_id="teambtn")
                 models_btn = gr.Button("🧩  " + t("Models"), size="sm", elem_id="modelsbtn")
                 mem_btn_open = gr.Button("🧠  " + t("Background"), size="sm", elem_id="membtn")  # what Joshua knows about you
                 tune = gr.Button("🧪  " + t("Fine-tuning"), size="sm", elem_id="tunebtn")
+                bin_btn = gr.Button("🗑  " + t("Bin"), size="sm", elem_id="binbtn")
                 gr.HTML("<div class='navgap'></div>", elem_id="navgap")
                 set_btn = gr.Button("⚙  " + t("Settings"), size="sm", elem_id="setbtn")
                 feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
         tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
+        with gr.Column(visible=False, scale=5, elem_id="teampage") as team_panel:
+            with gr.Row():
+                gr.HTML("<div id='schedtitle'>" + t("TEAMS OF AGENTS") + "</div>")
+                team_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
+            with gr.Column() as tm_listcol:
+                gr.Markdown(t("A team is a group of agents, each with a role, its own instructions, model and tools. In a chat with a team you write to its lead: the lead hands parts of the work to the others, checks what they return and writes the answer. A team can also have a single member: an agent of its own."))
+                tm_new = gr.Button("＋ " + t("New team"), size="sm", scale=0, min_width=180, elem_id="tmnew")
+                tm_list = gr.HTML("")
+                with gr.Column(visible=False) as tm_controls:
+                    tm_pick = gr.Dropdown([], label=t("Choose a team"))
+                    with gr.Row():
+                        tm_go = gr.Button("💬 " + t("Start a chat"), size="sm", scale=0, min_width=160)
+                        tm_edit = gr.Button("✏ " + t("Change"), size="sm", scale=0, min_width=160)
+                        tm_del = gr.Button(t("Delete team"), size="sm", scale=0, min_width=160, elem_id="tmdel")
+            with gr.Column(visible=False, elem_id="teamwiz") as tm_wiz:
+                tw_state, tw_step, tw_sel = gr.State({"members": []}), gr.State(1), gr.State(-1)
+                tw_head = gr.HTML("", elem_id="wsteps")
+                with gr.Column() as tw_s1:
+                    gr.Markdown(t("**What is the team for?** For example: an editorial staff that turns notes into finished articles, or a research group that prepares briefings."))
+                    with gr.Row():
+                        tw_icon = icon_pick(t("Icon"), scale=0, min_width=110)
+                        tw_name = gr.Textbox(label=t("Name"), placeholder=t("Editorial staff"), max_lines=1)
+                    tw_purpose = gr.Textbox(label=t("Purpose"), placeholder=t("Turns my notes and sources into checked, finished articles."), lines=2)
+                with gr.Column(visible=False) as tw_s2:
+                    tw_mlist = gr.Markdown("")
+                    tw_mpick = gr.Radio([], show_label=False, elem_id="twmpick")
+                    with gr.Row():
+                        m_icon = icon_pick(t("Icon"), scale=0, min_width=110)
+                        m_name = gr.Textbox(label=t("Name"), placeholder=t("Reporter"), max_lines=1, scale=2)
+                        m_role = gr.Textbox(label=t("Role"), placeholder=t("finds facts and sources"), max_lines=1, scale=3)
+                    m_instr = gr.Textbox(label=t("Instructions"), placeholder=t("How this member works: what it does, how, and what it hands back."), lines=4)
+                    with gr.Row():
+                        m_model = gr.Dropdown([], label=t("Model"), scale=2)
+                        m_goal = gr.Checkbox(False, label="🎯 " + t("Goal mode"), info=t("Keeps working on its part until it's done and checked"), scale=3)
+                    m_tools = gr.CheckboxGroup([(label, k) for k, (label, _) in TOOL_GROUPS.items()], label=t("Tools"))
+                    with gr.Row():
+                        m_save = gr.Button("＋ " + t("Add to the team"), size="sm", scale=0, min_width=180)
+                        m_remove = gr.Button(t("Remove member"), size="sm", scale=0, min_width=160, visible=False, elem_id="mremove")
+                with gr.Column(visible=False) as tw_s3:
+                    gr.Markdown(t("**Who leads?** The lead is the one you write to: it hands out the work and writes the answer. Pick the member whose role sums up the job, such as an editor-in-chief."))
+                    tw_lead = gr.Radio([], show_label=False)
+                with gr.Column(visible=False) as tw_s4:
+                    gr.Markdown(t("**Check the team**, then save it. You can change it later."))
+                    tw_review = gr.HTML("")
+                with gr.Row(elem_id="wiznav"):
+                    tw_cancel = gr.Button(t("Cancel"), size="sm", scale=0, min_width=120)
+                    tw_prev = gr.Button("← " + t("Back"), size="sm", scale=0, min_width=120, visible=False)
+                    tw_next = gr.Button(t("Next") + " →", size="sm", scale=0, min_width=120)
+                    tw_done = gr.Button("✓ " + t("Create team"), size="sm", scale=0, min_width=160, visible=False)
+        with gr.Column(visible=False, scale=5, elem_id="binpage") as bin_panel:
+            with gr.Row():
+                gr.HTML("<div id='schedtitle'>" + t("BIN") + "</div>")
+                bin_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
+            gr.Markdown(t("Chats you delete wait here for {n} days with their files, then they're deleted for good. Restore one to put it back in the list.", n=BIN_DAYS))
+            bin_list = gr.HTML("")
+            with gr.Column(visible=False) as bin_controls:
+                bin_pick = gr.Dropdown([], label=t("Choose a chat"))
+                with gr.Row():
+                    bin_back_btn = gr.Button("↩ " + t("Restore"), size="sm", scale=0, min_width=160, variant="primary")
+                    bin_del = gr.Button(t("Delete for good"), size="sm", scale=0, min_width=160)
+                    bin_all = gr.Button(t("Empty the bin"), size="sm", scale=0, min_width=160, elem_id="binempty")
         with gr.Column(visible=False, scale=5, elem_id="mempage") as mem_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("WHAT JOSHUA KNOWS ABOUT YOU") + "</div>")
-                mem_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
+                mem_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
             gr.Markdown(t("""After each reply, a model on this computer reads your message and keeps any lasting fact about you: who you are, your work, your projects, how you like answers. Most messages contain nothing to keep. Joshua uses these notes in every chat. You can read, correct or delete them here."""), elem_id="memintro")
             with gr.Row():
                 mem = gr.Checkbox(True, label=t("Use memory"), info=t("Joshua uses these notes in every chat"))
@@ -3061,10 +3541,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         with gr.Column(visible=False, scale=5, elem_id="setpage") as set_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("SETTINGS") + "</div>")
-                set_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
+                set_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Look") + "</h2>")
-                screen = gr.Radio([(t("Paper"), "modern-paper"), (t("Novel"), "novel"), (t("Black"), "black"), (t("White"), "white"), (t("Green"), "green"), (t("Amber"), "amber"), (t("Blue"), "blue"), (t("Modern"), "modern"), (t("Modern night"), "modern-night")], value="modern-paper", label=t("Look"), elem_id="screen")
+                screen = gr.Radio([(t("Paper"), "modern-paper"), (t("Paper night"), "modern-paper-night"), (t("Novel"), "novel"), (t("Black"), "black"), (t("Green"), "green"), (t("Amber"), "amber")], value="modern-paper", label=t("Look"), elem_id="screen")
                 textsize = gr.Radio([("90%", "0.9"), ("100%", "1"), ("110%", "1.1"), ("125%", "1.25"), ("140%", "1.4")], value="1", label=t("Text size"), elem_id="textsize")
                 language = gr.Dropdown([(t("Language: automatic"), "auto")] + [(name, code) for code, name in LANGS.items()], value=i18n.chosen() if i18n.chosen() in LANGS else "auto", label=t("Language"), elem_id="language")
             with gr.Column(elem_classes=["mzone", "mz0"]):
@@ -3078,25 +3558,33 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     br_open = gr.Button("🧭 " + t("Open Joshua's browser"), size="sm", scale=0, min_width=240)
                     br_status = gr.HTML("")
             with gr.Column(elem_classes=["mzone", "mz0"]):
-                gr.HTML("<h2 class='msec'>" + t("Desks") + "</h2><div class='msub'>" + t("A desk sets Joshua up for one kind of work: you choose it under the message box. Here you can rewrite what Joshua is told at each desk, in any language. Your version is kept on this computer and updates never overwrite it; \"Restore the default\" brings back Joshua's own.") + "</div>")
-                desk_boxes = []
-                for desk_id, d in [x for x in desks.desks() if not x[1].get("mine")]:
-                    box_ = gr.Textbox(d["instructions"], lines=10, max_lines=30, label=desks.label(desk_id, i18n.LANG), elem_classes="deskedit")
-                    with gr.Row():
-                        save_ = gr.Button(t("Save"), size="sm", scale=0, min_width=120)
-                        reset_ = gr.Button(t("Restore the default"), size="sm", scale=0, min_width=200)
-                        note_ = gr.HTML("<div class='cloudstat'>" + t("Your own version") + "</div>" if desks.edited(desk_id) else "")
-                    desk_boxes.append((desk_id, box_, save_, reset_, note_))
-                gr.HTML("<h3 class='msec2'>" + t("Your desks") + "</h3><div class='msub'>" + t("Make a desk of your own: a name, an icon (any emoji), what Joshua should know and do there, and the tools it may use. It appears among the desks under the message box.") + "</div>")
-                my_pick = gr.Dropdown(choices=my_desk_choices(), value="", label=t("Desk"), elem_id="mypick")
+                gr.HTML("<h2 class='msec'>" + t("Desks") + "</h2><div class='msub'>" + t("A desk sets Joshua up for one kind of work: you choose it under the message box. Pick a desk to change its name, icon, instructions, tools and the tasks offered on an empty chat, or make a new one. Your changes are kept on this computer and updates never overwrite them.") + "</div>")
+                dk_pick = gr.Dropdown(choices=desk_editor_choices(), value=desk_editor_choices()[1][1] if len(desk_editor_choices()) > 1 else "", label=t("Desk"), elem_id="dkpick")
                 with gr.Row():
-                    my_icon = gr.Textbox("", label=t("Icon"), placeholder="🌿", max_lines=1, scale=0, min_width=90)
-                    my_name = gr.Textbox("", label=t("Name"), placeholder=t("Cooking"), max_lines=1)
-                my_instr = gr.Textbox("", lines=8, max_lines=30, label=t("Instructions"), placeholder=t("You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple."), elem_classes="deskedit")
-                my_tools = gr.CheckboxGroup([(label, key) for key, (label, _) in TOOL_GROUPS.items()], value=[k for k in TOOL_GROUPS if k != "browser"], label=t("Tools at this desk"), elem_id="mytools")
+                    dk_icon = icon_pick(t("Icon"), scale=0, min_width=110)
+                    dk_name = gr.Textbox("", label=t("Name"), placeholder=t("Cooking"), max_lines=1)
+                dk_instr = gr.Textbox("", lines=8, max_lines=12, label=t("Instructions"), placeholder=t("You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple."), elem_classes="deskedit")
+                dk_tools = gr.CheckboxGroup([(label, key) for key, (label, _) in TOOL_GROUPS.items()], value=[], label=t("Tools at this desk"), elem_id="dktools")
+                gr.HTML("<div class='fhead dkhead'>" + t("Tasks offered on an empty chat") + "</div>")
+                dk_rows, dk_cells = [], []
+                for k in range(MAX_TASKS):  # a fixed number of lines: the ones in use are shown
+                    with gr.Row(visible=False, elem_classes="dkrow", equal_height=True) as row_:
+                        c_icon = icon_pick(show_label=False, container=False, scale=0, min_width=90)
+                        c_title = gr.Textbox("", show_label=False, placeholder=t("Task"), max_lines=1, scale=2, container=False)
+                        c_prompt = gr.Textbox("", show_label=False, placeholder=t("Text put in the message box"), lines=1, max_lines=4, scale=5, container=False)
+                        c_del = gr.Button("✕", size="sm", scale=0, min_width=40, elem_classes="dkdel")
+                    dk_rows.append(row_)
+                    dk_cells += [c_icon, c_title, c_prompt]
+                    row_.dk_del = c_del
+                dk_add = gr.Button("＋ " + t("Add a task"), size="sm", scale=0, min_width=180, elem_id="dkadd")
                 with gr.Row():
-                    my_save = gr.Button(t("Save desk"), size="sm", scale=0, min_width=160, variant="primary")
-                    my_del = gr.Button(t("Delete desk"), size="sm", scale=0, min_width=160, elem_id="mydel", visible=False)
+                    dk_save = gr.Button(t("Save desk"), size="sm", scale=0, min_width=160, elem_id="dksave")
+                    dk_reset = gr.Button(t("Restore the default"), size="sm", scale=0, min_width=200)
+                    dk_remove = gr.Button(t("Remove desk"), size="sm", scale=0, min_width=160, elem_id="dkremove")
+                    dk_note = gr.HTML("")
+                with gr.Row(visible=bool(desks.hidden())) as dk_hiddenrow:
+                    dk_hidden = gr.Dropdown(choices=hidden_desk_choices(), value=None, label=t("Removed desks"), scale=3)
+                    dk_back = gr.Button(t("Bring it back"), size="sm", scale=0, min_width=160)
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Access from anywhere") + "</h2><div class='msub'>" + t("Use Joshua from your other computers, phone or tablet, wherever you are, through Tailscale: a free app that links your own devices in a private network. Nothing is opened to the internet.") + "</div>")
                 remote_on = gr.Checkbox(remote_setting(), label=t("Let my devices on Tailscale reach Joshua"))
@@ -3117,7 +3605,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         with gr.Column(visible=False, scale=5, elem_id="modelspage") as models_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("MODELS") + "</div>")
-                models_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="modelsback")
+                models_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn", elem_id="modelsback")
             gr.Markdown(t("Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images or audio, and deep thinking, give no extra points: they are shown on their own, under Abilities. For everyday questions, smaller models are often enough."), elem_id="mintro")
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<div class='mzhead'><h2 class='msec'>" + t("Your model menu") + "</h2></div><div class='msub'>" + t("The models you choose from under the chat, in this order. The first one is the default for new chats.") + "</div>")
@@ -3157,7 +3645,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         with gr.Column(visible=False, scale=5, elem_id="schedpanel") as sched_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("SCHEDULED TASKS") + "</div>")
-                sched_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="schedback")
+                sched_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn", elem_id="schedback")
             gr.Markdown(t("Joshua does a task on its own at the time you choose: a morning news summary, a weekly check of a website, a reminder written for you. Each run appears as a ⏰ chat in the list on the left.") + "\n\n" + t("**Only while Joshua is running.** Tasks can't run when the computer is off or asleep, or when Joshua is closed. A task missed in the meantime runs once, as soon as Joshua is open again."), elem_id="schedhelp")
             with gr.Row(equal_height=False):
                 with gr.Column(scale=3, elem_id="schedform"):
@@ -3299,30 +3787,46 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     t_pause.click(lambda n: task_action(n, "pause"), t_pick, [task_list, t_pick, t_controls])
     t_del.click(lambda n: task_action(n, "delete"), t_pick, [task_list, t_pick, t_controls], js="(n) => (n && confirm(" + JS_TEXT(t("Delete '{name}'? It won't run again.")) + ".replace('{name}', n))) ? n : null")
     OTHER = [models_panel, sched_panel, tune_panel]
-    def desk_save(desk_id, words):
-        desks.set_instructions(desk_id, words)
-        gr.Info(t("Saved: chats at this desk follow it from the next message."))
-        return "<div class='cloudstat'>" + t("Your own version") + "</div>" if desks.edited(desk_id) else ""
+    DK = [dk_icon, dk_name, dk_instr, dk_tools, dk_reset, dk_remove, dk_note] + dk_cells + dk_rows
+    dk_add.click(desk_task_add, dk_cells, dk_cells + dk_rows, show_progress="hidden")
+    for k, row_ in enumerate(dk_rows):
+        row_.dk_del.click(functools.partial(desk_task_remove, k), dk_cells, dk_cells + dk_rows, show_progress="hidden")
+    dk_pick.input(desk_editor_load, dk_pick, DK)
+    set_btn.click(desk_editor_load, dk_pick, DK)
+    dk_save.click(desk_editor_save, [dk_pick, dk_icon, dk_name, dk_instr, dk_tools] + dk_cells, [dk_pick, desk] + DK)
+    dk_reset.click(desk_editor_reset, dk_pick, [dk_pick, desk] + DK)
+    dk_remove.click(desk_editor_remove, dk_pick, [dk_pick, desk] + DK + [dk_hiddenrow, dk_hidden],
+                    js="(d) => (d && confirm(" + JS_TEXT(t("Remove this desk? Its chats stay, at no desk. One of Joshua's desks can be brought back later.")) + ")) ? d : null")
+    dk_back.click(desk_editor_back, dk_hidden, [dk_pick, desk] + DK + [dk_hiddenrow, dk_hidden])
 
-    def desk_reset(desk_id):
-        desks.set_instructions(desk_id, "")
-        return desks.default_instructions(desk_id), ""
-
-    my_pick.input(my_desk_load, my_pick, [my_icon, my_name, my_instr, my_tools, my_del])
-    my_save.click(my_desk_save, [my_pick, my_icon, my_name, my_instr, my_tools], [my_pick, desk, my_del])
-    my_del.click(my_desk_delete, my_pick, [my_pick, desk, my_icon, my_name, my_instr, my_tools, my_del],
-                 js="(d) => (d && confirm(" + JS_TEXT(t("Delete this desk? Its chats stay, at no desk.")) + ")) ? d : null")
-    for desk_id, box_, save_, reset_, note_ in desk_boxes:
-        save_.click(functools.partial(desk_save, desk_id), box_, note_)
-        reset_.click(functools.partial(desk_reset, desk_id), outputs=[box_, note_])
-
-    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back)]:
-        rest = [x for x in (mem_panel, set_panel) if x is not panel]
-        btn.click(lambda: (gr.Column(visible=True),) + (gr.Column(visible=False),) * 6, outputs=[panel, chatcol, rightcol] + OTHER + rest)
+    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back), (bin_btn, bin_panel, bin_back), (team_btn, team_panel, team_back)]:
+        rest = [x for x in (mem_panel, set_panel, bin_panel, team_panel) if x is not panel]
+        btn.click(lambda n=len(OTHER + rest): (gr.Column(visible=True),) + (gr.Column(visible=False),) * (2 + n), outputs=[panel, chatcol, rightcol] + OTHER + rest)
         back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True)), outputs=[panel, chatcol, rightcol])
         for o in (models_btn, sched, tune):  # opening another page closes this one
             o.click(lambda: gr.Column(visible=False), outputs=panel)
     mem_btn_open.click(mem_view, mem_topic, [mem_topic, mem_text])
+    bin_btn.click(bin_view, outputs=[bin_list, bin_pick, bin_controls])
+    OPENED = [chatbot, cid, files, project, model, thinking, goal, swarm, offline, agents, *team, desk, starters]  # what opening a chat fills
+    TM_PAGE = [tm_list, tm_pick, tm_controls, tm_listcol, tm_wiz]
+    WIZ = [tw_state, tw_step, tw_sel, tw_s1, tw_s2, tw_s3, tw_s4, tw_head, tw_prev, tw_next, tw_done, tw_name, tw_icon, tw_purpose,
+           tw_mlist, tw_mpick, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, m_save, m_remove, tw_lead, tw_review]
+    W_IN = [tw_state, tw_step, tw_sel, tw_name, tw_icon, tw_purpose, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, tw_lead]
+    team_btn.click(team_page, outputs=TM_PAGE)
+    tm_new.click(wiz_open, outputs=WIZ + [tm_listcol, tm_wiz])
+    tm_edit.click(wiz_open, tm_pick, WIZ + [tm_listcol, tm_wiz])
+    tm_del.click(team_delete, tm_pick, TM_PAGE, js="(c) => (c && confirm(" + JS_TEXT(t("Delete this team? Its chats stay in the list.")) + ")) ? c : null")
+    tw_cancel.click(team_page, outputs=TM_PAGE)
+    tw_next.click(functools.partial(wiz_move, 1), W_IN, WIZ)
+    tw_prev.click(functools.partial(wiz_move, -1), W_IN, WIZ)
+    tw_mpick.input(wiz_pick, W_IN + [tw_mpick], WIZ)
+    m_save.click(wiz_member_save, W_IN, WIZ)
+    m_remove.click(wiz_member_remove, W_IN, WIZ)
+    tw_done.click(wiz_finish, W_IN, TM_PAGE)
+    tm_go.click(team_open_chat, tm_pick, OPENED + [convs, team_panel, chatcol, rightcol])
+    bin_back_btn.click(bin_restore, bin_pick, [bin_list, bin_pick, bin_controls, convs])
+    bin_del.click(bin_forever, bin_pick, [bin_list, bin_pick, bin_controls], js="(c) => (c && confirm(" + JS_TEXT(t("Delete this chat and its files for good? This can't be undone.")) + ")) ? c : null")
+    bin_all.click(bin_empty, bin_all, [bin_list, bin_pick, bin_controls], js="() => confirm(" + JS_TEXT(t("Delete every chat in the bin for good? This can't be undone.")) + ")")
     set_btn.click(api_panel, outputs=[api_info, api_example])
     learn.change(learn_setting, learn)
     remote_on.change(lambda on: (remote_setting(on), remote.switch(on, PORT), remote_html())[2], remote_on, remote_box)
@@ -3352,7 +3856,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     stop.click(stop_chat, cid, concurrency_limit=None)
     goal.change(lambda g: (gr.Column(visible=g), gr.MultimodalTextbox(placeholder=t("Describe a goal for Joshua to accomplish…") if g else t("Message Joshua, or drop files here…"))), goal, [goalpanel, box])
     new.click(new_chat, outputs=[chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters])
-    convs.input(open_conv, convs, [chatbot, cid, files, project, model, thinking, goal, swarm, offline, agents, *team, desk, starters]).then(badge, model, cloudbadge)
+    convs.input(open_conv, convs, OPENED).then(badge, model, cloudbadge)
     to_chat = lambda: (gr.Column(visible=True), gr.Column(visible=True)) + (gr.Column(visible=False),) * 5
     for e in (convs.input, new.click):  # a chat or New chat in the side column closes Models, Settings and the other pages
         e(to_chat, outputs=[chatcol, rightcol, models_panel, sched_panel, tune_panel, mem_panel, set_panel], show_progress="hidden")
@@ -3379,7 +3883,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     ord_go.click(None, None, ord_val, js="() => window.joshuaOrder || ''").then(reorder_pins, [cid, ord_val], convs, show_progress="hidden")
     ren_go.click(None, None, ren_val, js="() => window.joshuaRename || ''").then(rename_save, [cid, ren_val], [renbox, convs], show_progress="hidden")
     renbox.submit(rename_save, [cid, renbox], [renbox, convs])
-    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
+    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat to the bin? You can restore it there for 30 days.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
     tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
     tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models(True))), outputs=[tune_panel, chatcol, rightcol, model])
@@ -3563,7 +4067,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
         document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
         b.classList.add('jcopied'); setTimeout(() => b.classList.remove('jcopied'), 1200); }, true) }""")
-    demo.load(None, None, screen, js="() => { let v = 'modern-paper'; try { v = localStorage.getItem('joshua-screen3') || 'modern-paper' } catch (e) {} document.body.dataset.screen = v; return v }")
+    demo.load(None, None, screen, js="() => { let v = 'modern-paper'; try { v = localStorage.getItem('joshua-screen3') || 'modern-paper' } catch (e) {} if (!['modern-paper', 'modern-paper-night', 'novel', 'black', 'green', 'amber'].includes(v)) v = 'modern-paper'; document.body.dataset.screen = v; return v }")
     textsize.change(None, textsize, None, js="(v) => { document.documentElement.style.fontSize = (16 * v) + 'px'; try { localStorage.setItem('joshua-zoom', v) } catch (e) {} }")
     demo.load(None, None, textsize, js="() => { let v = '1'; try { v = localStorage.getItem('joshua-zoom') || '1' } catch (e) {} document.documentElement.style.fontSize = (16 * v) + 'px'; return v }")
     sidetoggle.click(None, None, None, js="""() => {
@@ -3577,17 +4081,25 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         document.addEventListener('click', (e) => {
           if (!document.body.classList.contains('narrow') || !document.body.classList.contains('mside')) return;
           if (e.target.closest('.cmore')) return;
-          if (e.target.closest('#convs label, #newchat, #panels button, #membtn, #setbtn, #modelsbtn, #tunebtn')) setTimeout(() => document.body.classList.remove('mside'), 150);
+          if (e.target.closest('#convs label, #newchat, #panels button, #membtn, #setbtn, #binbtn, #modelsbtn, #tunebtn')) setTimeout(() => document.body.classList.remove('mside'), 150);
         }, true); }""")
     demo.load(None, None, None, js="() => { try { if (localStorage.getItem('joshua-noside')) document.body.classList.add('noside') } catch (e) {} }")
 
 ICON = (pathlib.Path(__file__).parent / "icon.png").resolve()
-APP_HEAD = (f"<link rel='apple-touch-icon' href='/gradio_api/file={ICON}'>"  # the icon Safari uses for "Add to Dock"
+LOOK_EARLY = ("<script>(function () {  // the saved look and text size, before anything is drawn: no flash of another look at start-up\n"
+              "  var ok = ['modern-paper', 'modern-paper-night', 'novel', 'black', 'green', 'amber'], v = 'modern-paper', z = '1';\n"
+              "  try { v = localStorage.getItem('joshua-screen3') || v; z = localStorage.getItem('joshua-zoom') || z } catch (e) {}\n"
+              "  if (ok.indexOf(v) < 0) v = 'modern-paper';\n"
+              "  document.documentElement.style.fontSize = (16 * z) + 'px';\n"
+              "  var set = function () { if (document.body) { document.body.dataset.screen = v; return true } };\n"
+              "  if (!set()) new MutationObserver(function (m, o) { if (set()) o.disconnect() }).observe(document.documentElement, {childList: true});\n"
+              "})();</script>")
+APP_HEAD = LOOK_EARLY + (f"<link rel='apple-touch-icon' href='/gradio_api/file={ICON}'>"  # the icon Safari uses for "Add to Dock"
             "<meta name='apple-mobile-web-app-title' content='Joshua'><meta name='application-name' content='Joshua'>")
 
 # Icons: the interface is written with emoji (in labels, buttons, tool boxes); the page swaps each one for a drawn icon
 # from Phosphor (light weight, MIT licence, icons.json). Only interface text is touched, never what you or the model write.
-ICONS = json.loads((pathlib.Path(__file__).parent / "icons.json").read_text(encoding="utf-8"))
+UI_ICONS = json.loads((pathlib.Path(__file__).parent / "icons.json").read_text(encoding="utf-8"))
 ICON_JS = r"""(() => {
   const I = window.JOSHUA_ICONS, keys = Object.keys(I.emoji).sort((a, b) => b.length - a.length);
   const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), alt = keys.map(esc).join('|');
@@ -3625,7 +4137,7 @@ ICON_JS = r"""(() => {
     if (!queued) { queued = true; requestAnimationFrame(run); } }).observe(document.documentElement, {subtree: true, childList: true, characterData: true});
   addEventListener('DOMContentLoaded', () => walk(document.body));
 })();"""
-ICON_HEAD = ("<script>window.JOSHUA_ICONS=" + json.dumps({"emoji": ICONS["emoji"], "svg": ICONS["svg"]}, ensure_ascii=False).replace("</", "<\\/") + ";</script>"
+ICON_HEAD = ("<script>window.JOSHUA_ICONS=" + json.dumps({"emoji": UI_ICONS["emoji"], "svg": UI_ICONS["svg"]}, ensure_ascii=False).replace("</", "<\\/") + ";</script>"
              "<script>" + ICON_JS + "</script>"
              "<style>.ji{display:inline-flex;width:1.2em;height:1.2em;margin-right:.42em;vertical-align:-.22em;flex:none}.ji svg{width:100%;height:100%}"
              ".cloudbadge .ji,.sicon .ji{margin-right:.18em}</style>")

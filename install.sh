@@ -37,6 +37,63 @@ ollama_signin() {  # 'ollama signin' prints the page to open and waits until you
   if [ -n "$url" ]; then say "  ${dim}Opening the page in your browser…${off}"; open_url "$url"; fi
   wait $pid; local rc=$?; rm -f "$log"; return $rc
 }
+# The Ollama API key: you create it on ollama.com (no program can), copy it, and the installer takes it from the
+# clipboard. It's checked with Ollama, saved only in providers.json (readable only by you), and the clipboard is emptied.
+# It never appears on screen or in the log, and it isn't passed on a command line, where other programs could see it.
+clip_read() {
+  if [ "$(uname)" = Darwin ]; then pbpaste
+  elif command -v wl-paste >/dev/null; then wl-paste -n 2>/dev/null
+  elif command -v xclip >/dev/null; then xclip -o -selection clipboard 2>/dev/null
+  elif command -v xsel >/dev/null; then xsel -ob 2>/dev/null; fi
+}
+clip_clear() {
+  if [ "$(uname)" = Darwin ]; then pbcopy </dev/null
+  elif command -v wl-copy >/dev/null; then wl-copy --clear 2>/dev/null
+  elif command -v xclip >/dev/null; then xclip -selection clipboard </dev/null 2>/dev/null
+  elif command -v xsel >/dev/null; then xsel -cb 2>/dev/null; fi
+}
+SAVE_KEY='
+import json, pathlib, sys, requests
+key = sys.stdin.read().strip()
+if not key or len(key) > 300 or any(c.isspace() for c in key): sys.exit(2)          # not a key
+try:
+    code = requests.get("https://ollama.com/api/balance", headers={"Authorization": "Bearer " + key}, timeout=15).status_code
+except Exception:
+    code = 0                                                                         # no answer: saved anyway
+if code in (401, 403): sys.exit(3)                                                   # Ollama refused it
+p = pathlib.Path(sys.argv[1])
+try: data = json.loads(p.read_text())
+except Exception: data = {"keys": {}, "models": []}
+data.setdefault("keys", {})["ollama"] = key
+p.write_text(json.dumps(data, indent=1)); p.chmod(0o600)
+sys.exit(0 if code == 200 else 4)'
+ollama_key() {
+  step "Ollama API key"
+  say "  ${dim}Optional. With an API key, Joshua shows how much credit is left on your Ollama account, next to a cloud model's price."
+  say "  Cloud models work without it.${off}"
+  ask "Set up the API key now?" y || { say "  ${dim}You can add it later in Joshua: Models page, under “Open models in the cloud”.${off}"; return 0; }
+  say "  ${dim}A page opens on ollama.com: click \"Create API key\", name it Joshua, then press the copy button next to the key."
+  say "  Don't paste it anywhere: when you answer Yes, the installer takes it from the clipboard, checks it with Ollama,"
+  say "  saves it on this computer only, and empties the clipboard.${off}"
+  open_url "https://ollama.com/settings/keys"
+  local try key rc
+  for try in 1 2; do
+    ask "Have you copied the key?" y || break
+    key=$(clip_read)
+    if [ -z "$key" ] && [ -z "${JOSHUA_GUI:-}" ]; then  # no clipboard tool here: paste it, hidden
+      printf "  Paste the key (it won't show) and press Enter: "; read -rs key </dev/tty || key=""; echo
+    fi
+    rc=0; printf "%s" "$key" | "$PY" -c "$SAVE_KEY" "$APP/providers.json" || rc=$?
+    key=""
+    case $rc in
+      0) clip_clear; ok "API key saved: Joshua shows your Ollama credit"; return 0;;
+      4) clip_clear; ok "API key saved"; warn "Ollama didn't answer just now, so the key isn't checked yet: if the credit doesn't show in Joshua, paste a new one on the Models page"; return 0;;
+      3) warn "Ollama refused that key. Copy it again (or make a new one) and answer Yes.";;
+      *) warn "The clipboard doesn't hold an API key. Press the copy button next to the key and answer Yes.";;
+    esac
+  done
+  say "  ${dim}No key saved. You can add it later in Joshua: Models page, under “Open models in the cloud”.${off}"
+}
 warn() { printf "  ${amber}!${off} %s\n" "$*"; }
 die()  { printf "\n${red}✗ %s${off}\n" "$*"; exit 1; }
 ask()  {  # ask "question" default(y/n) -> returns 0 for yes
@@ -122,8 +179,8 @@ step "A few questions"
 # Cloud models only: Joshua itself runs here, but every answer comes from a big model on Ollama's servers.
 CLOUD_TEXT="Joshua runs here, and your chats, files and memory stay on this computer, but every message is answered by a large model on
   Ollama's servers. Nothing big to download, and it works on any computer. You need an internet connection and an Ollama account:
-  new accounts pay per use, so add a few dollars of credit on ollama.com (Joshua sets up DeepSeek V4.1 Flash, Kimi K3.1 Pro
-  and Nemotron 3 Super; DeepSeek, the one it starts with, costs well under a cent per message). Some older accounts still have a small free monthly allowance."
+  new accounts pay per use, so add a few dollars of credit on ollama.com (Joshua sets up Nemotron 3 Super, the one it starts with,
+  DeepSeek V4.1 Flash, well under a cent per message, and Kimi K3.1 Pro). Some older accounts still have a small free monthly allowance."
 CLOUDONLY=n
 if [ -n "$LOCAL_NO" ]; then
   say "  This computer can't run Joshua's models itself: $LOCAL_NO."
@@ -137,7 +194,7 @@ else
   ask "Use cloud models only?" $DEF && CLOUDONLY=y
 fi
 if [ "$CLOUDONLY" = y ]; then
-  CLOUD=y; THINK=n; IMAGES=n; TUNE=n; MODEL_GB=0; LABEL="DeepSeek V4.1 Flash (cloud)"
+  CLOUD=y; THINK=n; IMAGES=n; TUNE=n; MODEL_GB=0; LABEL="Nemotron 3 Super (cloud)"
 else
 # The memory the model must fit in: on a Mac the whole memory; on a PC the graphics card's (7 GB+ runs the 8B, 22 GB+ the 30B)
 if [ "$OS" = Darwin ]; then BIG=$RAM; else BIG=$(( VRAM >= 22 ? 32 : VRAM >= 7 ? 16 : 8 )); fi
@@ -203,8 +260,8 @@ say ""
 say "  ${bold}Cloud models${off} (optional): much bigger models that run on Ollama's servers instead of this computer."
 say "  ${dim}Your chats, files and memory stay stored here, but each message in a cloud chat is sent to Ollama to be answered."
 say "  Ollama says it doesn't log or train on them. You need an Ollama account; new accounts pay per use with credit you add on"
-say "  ollama.com. Joshua sets up DeepSeek V4.1 Flash (well under a cent per message), Kimi K3.1 Pro (the most capable, and pricier)"
-say "  and Nemotron 3 Super. You choose per chat.${off}"
+say "  ollama.com. Joshua sets up Nemotron 3 Super (the one it starts with), DeepSeek V4.1 Flash (well under a cent per message)"
+say "  and Kimi K3.1 Pro (the most capable, and pricier). You choose per chat.${off}"
 DEF=n; [ "$SPEED" -lt 4 ] && DEF=y && say "  ${dim}Recommended here: this computer is slow with local models.${off}"
 ask "Connect Joshua to Ollama's cloud models?" $DEF && CLOUD=y
 fi
@@ -223,7 +280,7 @@ say ""
 if [ "$FREE" -lt $(( NEED + 3 )) ]; then
   die "This needs about ${NEED} GB of disk (plus a little room to breathe) and you have ${FREE} GB free. Free some space, or run again and say no to some options."
 fi
-if [ "$CLOUDONLY" = y ]; then ok "Plan: cloud models only (DeepSeek, Kimi and Nemotron on Ollama's servers) · about 1 GB"
+if [ "$CLOUDONLY" = y ]; then ok "Plan: cloud models only (Nemotron, DeepSeek and Kimi on Ollama's servers) · about 1 GB"
 else ok "Plan: ${LABEL} (~${SPEED} words/s)$([ "$THINK" = y ] && echo " + deep thinking")$([ "$CLOUD" = y ] && echo " + cloud models")$([ "$IMAGES" = y ] && echo " + images")$([ "$TUNE" = y ] && echo " + fine-tuning") · about ${NEED} GB"; fi
 ask "Go ahead?" y || die "Nothing was installed."
 
@@ -323,11 +380,11 @@ fi
 if [ "$CLOUD" = y ]; then
   step "Cloud models"
   CLOUDM=""
-  for m in deepseek-v4.1-flash:cloud kimi-k3.1-pro:cloud nemotron-3-super:cloud; do  # DeepSeek first: the default, good and cheap
+  for m in nemotron-3-super:cloud deepseek-v4.1-flash:cloud kimi-k3.1-pro:cloud; do  # Nemotron first: the cloud model Joshua starts with
     if "$OLLAMA" pull "$m" >/dev/null 2>&1; then ok "$m added (nothing downloaded: it runs on Ollama's servers)"; CLOUDM=${CLOUDM:-$m}
     else warn "couldn't add $m now; add it later from Joshua's Models page"; fi
   done
-  if [ "$CLOUDONLY" = y ]; then FAST=${CLOUDM:-deepseek-v4.1-flash:cloud}; MODEL=$FAST; LABEL="$FAST"; fi
+  if [ "$CLOUDONLY" = y ]; then FAST=${CLOUDM:-nemotron-3-super:cloud}; MODEL=$FAST; LABEL="$FAST"; fi
 fi
 
 if [ "$IMAGES" = y ]; then
@@ -373,6 +430,7 @@ fi
 cat > "$APP/config.json" <<EOF
 {"model": "$MODEL", "fast": "$FAST", "label": "$LABEL", "tune_base": "$TUNE_BASE", "tune_template": "qwen3:4b-instruct-2507-q4_K_M"}
 EOF
+[ "$ACCOUNT" = y ] && ollama_key
 
 # ---------- 6. launcher ----------
 step "Joshua launcher"

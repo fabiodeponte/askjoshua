@@ -125,7 +125,7 @@ def build(conv_root, conv_choices):
     with gr.Column(visible=False, scale=5, elem_id="tune") as panel:
         with gr.Row():
             gr.HTML("<div id='tunetitle'>" + t("TEACH JOSHUA · FINE-TUNING") + "</div>")
-            back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="tuneback")
+            back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="tuneback", elem_classes="backbtn")
         with gr.Accordion("⓪  " + t("What this is, and whether your computer can do it"), open=True, elem_classes="ftstep"):
             gr.Markdown(INTRO)
             res = gr.HTML()
