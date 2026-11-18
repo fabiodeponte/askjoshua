@@ -652,5 +652,12 @@
  "Press ▶ to start reading.": "按 ▶ 开始朗读。",
  "This paragraph couldn't be played. Press ▶ to try again.": "这一段无法播放。按 ▶ 重试。",
  "…or paste a web address, or some text": "……或粘贴网址或一段文字",
- "Joshua couldn't read that page.": "Joshua 无法读取这个网页。"
+ "Joshua couldn't read that page.": "Joshua 无法读取这个网页。",
+ "New version": "新版本",
+ "Update": "更新",
+ "No books yet.": "还没有书。",
+ "Text": "文字",
+ "Add a file": "添加文件",
+ "Paste a web address, or some text": "粘贴网址或一段文字",
+ "Joshua reads books, documents and web pages aloud, and remembers where you stopped.": "Joshua 朗读书籍、文档和网页，并记住你停在哪里。"
 }

@@ -652,5 +652,12 @@
  "Press ▶ to start reading.": "Naciśnij ▶, aby zacząć czytanie.",
  "This paragraph couldn't be played. Press ▶ to try again.": "Nie udało się odtworzyć tego akapitu. Naciśnij ▶, aby spróbować ponownie.",
  "…or paste a web address, or some text": "…albo wklej adres strony lub tekst",
- "Joshua couldn't read that page.": "Joshua nie mógł odczytać tej strony."
+ "Joshua couldn't read that page.": "Joshua nie mógł odczytać tej strony.",
+ "New version": "Nowa wersja",
+ "Update": "Aktualizuj",
+ "No books yet.": "Nie ma jeszcze książek.",
+ "Text": "Tekst",
+ "Add a file": "Dodaj plik",
+ "Paste a web address, or some text": "Wklej adres strony lub tekst",
+ "Joshua reads books, documents and web pages aloud, and remembers where you stopped.": "Joshua czyta na głos książki, dokumenty i strony internetowe i pamięta, gdzie skończyłeś."
 }

@@ -533,8 +533,9 @@ def check_update():
         return gr.skip(), gr.skip()
     num = lambda v: tuple(int(x) for x in v.split(".") if x.isdigit())  # versions are dates plus a counter: 2026.11.08.3
     if re.fullmatch(r"[\d.]+", latest) and num(latest) > num(VERSION):
-        return "<div class='updnote'>" + t("Joshua {new} is available (you have {old}).", new=html.escape(latest), old=html.escape(VERSION)) + "</div>", gr.Button(visible=True)
-    return "", gr.Button(visible=False)
+        return ("<div class='updnote' title='" + html.escape(t("Joshua {new} is available (you have {old}).", new=latest, old=VERSION), quote=True) + "'>"
+                + t("New version") + "</div>"), gr.Row(visible=True)
+    return "", gr.Row(visible=False)
 
 
 def do_update():
@@ -2228,54 +2229,67 @@ def team_open_chat(team_id):
 
 # ---------- the Reader ----------
 
+def rd_title(title):
+    """Titles in capitals (often a file's name) are shown in ordinary case."""
+    return title[:1] + title[1:].lower() if title.isupper() and len(title) > 12 else title
+
+
 def rd_library():
-    """The library (no book open)."""
-    items = reader.books()
-    cards = "".join(f"<div class='task'><b>{html.escape(b['title'])}</b><br><span>{html.escape(b['file'])} · "
-                    + t("{p}% read", p=reader.percent(b.get("pos", 0), b["count"])) + "</span></div>" for b in items)
-    listing = cards or "<div class='cloudstat'>" + t("No books yet. Add one above: it's read aloud from the start, and Joshua keeps your place.") + "</div>"
-    choices = [(b["title"], b["id"]) for b in items]
-    return (listing, gr.Dropdown(choices=choices, value=choices[0][1] if choices else None), gr.Column(visible=bool(choices)),
-            gr.Column(visible=True), gr.Column(visible=False), "")
+    """The library (no book open): your books, the last read first. A title opens the book; ✕ removes it."""
+    rows = []
+    for b in reader.books():
+        pct = reader.percent(b.get("pos", 0), b["count"])
+        src = b.get("file") or ""
+        kind = (urllib.parse.urlparse(src).netloc.removeprefix("www.") if src.startswith("http") else pathlib.Path(src).suffix.lstrip(".").upper()) if src else t("Text")
+        rows.append(f"<div class='rdrow' data-open='{b['id']}'><div class='rdmain'><div class='rdname'>{html.escape(rd_title(b['title']))}</div>"
+                    f"<div class='rdmeta'>{html.escape(kind)} · " + t("{p}% read", p=pct) + f"</div><div class='rdprogress'><span style='width:{pct}%'></span></div></div>"
+                    f"<button class='rdx' data-remove='{b['id']}' title='" + html.escape(t("Remove from the library"), quote=True) + "'>✕</button></div>")
+    listing = "<div class='rdlib'>" + "".join(rows) + "</div>" if rows else "<div class='rdempty'>" + t("No books yet.") + "</div>"
+    return listing, gr.Column(visible=True), gr.Column(visible=False), ""
 
 
 def rd_show(book_id):
     book = reader.get(book_id)
     if not book:
-        gr.Warning(t("Pick a book first."))
-        return (gr.skip(),) * 6
+        return (gr.skip(),) * 4
     reader.set_pos(book_id, book.get("pos", 0))  # now the last opened
-    return (gr.skip(), gr.skip(), gr.skip(), gr.Column(visible=False), gr.Column(visible=True), RD_BAR + reader.page(book))  # one block, so the bar stays on top while you scroll
+    book["title"] = rd_title(book["title"])
+    return gr.skip(), gr.Column(visible=False), gr.Column(visible=True), RD_BAR + reader.page(book)  # one block, so the bar stays on top while you scroll
 
 
 def rd_add(path):
     if not path:
-        return (gr.skip(),) * 7
+        return (gr.skip(),) * 4
     try:
         book_id = reader.add(path, pathlib.Path(path).name)
     except Exception as e:
         gr.Warning(t("Joshua couldn't find text to read in this file.") + (f" ({e})" if str(e) != "no text" else ""))
-        return (gr.skip(),) * 6 + (None,)
-    return rd_show(book_id) + (None,)
+        return (gr.skip(),) * 4
+    return rd_show(book_id)
 
 
 def rd_paste(value):
     """A web address or pasted text, added to the library and opened."""
     value = (value or "").strip()
     if not value:
-        return (gr.skip(),) * 7
+        return (gr.skip(),) * 5
     try:
         book_id = reader.add_url(value) if reader.is_url(value) else reader.add_text(value)
     except Exception as e:
         gr.Warning((t("Joshua couldn't read that page.") if reader.is_url(value) else t("Joshua couldn't find text to read in this file.")) + (f" ({e})" if str(e) != "no text" else ""))
-        return (gr.skip(),) * 7
+        return (gr.skip(),) * 5
     return rd_show(book_id) + ("",)
 
 
-def rd_remove(book_id):
-    if book_id:
+def rd_action(value):
+    """A click in the library list: open:<id> or remove:<id>."""
+    act, _, book_id = (value or "").partition(":")
+    if act == "open":
+        return rd_show(book_id)
+    if act == "remove":
         reader.remove(book_id)
-    return rd_library()
+        return rd_library()
+    return (gr.skip(),) * 4
 
 
 def rd_save(value):
@@ -2766,7 +2780,14 @@ body[data-screen^="modern"]:not(#a):not(#b) #chatopts .task, body[data-screen^="
 body[data-screen^="modern"]:not(#a):not(#b) .task {border-bottom: none}
 .cloudstat code {word-break: break-all}
 body[data-screen^="modern"]:not(#a):not(#b) #chatopts .prose .cloudstat, body[data-screen^="modern"]:not(#a):not(#b) #chatopts .cloudstat * {font-size: .85rem !important; line-height: 1.45 !important}
-.updnote {font-size: 1rem; line-height: 1.25; color: var(--amber); padding: 4px 4px 0}
+.updnote {font-size: .92rem; line-height: 1.3; color: var(--amber); padding: 0 4px}
+#updrow {align-items: center !important; gap: 8px !important; margin: 2px 0 6px !important; flex-wrap: nowrap !important}
+#updrow .updnote {white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
+body:not(#a):not(#b):not(#c):not(#d) #updrow .updnote {font-size: .88rem !important; letter-spacing: 0 !important}
+#updrow .updnote:first-line {font-weight: 500}
+#updrow .updnote::before {content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; margin-right: 8px; vertical-align: 1px}
+body:not(#a):not(#b):not(#c):not(#d) #updbtn {min-height: 0 !important; height: 28px !important; padding: 0 12px !important; border-radius: 14px !important; font-size: .85rem !important;
+  border: 1px solid currentColor !important; background: transparent !important; color: var(--amber) !important; text-transform: none !important; box-shadow: none !important}
 #updbtn {border: 1px solid var(--amber) !important; background: transparent !important; color: var(--amber) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #localhelp, body[data-screen^="modern"]:not(#a):not(#b) #localhelp *, body[data-screen^="modern"]:not(#a):not(#b) #apihelp, body[data-screen^="modern"]:not(#a):not(#b) #apihelp *, body[data-screen^="modern"]:not(#a):not(#b) #schedhelp, body[data-screen^="modern"]:not(#a):not(#b) #schedhelp *, body[data-screen^="modern"]:not(#a):not(#b) .updnote {font-size: .85rem !important; line-height: 1.45 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #updbtn {border-radius: 10px !important; text-transform: none !important; border: none !important; background: var(--soft) !important; color: var(--cyan) !important}
@@ -3021,7 +3042,26 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
-#rdpos {display: none !important}
+#rdpos, #rdact {display: none !important}
+#readpage .rdintro {opacity: .75; margin-bottom: 4px}
+#readpage #rdadd {gap: 8px !important; align-items: stretch !important; flex-wrap: wrap !important}
+#readpage #rdadd > * {min-height: 40px}
+#readpage #rdadd button {min-height: 40px !important; white-space: nowrap}
+#readpage #rdpaste {flex: 1 1 260px !important}
+#readpage .rdlib {margin-top: 14px; border-top: 1px solid var(--line)}
+#readpage .rdrow {display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--line); cursor: pointer}
+#readpage .rdrow:hover .rdname {color: var(--brand)}
+#readpage .rdmain {flex: 1; min-width: 0}
+#readpage .rdname {font-weight: 600; line-height: 1.3; overflow-wrap: anywhere}
+#readpage .rdmeta {font-size: .85rem; opacity: .65; margin-top: 2px}
+#readpage .rdprogress {height: 3px; border-radius: 2px; background: var(--line); margin-top: 7px; overflow: hidden}
+#readpage .rdprogress span {display: block; height: 100%; background: var(--brand)}
+#readpage .rdx {flex: none; width: 32px; height: 32px; border: none; background: transparent; color: inherit; opacity: .45; border-radius: 8px; cursor: pointer; font-size: .95rem}
+#readpage .rdx:hover {opacity: 1; color: var(--red)}
+body:not(#a):not(#b):not(#c):not(#d) #readpage button.rdx {background: transparent !important; border: none !important; box-shadow: none !important; min-width: 0 !important; padding: 0 !important}
+body.narrow #readpage #rdadd > :has(#rdpaste), body.narrow #readpage #rdpaste {flex: 1 1 100% !important}
+body.narrow #readpage #rdadd > button, body.narrow #readpage #rdadd > :has(button) {flex: 1 1 0 !important}
+#readpage .rdempty {margin-top: 14px; opacity: .6}
 #readpage #rdbar {position: sticky; top: -14px; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 22px 0 8px; margin-top: -14px; background: var(--panel); border-bottom: 1px solid var(--line)}
 #readpage #rdbar button {width: 38px; height: 34px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-color-primary); background: transparent; color: inherit; cursor: pointer}
 #readpage #rdbar button svg {width: 100%; height: 100%}
@@ -3629,8 +3669,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     with gr.Row(equal_height=False):
         with gr.Column(scale=1, min_width=270, elem_classes="side", elem_id="leftcol"):
             gr.HTML("<div id='brand' role='img' aria-label='Joshua'><svg viewBox='0 0 100 100' aria-hidden='true'>" + LOGO + "</svg>OSHUA</div><div class='lights'><span></span><span></span><span></span><span></span><span></span></div><div class='status'>" + t("LOCAL SYSTEM · ONLINE") + "<br>" + t("VERSION") + " " + VERSION + "</div>")
-            updnote = gr.HTML("")
-            updbtn = gr.Button("⬆  " + t("Update Joshua"), size="sm", visible=False, elem_id="updbtn")
+            with gr.Row(visible=False, elem_id="updrow", equal_height=True) as updrow:  # one quiet line when a new version is out
+                updnote = gr.HTML("")
+                updbtn = gr.Button(t("Update"), size="sm", scale=0, min_width=72, elem_id="updbtn")
             new = gr.Button("＋  " + t("New chat"), size="sm", elem_id="newchat")
             mact = gr.Textbox(elem_classes="mhidden", show_label=False, container=False)  # the hidden link between buttons drawn in HTML (tables, chat menus) and Python
             mact_go = gr.Button(elem_id="mactgo", elem_classes="mhidden")
@@ -3670,17 +3711,13 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 gr.HTML("<div id='schedtitle'>" + t("READER") + "</div>")
                 read_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
             with gr.Column() as rd_libcol:
-                gr.Markdown(t("Add a book or a document: Joshua reads it aloud with this computer's voice for its language, and keeps your place, even after you close it. You can go back to the chat while it reads."))
-                rd_upload = gr.File(label=t("Add a book or a document"), file_types=reader.TYPES, type="filepath", height=110)
-                with gr.Row(equal_height=True):
-                    rd_text_in = gr.Textbox(show_label=False, placeholder=t("…or paste a web address, or some text"), lines=1, max_lines=8, scale=5, elem_id="rdpaste")
-                    rd_text_add = gr.Button("＋ " + t("Add"), size="sm", scale=0, min_width=110)
+                gr.Markdown(t("Joshua reads books, documents and web pages aloud, and remembers where you stopped."), elem_classes="rdintro")
+                with gr.Row(elem_id="rdadd", equal_height=True):
+                    rd_text_in = gr.Textbox(show_label=False, placeholder=t("Paste a web address, or some text"), lines=1, max_lines=8, scale=5, container=False, elem_id="rdpaste")
+                    rd_text_add = gr.Button(t("Add"), size="sm", scale=0, min_width=70)
+                    rd_upload = gr.UploadButton("📄 " + t("Add a file"), file_types=reader.TYPES, type="filepath", size="sm", scale=0, min_width=130)
                 rd_list = gr.HTML("")
-                with gr.Column(visible=False) as rd_controls:
-                    rd_pick = gr.Dropdown([], label=t("Choose a book"))
-                    with gr.Row():
-                        rd_open = gr.Button("▶ " + t("Read"), size="sm", scale=0, min_width=140)
-                        rd_del = gr.Button(t("Remove from the library"), size="sm", scale=0, min_width=200, elem_id="rddel")
+                rd_act = gr.Textbox("", elem_id="rdact", show_label=False, container=False)  # hidden: what you clicked in the list
             with gr.Column(visible=False) as rd_view:
                 rd_lib = gr.Button("← " + t("Library"), size="sm", scale=0, min_width=140)
                 rd_book = gr.HTML("")
@@ -4039,13 +4076,12 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     gr.api(tts_voices, api_name="voices", queue=False)
     gr.api(tts, api_name="tts", concurrency_limit=2)
     gr.api(rd_text, api_name="rd_text", concurrency_limit=2)
-    RD = [rd_list, rd_pick, rd_controls, rd_libcol, rd_view, rd_book]
+    RD = [rd_list, rd_libcol, rd_view, rd_book]
     read_btn.click(rd_library, outputs=RD)
     rd_lib.click(rd_library, outputs=RD)
-    rd_open.click(rd_show, rd_pick, RD)
-    rd_upload.upload(rd_add, rd_upload, RD + [rd_upload])
+    rd_upload.upload(rd_add, rd_upload, RD)
+    rd_act.change(rd_action, rd_act, RD, show_progress="hidden")
     rd_text_add.click(rd_paste, rd_text_in, RD + [rd_text_in])
-    rd_del.click(rd_remove, rd_pick, RD, js="(c) => (c && confirm(" + JS_TEXT(t("Remove this book from the library? Your file isn't touched.")) + ")) ? c : null")
     rd_pos.change(rd_save, rd_pos, None, show_progress="hidden", queue=False)
     tm_new.click(wiz_open, outputs=WIZ + [tm_listcol, tm_wiz])
     tm_edit.click(wiz_open, tm_pick, WIZ + [tm_listcol, tm_wiz])
@@ -4074,9 +4110,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         menu_html, outputs=menu_list, show_progress="hidden").then(
         lambda: (installed_html(), local_catalog()[1], cloud_catalog()[1]), outputs=[installed, local_list, cloud_list], show_progress="hidden")
     local_upd.click(local_update, outputs=local_status)
-    demo.load(check_update, outputs=[updnote, updbtn])
+    demo.load(check_update, outputs=[updnote, updrow])
     # after an update Joshua restarts, which can take a minute on a slow computer: the page waits, then reloads by itself
-    updbtn.click(do_update, outputs=updnote).then(None, js=WAIT_AND_RELOAD)
+    updbtn.click(lambda: gr.Button(visible=False), outputs=updbtn).then(do_update, outputs=updnote).then(None, js=WAIT_AND_RELOAD)
     connect.click(cloud_connect, outputs=cloud_status)
     k_provider.change(keys_status, k_provider, [k_pick, k_status])
     k_save.click(keys_save, [k_provider, k_key], [k_pick, k_status, k_key])
@@ -4377,7 +4413,11 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           R.playing = true; R.token++; V.stop(); V.unlock(); say(); };
         window.jrPause = () => { if (!R.playing) return; R.playing = false; R.token++; V.stop(); save(); show(false); };
         const jump = (i) => { R.i = Math.max(0, Math.min(i, R.texts.length - 1)); R.token++; V.stop(); save(); if (R.playing) { V.unlock(); say(); } else show(true); };
+        const act = (v) => { const box = document.querySelector('#rdact textarea, #rdact input'); if (!box) return;
+          box.value = v; box.dispatchEvent(new Event('input', {bubbles: true})); setTimeout(() => { box.value = ''; box.dispatchEvent(new Event('input', {bubbles: true})); }, 400); };
         document.addEventListener('click', (e) => {
+          const x = e.target.closest('.rdx[data-remove]'); if (x) { e.preventDefault(); e.stopPropagation(); if (confirm(""" + JS_TEXT(t("Remove this book from the library? Your file isn't touched.")) + """)) act('remove:' + x.dataset.remove); return; }
+          const row = e.target.closest('.rdrow[data-open]'); if (row) { e.preventDefault(); return act('open:' + row.dataset.open); }
           if (e.target.closest('#rdplay')) { e.preventDefault(); return R.playing ? window.jrPause() : play(); }
           if (e.target.closest('#rdprev')) { e.preventDefault(); return jump(R.i - 1); }
           if (e.target.closest('#rdnext')) { e.preventDefault(); return jump(R.i + 1); }
