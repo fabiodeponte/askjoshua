@@ -91,6 +91,7 @@ def models(add=False):
     cl = lambda v: is_cloud(FAST) if v == PAIR else is_cloud(v)
     local = abc(c for c in choices if not cl(c[1]))
     cloud_open = abc([c for c in choices if cl(c[1])] + providers.menu(open_weights=True))
+    cloud_open.sort(key=lambda c: not re.sub(r"^\W+", "", c[0]).lower().startswith("nemotron"))  # Nemotron first: the cheapest of the big ones
     choices = local + cloud_open + abc(providers.menu(open_weights=False))
     mine = model_order()  # the order you set on the Models page; models you haven't placed keep theirs, after
     choices.sort(key=lambda c: mine.index(c[1]) if c[1] in mine else len(mine))
