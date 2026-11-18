@@ -111,7 +111,11 @@ def default_model():
     if qwen:  # otherwise a Qwen model, when one is installed: the newest version first (qwen3.5 before qwen3)
         return sorted(qwen, key=lambda v: [int(x) if x.isdigit() else 0 for x in re.findall(r"\d+", v.split(":")[0])], reverse=True)[0]
     local.sort(key=lambda v: v == apple.NAME)  # Apple Intelligence only if there's nothing else here
-    return (local or [models()[0][1]])[0]  # start on a local model; cloud is always a choice you make
+    if local:
+        return local[0]  # start on a local model; cloud is always a choice you make
+    cloud = [v for _, v in models()]
+    nemotron = [v for v in cloud if v.startswith("nemotron")]  # nothing local: Nemotron is the cloud model Joshua starts with
+    return PAIR if PAIR in cloud else (nemotron or cloud)[0]
 
 
 CLOUD_BADGE = "<div class='cloudbadge' title='" + html.escape(t("☁ Cloud model: messages go to Ollama's servers; everything stays stored here"), quote=True) + "'>☁ " + t("on Ollama's servers") + "</div>"

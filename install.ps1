@@ -144,7 +144,7 @@ if ($LocalNo) {
     if (Ask "Use cloud models only?" $def) { $CloudOnly = $true }
 }
 if ($CloudOnly) {
-    $Cloud = $true; $Label = "DeepSeek V4.1 Flash (cloud)"; $ModelGb = 0
+    $Cloud = $true; $Label = "Nemotron 3 Super (cloud)"; $ModelGb = 0
 } else {
     $Big = if ($Vram -ge 7) { 16 } else { 8 }
     if ($Big -lt 16) { $Size = "4b"; $Speed = $Speed4; Dim "On this computer Joshua uses the 4-billion-parameter model, writing about $Speed4 words a second." }
@@ -163,7 +163,7 @@ if ($CloudOnly) {
     Dim "Images and fine-tuning aren't available on Windows yet. Joshua can still look at images."
     Say ""
     Say "  Cloud models (optional): much bigger models that run on Ollama's servers instead of this computer."
-    Dim "Your chats, files and memory stay stored here, but each message in a cloud chat is sent to Ollama. Joshua sets up DeepSeek V4.1 Flash (well under a cent per message), Kimi K3.1 Pro (the most capable, and pricier) and Nemotron 3 Super. You choose per chat."
+    Dim "Your chats, files and memory stay stored here, but each message in a cloud chat is sent to Ollama. Joshua sets up Nemotron 3 Super (the one it starts with), DeepSeek V4.1 Flash (well under a cent per message) and Kimi K3.1 Pro (the most capable, and pricier). You choose per chat."
     $def = if ($Speed -lt 4 -and -not $env:JOSHUA_MODEL) { "y" } else { "n" }
     if (Ask "Connect Joshua to Ollama's cloud models?" $def) { $Cloud = $true }
 }
@@ -267,12 +267,12 @@ if ($Account) {
 if ($Cloud) {
     Step "Cloud models"
     $c = $null
-    foreach ($m in @("deepseek-v4.1-flash:cloud", "kimi-k3.1-pro:cloud", "nemotron-3-super:cloud")) {  # DeepSeek first: the default, good and cheap
+    foreach ($m in @("nemotron-3-super:cloud", "deepseek-v4.1-flash:cloud", "kimi-k3.1-pro:cloud")) {  # Nemotron first: the cloud model Joshua starts with
         & $Ollama pull $m *> $null
         if ($LASTEXITCODE -eq 0) { Ok "$m added (nothing downloaded: it runs on Ollama's servers)"; if (-not $c) { $c = $m } }
         else { Warn "couldn't add $m now; add it later from Joshua's Models page" }
     }
-    if ($CloudOnly) { if (-not $c) { $c = "deepseek-v4.1-flash:cloud" }; $Fast = $c; $Model = $c; $Label = $c }
+    if ($CloudOnly) { if (-not $c) { $c = "nemotron-3-super:cloud" }; $Fast = $c; $Model = $c; $Label = $c }
 }
 Write-Utf8 (Join-Path $App "config.json") ('{"model": "' + $Model + '", "fast": "' + $Fast + '", "label": "' + $Label + '", "tune_base": "Qwen/Qwen3-4B-Instruct-2507", "tune_template": "qwen3:4b-instruct-2507-q4_K_M"}')
 
