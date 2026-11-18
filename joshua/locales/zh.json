@@ -624,5 +624,22 @@
  "Write the team's task below. {lead} reads it, hands parts of the work to the others and writes the answer.": "在下面写下团队的任务。{lead} 会阅读它，把部分工作交给其他成员，并写出答案。",
  "finds facts and sources": "查找事实和来源",
  "leads": "领导",
- "{n} tools": "{n} 个工具"
+ "{n} tools": "{n} 个工具",
+ "Add a book or a document": "添加书籍或文档",
+ "Add a book or a document: Joshua reads it aloud with this computer's voice for its language, and keeps your place, even after you close it. You can go back to the chat while it reads.": "添加书籍或文档：Joshua 用这台电脑上该语言的声音朗读，并记住你读到的位置，关闭后也不会丢失。朗读时你可以回到对话。",
+ "Choose a book": "选择一本书",
+ "Click a paragraph to read from there.": "点击某个段落，从那里开始朗读。",
+ "Joshua couldn't find text to read in this file.": "Joshua 在这个文件里没有找到可朗读的文字。",
+ "Library": "书库",
+ "Next paragraph": "下一段",
+ "No books yet. Add one above: it's read aloud from the start, and Joshua keeps your place.": "还没有书。在上面添加一本：从头开始朗读，Joshua 会记住你读到的位置。",
+ "Pick a book first.": "请先选择一本书。",
+ "Previous paragraph": "上一段",
+ "READER": "朗读",
+ "Read": "朗读",
+ "Reader": "朗读",
+ "Remove from the library": "从书库移除",
+ "Remove this book from the library? Your file isn't touched.": "从书库移除这本书？你的文件不会受影响。",
+ "Speed": "语速",
+ "{p}% read": "已读 {p}%"
 }

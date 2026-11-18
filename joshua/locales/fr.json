@@ -624,5 +624,22 @@
  "Write the team's task below. {lead} reads it, hands parts of the work to the others and writes the answer.": "Écrivez la tâche de l'équipe ci-dessous. {lead} la lit, confie des parties du travail aux autres et rédige la réponse.",
  "finds facts and sources": "trouve les faits et les sources",
  "leads": "dirige",
- "{n} tools": "{n} outils"
+ "{n} tools": "{n} outils",
+ "Add a book or a document": "Ajouter un livre ou un document",
+ "Add a book or a document: Joshua reads it aloud with this computer's voice for its language, and keeps your place, even after you close it. You can go back to the chat while it reads.": "Ajoutez un livre ou un document : Joshua le lit à voix haute avec la voix de cet ordinateur pour sa langue, et garde votre place, même après la fermeture. Vous pouvez revenir à la conversation pendant la lecture.",
+ "Choose a book": "Choisissez un livre",
+ "Click a paragraph to read from there.": "Cliquez sur un paragraphe pour lire à partir de là.",
+ "Joshua couldn't find text to read in this file.": "Joshua n'a pas trouvé de texte à lire dans ce fichier.",
+ "Library": "Bibliothèque",
+ "Next paragraph": "Paragraphe suivant",
+ "No books yet. Add one above: it's read aloud from the start, and Joshua keeps your place.": "Aucun livre pour l'instant. Ajoutez-en un ci-dessus : il est lu depuis le début, et Joshua garde votre place.",
+ "Pick a book first.": "Choisissez d'abord un livre.",
+ "Previous paragraph": "Paragraphe précédent",
+ "READER": "LECTEUR",
+ "Read": "Lire",
+ "Reader": "Lecteur",
+ "Remove from the library": "Retirer de la bibliothèque",
+ "Remove this book from the library? Your file isn't touched.": "Retirer ce livre de la bibliothèque ? Votre fichier n'est pas touché.",
+ "Speed": "Vitesse",
+ "{p}% read": "{p} % lu"
 }

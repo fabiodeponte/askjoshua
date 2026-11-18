@@ -6,7 +6,7 @@ import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, su
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, remote, teams, tune_ui
+import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, reader, remote, teams, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -2226,6 +2226,52 @@ def team_open_chat(team_id):
     return open_conv(new_id) + (gr.Radio(choices=conv_choices(), value=new_id), gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True))
 
 
+# ---------- the Reader ----------
+
+def rd_library():
+    """The library (no book open)."""
+    items = reader.books()
+    cards = "".join(f"<div class='task'><b>{html.escape(b['title'])}</b><br><span>{html.escape(b['file'])} · "
+                    + t("{p}% read", p=reader.percent(b.get("pos", 0), b["count"])) + "</span></div>" for b in items)
+    listing = cards or "<div class='cloudstat'>" + t("No books yet. Add one above: it's read aloud from the start, and Joshua keeps your place.") + "</div>"
+    choices = [(b["title"], b["id"]) for b in items]
+    return (listing, gr.Dropdown(choices=choices, value=choices[0][1] if choices else None), gr.Column(visible=bool(choices)),
+            gr.Column(visible=True), gr.Column(visible=False), "")
+
+
+def rd_show(book_id):
+    book = reader.get(book_id)
+    if not book:
+        gr.Warning(t("Pick a book first."))
+        return (gr.skip(),) * 6
+    reader.set_pos(book_id, book.get("pos", 0))  # now the last opened
+    return (gr.skip(), gr.skip(), gr.skip(), gr.Column(visible=False), gr.Column(visible=True), RD_BAR + reader.page(book))  # one block, so the bar stays on top while you scroll
+
+
+def rd_add(path):
+    if not path:
+        return (gr.skip(),) * 7
+    try:
+        book_id = reader.add(path, pathlib.Path(path).name)
+    except Exception as e:
+        gr.Warning(t("Joshua couldn't find text to read in this file.") + (f" ({e})" if str(e) != "no text" else ""))
+        return (gr.skip(),) * 6 + (None,)
+    return rd_show(book_id) + (None,)
+
+
+def rd_remove(book_id):
+    if book_id:
+        reader.remove(book_id)
+    return rd_library()
+
+
+def rd_save(value):
+    """The browser reports each paragraph it finishes: that's your place in the book."""
+    book_id, _, pos = (value or "").partition("|")
+    if book_id and pos.isdigit():
+        reader.set_pos(book_id, int(pos))
+
+
 LIVE_EVERY = 1.5  # seconds between redraws of a chat while Joshua writes it
 
 
@@ -2790,7 +2836,7 @@ body.narrow:not(#a):not(#b):not(.mside) #leftcol {display: none !important}
 body.narrow.mside:not(#a):not(#b) #leftcol {display: flex !important; position: fixed !important; inset: 0 !important; z-index: 900 !important; width: 100vw !important; max-width: 100vw !important; flex-basis: auto !important; height: 100dvh !important; max-height: 100dvh !important; border-radius: 0 !important; padding: 56px 16px 24px !important; overflow-y: auto !important}
 body.narrow.noside #leftcol {display: none}
 body.narrow:not(#a):not(#b) #sidetoggle {position: fixed !important; top: 10px !important; left: 10px !important; z-index: 950 !important; font-size: 1.25rem !important; width: 40px !important; height: 40px !important; opacity: .85}
-body.narrow:not(#a):not(#b) #chatcol, body.narrow:not(#a):not(#b) #modelspage, body.narrow:not(#a):not(#b) #schedpanel, body.narrow:not(#a):not(#b) #tune, body.narrow:not(#a):not(#b) #mempage, body.narrow:not(#a):not(#b) #setpage, body.narrow:not(#a):not(#b) #teampage {min-width: 0 !important; width: 100vw !important; max-width: 100vw !important; flex: 1 1 100% !important; padding: 8px 10px 6px !important; border-radius: 0 !important}
+body.narrow:not(#a):not(#b) #chatcol, body.narrow:not(#a):not(#b) #modelspage, body.narrow:not(#a):not(#b) #schedpanel, body.narrow:not(#a):not(#b) #tune, body.narrow:not(#a):not(#b) #mempage, body.narrow:not(#a):not(#b) #setpage, body.narrow:not(#a):not(#b) #teampage, body.narrow:not(#a):not(#b) #readpage {min-width: 0 !important; width: 100vw !important; max-width: 100vw !important; flex: 1 1 100% !important; padding: 8px 10px 6px !important; border-radius: 0 !important}
 body.narrow:not(#a):not(#b) #chatcol {height: 100dvh !important; max-height: 100dvh !important}
 body.narrow:not(#a):not(#b) #chatbar {padding-left: 48px !important; min-height: 40px !important}
 body.narrow:not(#a):not(#b) #chat {min-height: 0 !important}
@@ -2847,6 +2893,20 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+#rdpos {display: none !important}
+#readpage #rdbar {position: sticky; top: -14px; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 22px 0 8px; margin-top: -14px; background: var(--panel); border-bottom: 1px solid var(--line)}
+#readpage #rdbar button {width: 38px; height: 34px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-color-primary); background: transparent; color: inherit; cursor: pointer}
+#readpage #rdbar button svg {width: 100%; height: 100%}
+#readpage #rdbar button#rdplay {width: 46px; color: var(--brand)}
+#readpage #rdbar select {height: 34px; border-radius: 8px; border: 1px solid var(--border-color-primary); background: transparent; color: inherit; padding: 0 6px}
+#readpage #rdprog {margin-left: 6px; font-variant-numeric: tabular-nums; opacity: .8}
+#readpage #rdhint {margin-left: auto; opacity: .55; font-size: .85rem}
+#readpage #rdbook {max-width: 44rem; margin: 6px auto 40vh; font-size: 1.08rem; line-height: 1.65}
+#readpage #rdbook .rdtitle {font-size: 1.5rem; margin: 10px 0 18px}
+#readpage #rdbook p {margin: 0 0 .9em; padding: 2px 8px; border-radius: 6px; cursor: pointer}
+#readpage #rdbook p:hover {background: color-mix(in srgb, var(--brand) 6%, transparent)}
+#readpage #rdbook p.rdnow {background: color-mix(in srgb, var(--brand) 15%, transparent)}
+body:not(#a):not(#b):not(#c):not(#d) #rddel {color: var(--red) !important}
 /* a field with the cursor in it keeps its look's colour (Gradio's own focus colour is the dark one of its base theme) */
 input, textarea, .wrap {--input-background-fill-focus: var(--input-background-fill)}
 /* with the side menu on screen, its buttons are the way back: no "Back to chat" */
@@ -3425,8 +3485,8 @@ def css_text(text):
 
 
 CSS = CSS.replace("@@WHAT_HELP@@", css_text(t("Hello. What would you like to do today?"))).replace("@@ASK_HINT@@", css_text(t("Everything you write here is stored only on this computer."))).replace("@@MODEL@@", css_text(t("Model:")))
-CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage", "#teampage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
-CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn", "#teambtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
+CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage", "#teampage", "#readpage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
+CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn", "#teambtn", "#readbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
 CSS += "\n#modelspage .mz0, #setpage .mz0 {background: color-mix(in srgb, var(--ink) 4%, var(--bg)) !important}"
 JS_TEXT = lambda text: json.dumps(text, ensure_ascii=False).replace("'", "\\'")  # a text inside the js="..." handlers below
 
@@ -3453,6 +3513,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             with gr.Column(elem_id="panels"):
                 sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
                 team_btn = gr.Button("👥  " + t("Teams"), size="sm", elem_id="teambtn")
+                read_btn = gr.Button("🎧  " + t("Reader"), size="sm", elem_id="readbtn")
+                rd_pos = gr.Textbox("", elem_id="rdpos", show_label=False, container=False)  # hidden: where the browser reports your place in the book, from any page
                 models_btn = gr.Button("🧩  " + t("Models"), size="sm", elem_id="modelsbtn")
                 mem_btn_open = gr.Button("🧠  " + t("Background"), size="sm", elem_id="membtn")  # what Joshua knows about you
                 tune = gr.Button("🧪  " + t("Fine-tuning"), size="sm", elem_id="tunebtn")
@@ -3461,6 +3523,27 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 set_btn = gr.Button("⚙  " + t("Settings"), size="sm", elem_id="setbtn")
                 feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
         tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
+        RD_BAR = ("<div id='rdbar'><button id='rdprev' title='" + html.escape(t("Previous paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,47.88V208.12a16,16,0,0,1-24.43,13.43L64,146.77V216a8,8,0,0,1-16,0V40a8,8,0,0,1,16,0v69.23L183.57,34.45A15.95,15.95,0,0,1,208,47.88Z'/></svg></button>"
+                            "<button id='rdplay' title='" + html.escape(t("Read aloud") + " / " + t("Pause")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M240,128a15.74,15.74,0,0,1-7.6,13.51L88.32,229.65a16,16,0,0,1-16.2.3A15.86,15.86,0,0,1,64,216.13V39.87a15.86,15.86,0,0,1,8.12-13.82,16,16,0,0,1,16.2.3L232.4,114.49A15.74,15.74,0,0,1,240,128Z'/></svg></button>"
+                            "<button id='rdnext' title='" + html.escape(t("Next paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,40V216a8,8,0,0,1-16,0V146.77L72.43,221.55A15.95,15.95,0,0,1,48,208.12V47.88A15.95,15.95,0,0,1,72.43,34.45L192,109.23V40a8,8,0,0,1,16,0Z'/></svg></button>"
+                            "<select id='rdrate' title='" + html.escape(t("Speed")) + "'>" + "".join(f"<option value='{r}'>{r}×</option>" for r in ("0.8", "0.9", "1", "1.1", "1.25", "1.5", "1.75", "2")) + "</select>"
+                            "<span id='rdprog'></span><span id='rdhint'>" + html.escape(t("Click a paragraph to read from there.")) + "</span></div>")
+        with gr.Column(visible=False, scale=5, elem_id="readpage") as read_panel:
+            with gr.Row():
+                gr.HTML("<div id='schedtitle'>" + t("READER") + "</div>")
+                read_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
+            with gr.Column() as rd_libcol:
+                gr.Markdown(t("Add a book or a document: Joshua reads it aloud with this computer's voice for its language, and keeps your place, even after you close it. You can go back to the chat while it reads."))
+                rd_upload = gr.File(label=t("Add a book or a document"), file_types=reader.TYPES, type="filepath", height=110)
+                rd_list = gr.HTML("")
+                with gr.Column(visible=False) as rd_controls:
+                    rd_pick = gr.Dropdown([], label=t("Choose a book"))
+                    with gr.Row():
+                        rd_open = gr.Button("▶ " + t("Read"), size="sm", scale=0, min_width=140)
+                        rd_del = gr.Button(t("Remove from the library"), size="sm", scale=0, min_width=200, elem_id="rddel")
+            with gr.Column(visible=False) as rd_view:
+                rd_lib = gr.Button("← " + t("Library"), size="sm", scale=0, min_width=140)
+                rd_book = gr.HTML("")
         with gr.Column(visible=False, scale=5, elem_id="teampage") as team_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("TEAMS OF AGENTS") + "</div>")
@@ -3799,8 +3882,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     js="(d) => (d && confirm(" + JS_TEXT(t("Remove this desk? Its chats stay, at no desk. One of Joshua's desks can be brought back later.")) + ")) ? d : null")
     dk_back.click(desk_editor_back, dk_hidden, [dk_pick, desk] + DK + [dk_hiddenrow, dk_hidden])
 
-    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back), (bin_btn, bin_panel, bin_back), (team_btn, team_panel, team_back)]:
-        rest = [x for x in (mem_panel, set_panel, bin_panel, team_panel) if x is not panel]
+    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back), (bin_btn, bin_panel, bin_back), (team_btn, team_panel, team_back), (read_btn, read_panel, read_back)]:
+        rest = [x for x in (mem_panel, set_panel, bin_panel, team_panel, read_panel) if x is not panel]
         btn.click(lambda n=len(OTHER + rest): (gr.Column(visible=True),) + (gr.Column(visible=False),) * (2 + n), outputs=[panel, chatcol, rightcol] + OTHER + rest)
         back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True)), outputs=[panel, chatcol, rightcol])
         for o in (models_btn, sched, tune):  # opening another page closes this one
@@ -3813,6 +3896,13 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
            tw_mlist, tw_mpick, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, m_save, m_remove, tw_lead, tw_review]
     W_IN = [tw_state, tw_step, tw_sel, tw_name, tw_icon, tw_purpose, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, tw_lead]
     team_btn.click(team_page, outputs=TM_PAGE)
+    RD = [rd_list, rd_pick, rd_controls, rd_libcol, rd_view, rd_book]
+    read_btn.click(rd_library, outputs=RD)
+    rd_lib.click(rd_library, outputs=RD)
+    rd_open.click(rd_show, rd_pick, RD)
+    rd_upload.upload(rd_add, rd_upload, RD + [rd_upload])
+    rd_del.click(rd_remove, rd_pick, RD, js="(c) => (c && confirm(" + JS_TEXT(t("Remove this book from the library? Your file isn't touched.")) + ")) ? c : null")
+    rd_pos.change(rd_save, rd_pos, None, show_progress="hidden", queue=False)
     tm_new.click(wiz_open, outputs=WIZ + [tm_listcol, tm_wiz])
     tm_edit.click(wiz_open, tm_pick, WIZ + [tm_listcol, tm_wiz])
     tm_del.click(team_delete, tm_pick, TM_PAGE, js="(c) => (c && confirm(" + JS_TEXT(t("Delete this team? Its chats stay in the list.")) + ")) ? c : null")
@@ -4023,16 +4113,17 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           const w = (' ' + txt.toLowerCase().replace(/[^\\p{L}\\s]/gu, ' ') + ' ').split(/\\s+/).slice(0, 400); let best = 'en', top = 0;
           for (const [k, list] of Object.entries(WORDS)) { const n = w.filter(x => x && list.includes(' ' + x + ' ')).length; if (n > top) { best = k; top = n; } } return best; };
         const voiceFor = (k) => { const vs = synth.getVoices(); let name = null; try { name = localStorage.getItem('joshua-voice-' + k) } catch (e) {}
-          return vs.find(v => v.name === name) || PREFER[k].map(p => vs.find(v => v.name.startsWith(p))).find(Boolean) || vs.find(v => v.lang && v.lang.toLowerCase().startsWith(k)) || null; };
+          return vs.find(v => v.name === name) || (PREFER[k] || []).map(p => vs.find(v => v.name.startsWith(p))).find(Boolean) || vs.find(v => v.lang && v.lang.toLowerCase().startsWith(k)) || null; };
         const clean = (row) => { const c = row.cloneNode(true);
           const leaves = [...c.querySelectorAll('.message')].filter(m => !m.querySelector('.message') && !m.querySelector('.thought-group'));  // the answer, not the thinking, sources, steps
           leaves.forEach(m => m.querySelectorAll('pre, table, button, svg, .ji').forEach(x => x.remove()));  // nor code, tables, icons
           document.body.appendChild(c); c.style.cssText = 'position:fixed;left:-9999px;top:0';  // innerText needs the copy on the page
           const out = leaves.map(m => m.innerText); c.remove();
           return out.join('\\n').replace(/https?:\\/\\/\\S+/g, '').replace(/[*#_`>|]/g, ' ').replace(/\\[(\\d+)\\]/g, '').replace(/\\s+\\n/g, '\\n').trim(); };
+        window.joshuaVoiceFor = (k) => voiceFor(k);
         let current = null;
         const stop = () => { synth.cancel(); if (current) current.classList.remove('speaking'); current = null; };
-        const speak = (text, k, btn) => { stop(); const v = voiceFor(k); current = btn; if (btn) btn.classList.add('speaking');
+        const speak = (text, k, btn) => { if (window.jrPause) window.jrPause(); stop(); const v = voiceFor(k); current = btn; if (btn) btn.classList.add('speaking');
           const parts = text.match(/[^.!?。！？\\n]+[.!?。！？]*\\s*/g) || [text];  // sentence by sentence: long texts get cut off in one piece
           parts.forEach((p, i) => { const u = new SpeechSynthesisUtterance(p.trim()); if (v) { u.voice = v; u.lang = v.lang; }
             if (i === parts.length - 1) u.onend = () => { if (current === btn) stop(); }; synth.speak(u); }); };
@@ -4050,6 +4141,47 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         document.addEventListener('click', (e) => { const t = e.target.closest('#voicepick .vtest'); if (!t) return; e.preventDefault(); speak(SAMPLE[t.dataset.lang], t.dataset.lang, null); }, true);
         synth.onvoiceschanged = fill;
         new MutationObserver(() => { clearTimeout(window.joshuaSpeak); window.joshuaSpeak = setTimeout(() => { add(); fill(); }, 250); }).observe(document.body, {childList: true, subtree: true}); }""")
+    demo.load(None, None, None, js="""() => {  // the Reader: reads the open book paragraph by paragraph, and tells Joshua each paragraph it finishes
+        const synth = window.speechSynthesis; if (!synth) return;
+        const PAUSE = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48V208a16,16,0,0,1-16,16H160a16,16,0,0,1-16-16V48a16,16,0,0,1,16-16h40A16,16,0,0,1,216,48ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Z"/></svg>';
+        const R = window.jr = {id: null, i: 0, texts: [], lang: '', playing: false, token: 0, rate: 1};
+        try { R.rate = +(localStorage.getItem('joshua-reader-rate') || 1) } catch (e) {}
+        let PLAY = null;
+        const book = () => document.querySelector('#rdbook');
+        const para = (i) => { const b = book(); return b && b.dataset.id === R.id ? b.querySelector('p[data-i="' + i + '"]') : null; };
+        const save = () => { const box = document.querySelector('#rdpos textarea, #rdpos input'); if (!box || !R.id) return;
+          box.value = R.id + '|' + R.i; box.dispatchEvent(new Event('input', {bubbles: true})); };
+        const show = (scroll) => { const b = book(); if (b && b.dataset.id === R.id) {
+            b.querySelectorAll('p.rdnow').forEach(p => p.classList.remove('rdnow')); const p = para(R.i);
+            if (p) { p.classList.add('rdnow'); if (scroll) p.scrollIntoView({block: 'center', behavior: 'smooth'}); } }
+          const n = R.texts.length, pr = document.querySelector('#rdprog'); if (pr && n) pr.textContent = Math.round(100 * R.i / Math.max(n - 1, 1)) + '%  ·  ' + (R.i + 1) + ' / ' + n;
+          const pb = document.querySelector('#rdplay'); if (pb) { if (!PLAY) PLAY = pb.innerHTML; pb.innerHTML = R.playing ? PAUSE : PLAY; }
+          const sel = document.querySelector('#rdrate'); if (sel && +sel.value !== R.rate) sel.value = String(R.rate); };
+        const pieces = (t) => { const out = []; (t.match(/[^.!?。！？;:]+[.!?。！？;:]*["'»”)\\]]*\\s*/g) || [t]).forEach(s => {
+            while (s.length > 220) { let k = s.lastIndexOf(', ', 220); if (k < 80) k = s.lastIndexOf(' ', 220); if (k < 40) k = 220; out.push(s.slice(0, k + 1)); s = s.slice(k + 1); }
+            if (s.trim()) out.push(s); }); return out; };  // short pieces: browsers cut off long ones
+        const say = () => { if (!R.playing) return; if (R.i >= R.texts.length) { R.playing = false; R.i = R.texts.length - 1; show(false); return; }
+          show(true); const tok = ++R.token, v = window.joshuaVoiceFor ? window.joshuaVoiceFor(R.lang || 'en') : null, parts = pieces(R.texts[R.i]);
+          parts.forEach((t, k) => { const u = new SpeechSynthesisUtterance(t.trim()); if (v) { u.voice = v; u.lang = v.lang; } else if (R.lang) u.lang = R.lang; u.rate = R.rate;
+            if (k === parts.length - 1) u.onend = () => { if (tok !== R.token || !R.playing) return; R.i++; save(); say(); };
+            synth.speak(u); }); };
+        const play = () => { if (!R.texts.length) return; R.playing = true; R.token++; synth.cancel(); say(); };
+        window.jrPause = () => { if (!R.playing) return; R.playing = false; R.token++; synth.cancel(); save(); show(false); };
+        const jump = (i) => { R.i = Math.max(0, Math.min(i, R.texts.length - 1)); R.token++; synth.cancel(); save(); if (R.playing) say(); else show(true); };
+        document.addEventListener('click', (e) => {
+          if (e.target.closest('#rdplay')) { e.preventDefault(); return R.playing ? window.jrPause() : play(); }
+          if (e.target.closest('#rdprev')) { e.preventDefault(); return jump(R.i - 1); }
+          if (e.target.closest('#rdnext')) { e.preventDefault(); return jump(R.i + 1); }
+          const p = e.target.closest('#rdbook p[data-i]'); if (p && !getSelection().toString()) { R.i = +p.dataset.i; R.playing = true; R.token++; synth.cancel(); save(); say(); } }, true);
+        document.addEventListener('change', (e) => { if (!e.target.closest('#rdrate')) return; R.rate = +e.target.value;
+          try { localStorage.setItem('joshua-reader-rate', String(R.rate)) } catch (x) {} if (R.playing) { R.token++; synth.cancel(); say(); } });
+        setInterval(() => { const b = book(); if (!b) return;
+          if (b.dataset.id !== R.id) {  // another book opened: start where you left it
+            if (R.playing) window.jrPause();
+            R.id = b.dataset.id; R.lang = b.dataset.lang || ''; R.i = +b.dataset.pos || 0; R.texts = [...b.querySelectorAll('p[data-i]')].map(p => p.textContent);
+            setTimeout(() => show(true), 150);
+          } else if (!b.querySelector('p.rdnow') || !document.querySelector('#rdprog').textContent) show(false); }, 500);
+        window.addEventListener('pagehide', () => { if (R.playing) save(); }); }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // a cost box closes when you click anywhere else; one open at a time
         document.querySelectorAll('details.mcost[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('details.mcost[open]').forEach(d => d.open = false); }); }""")

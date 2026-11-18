@@ -624,5 +624,22 @@
  "Write the team's task below. {lead} reads it, hands parts of the work to the others and writes the answer.": "Schreib unten die Aufgabe des Teams. {lead} liest sie, gibt Teile der Arbeit an die anderen weiter und schreibt die Antwort.",
  "finds facts and sources": "findet Fakten und Quellen",
  "leads": "leitet",
- "{n} tools": "{n} Werkzeuge"
+ "{n} tools": "{n} Werkzeuge",
+ "Add a book or a document": "Buch oder Dokument hinzufügen",
+ "Add a book or a document: Joshua reads it aloud with this computer's voice for its language, and keeps your place, even after you close it. You can go back to the chat while it reads.": "Füge ein Buch oder Dokument hinzu: Joshua liest es mit der Stimme dieses Computers für seine Sprache vor und merkt sich die Stelle, auch nachdem du es geschlossen hast. Während er liest, kannst du zum Chat zurück.",
+ "Choose a book": "Wähle ein Buch",
+ "Click a paragraph to read from there.": "Klicke auf einen Absatz, um von dort zu lesen.",
+ "Joshua couldn't find text to read in this file.": "Joshua hat in dieser Datei keinen Text zum Vorlesen gefunden.",
+ "Library": "Bibliothek",
+ "Next paragraph": "Nächster Absatz",
+ "No books yet. Add one above: it's read aloud from the start, and Joshua keeps your place.": "Noch keine Bücher. Füge oben eines hinzu: Es wird von Anfang an vorgelesen, und Joshua merkt sich die Stelle.",
+ "Pick a book first.": "Wähle zuerst ein Buch.",
+ "Previous paragraph": "Vorheriger Absatz",
+ "READER": "VORLESER",
+ "Read": "Lesen",
+ "Reader": "Vorleser",
+ "Remove from the library": "Aus der Bibliothek entfernen",
+ "Remove this book from the library? Your file isn't touched.": "Dieses Buch aus der Bibliothek entfernen? Deine Datei bleibt unberührt.",
+ "Speed": "Tempo",
+ "{p}% read": "{p} % gelesen"
 }
