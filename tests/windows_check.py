@@ -80,6 +80,42 @@ def _():
         return "\n".join(out)
 
 
+@check("Folder button: the chat's files panel, and Open folder opens Explorer")
+def _():
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        b = pw.chromium.launch()
+        p = b.new_page(viewport={"width": 1400, "height": 900})
+        errors = []
+        p.on("pageerror", lambda e: errors.append(str(e)))
+        p.goto(URL, wait_until="load")
+        p.wait_for_timeout(5000)
+        p.locator("#convs label").first.click()
+        p.wait_for_timeout(2500)
+        fb = p.locator("button.fbtn")
+        out = [f"folder buttons: {fb.count()}"]
+        fb.first.click()
+        p.wait_for_timeout(1500)
+        out.append("data-files after click: " + str(p.evaluate("document.body.dataset.files")))
+        out.append("files panel visible: " + str(p.locator("#chatopts").is_visible()))
+        p.screenshot(path=str(HOME / "shot-folder.png"))
+        opener = p.get_by_role("button", name="Open folder")
+        out.append(f"Open folder buttons: {opener.count()}, visible: {opener.first.is_visible() if opener.count() else None}")
+        if opener.count():
+            opener.first.click()
+            p.wait_for_timeout(5000)
+        b.close()
+    ps = "(New-Object -ComObject Shell.Application).Windows() | ForEach-Object { $_.LocationURL }"
+    r = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, timeout=60)
+    out.append("Explorer windows: " + (r.stdout.strip() or "(none)") + (" " + r.stderr.strip()[:300] if r.stderr.strip() else ""))
+    log = HOME / "AskJoshua" / "joshua.log"
+    if log.exists():
+        out.append("log tail: " + log.read_text(errors="replace")[-600:])
+    assert not errors, "page errors: " + "; ".join(errors[:5])
+    assert "AskJoshua" in r.stdout or "conversations" in r.stdout, "no Explorer window on the chat's folder\n" + "\n".join(out)
+    return "\n".join(out)
+
+
 @check("Documents: PDF, Word and LibreOffice, with accents and other alphabets")
 def _():
     code = r"""

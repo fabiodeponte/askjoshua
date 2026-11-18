@@ -25,6 +25,18 @@ bold=$'\e[1m'; dim=$'\e[2m'; green=$'\e[32m'; amber=$'\e[33m'; red=$'\e[31m'; of
 say()  { printf "%s\n" "$*"; }
 step() { printf "\n${bold}▸ %s${off}\n" "$*"; }
 ok()   { printf "  ${green}✓${off} %s\n" "$*"; }
+open_url() { if command -v open >/dev/null && [ "$(uname)" = Darwin ]; then open "$1"; else xdg-open "$1" >/dev/null 2>&1 & fi; }
+ollama_signin() {  # 'ollama signin' prints the page to open and waits until you approve this computer there
+  local log url="" i; log=$(mktemp)
+  "$OLLAMA" signin >"$log" 2>&1 & local pid=$!
+  for i in $(seq 1 30); do
+    url=$(grep -Eo 'https://ollama\.com[^ ]*' "$log" | head -1); [ -n "$url" ] && break
+    kill -0 $pid 2>/dev/null || break; sleep 0.5
+  done
+  sed 's/^/  /' "$log"
+  if [ -n "$url" ]; then say "  ${dim}Opening the page in your browser…${off}"; open_url "$url"; fi
+  wait $pid; local rc=$?; rm -f "$log"; return $rc
+}
 warn() { printf "  ${amber}!${off} %s\n" "$*"; }
 die()  { printf "\n${red}✗ %s${off}\n" "$*"; exit 1; }
 ask()  {  # ask "question" default(y/n) -> returns 0 for yes
@@ -110,8 +122,8 @@ step "A few questions"
 # Cloud models only: Joshua itself runs here, but every answer comes from a big model on Ollama's servers.
 CLOUD_TEXT="Joshua runs here, and your chats, files and memory stay on this computer, but every message is answered by a large model on
   Ollama's servers. Nothing big to download, and it works on any computer. You need an internet connection and an Ollama account:
-  new accounts pay per use, so add a few dollars of credit on ollama.com (Joshua sets up Nemotron 3 Super, DeepSeek V4.1 Flash
-  and Kimi K3.1 Pro; Nemotron, the one it starts with, costs well under a cent per message). Some older accounts still have a small free monthly allowance."
+  new accounts pay per use, so add a few dollars of credit on ollama.com (Joshua sets up DeepSeek V4.1 Flash, Kimi K3.1 Pro
+  and Nemotron 3 Super; DeepSeek, the one it starts with, costs well under a cent per message). Some older accounts still have a small free monthly allowance."
 CLOUDONLY=n
 if [ -n "$LOCAL_NO" ]; then
   say "  This computer can't run Joshua's models itself: $LOCAL_NO."
@@ -125,7 +137,7 @@ else
   ask "Use cloud models only?" $DEF && CLOUDONLY=y
 fi
 if [ "$CLOUDONLY" = y ]; then
-  CLOUD=y; THINK=n; IMAGES=n; TUNE=n; MODEL_GB=0; LABEL="Nemotron 3 Super (cloud)"
+  CLOUD=y; THINK=n; IMAGES=n; TUNE=n; MODEL_GB=0; LABEL="DeepSeek V4.1 Flash (cloud)"
 else
 # The memory the model must fit in: on a Mac the whole memory; on a PC the graphics card's (7 GB+ runs the 8B, 22 GB+ the 30B)
 if [ "$OS" = Darwin ]; then BIG=$RAM; else BIG=$(( VRAM >= 22 ? 32 : VRAM >= 7 ? 16 : 8 )); fi
@@ -191,10 +203,16 @@ say ""
 say "  ${bold}Cloud models${off} (optional): much bigger models that run on Ollama's servers instead of this computer."
 say "  ${dim}Your chats, files and memory stay stored here, but each message in a cloud chat is sent to Ollama to be answered."
 say "  Ollama says it doesn't log or train on them. You need an Ollama account; new accounts pay per use with credit you add on"
-say "  ollama.com. Joshua sets up Nemotron 3 Super (well under a cent per message), DeepSeek V4.1 Flash"
-say "  and Kimi K3.1 Pro (the most capable, and pricier). You choose per chat.${off}"
+say "  ollama.com. Joshua sets up DeepSeek V4.1 Flash (well under a cent per message), Kimi K3.1 Pro (the most capable, and pricier)"
+say "  and Nemotron 3 Super. You choose per chat.${off}"
 DEF=n; [ "$SPEED" -lt 4 ] && DEF=y && say "  ${dim}Recommended here: this computer is slow with local models.${off}"
 ask "Connect Joshua to Ollama's cloud models?" $DEF && CLOUD=y
+fi
+ACCOUNT=$CLOUD
+if [ "$CLOUD" != y ]; then
+  say ""
+  say "  ${bold}Ollama account${off} (optional): you'll need one to use cloud models later. It's free to create."
+  ask "Sign in to Ollama, or create an account, now?" n && ACCOUNT=y
 fi
 
 NEED=$(( 2 + MODEL_GB )); [ "$CLOUDONLY" = y ] && NEED=1
@@ -205,7 +223,7 @@ say ""
 if [ "$FREE" -lt $(( NEED + 3 )) ]; then
   die "This needs about ${NEED} GB of disk (plus a little room to breathe) and you have ${FREE} GB free. Free some space, or run again and say no to some options."
 fi
-if [ "$CLOUDONLY" = y ]; then ok "Plan: cloud models only (Nemotron, DeepSeek and Kimi on Ollama's servers) · about 1 GB"
+if [ "$CLOUDONLY" = y ]; then ok "Plan: cloud models only (DeepSeek, Kimi and Nemotron on Ollama's servers) · about 1 GB"
 else ok "Plan: ${LABEL} (~${SPEED} words/s)$([ "$THINK" = y ] && echo " + deep thinking")$([ "$CLOUD" = y ] && echo " + cloud models")$([ "$IMAGES" = y ] && echo " + images")$([ "$TUNE" = y ] && echo " + fine-tuning") · about ${NEED} GB"; fi
 ask "Go ahead?" y || die "Nothing was installed."
 
@@ -296,16 +314,20 @@ if [ "$THINK" = y ]; then
   ok "$MODEL"
 fi
 
+if [ "$ACCOUNT" = y ]; then
+  step "Ollama account"
+  say "  ${dim}A page opens in your browser: sign in to Ollama, or choose \"Sign up\" there to create a free account.${off}"
+  say "  ${dim}Then approve this computer on that page, and come back here: the installation goes on by itself.${off}"
+  ollama_signin && ok "this computer is connected to your Ollama account" || warn "sign-in didn't finish; you can do it later from Joshua (☁ Cloud models → Connect)$([ "$CLOUDONLY" = y ] && echo ". Until then Joshua can't answer.")"
+fi
 if [ "$CLOUD" = y ]; then
   step "Cloud models"
-  say "  ${dim}Sign in to Ollama in the browser page that opens, and approve this computer. Come back here when it's done.${off}"
-  "$OLLAMA" signin || warn "sign-in didn't finish; you can do it later from Joshua (☁ Cloud models → Connect)$([ "$CLOUDONLY" = y ] && echo ". Until then Joshua can't answer.")"
   CLOUDM=""
-  for m in nemotron-3-super:cloud deepseek-v4.1-flash:cloud kimi-k3.1-pro:cloud; do  # Nemotron first: the default, good and very cheap
+  for m in deepseek-v4.1-flash:cloud kimi-k3.1-pro:cloud nemotron-3-super:cloud; do  # DeepSeek first: the default, good and cheap
     if "$OLLAMA" pull "$m" >/dev/null 2>&1; then ok "$m added (nothing downloaded: it runs on Ollama's servers)"; CLOUDM=${CLOUDM:-$m}
     else warn "couldn't add $m now; add it later from Joshua's Models page"; fi
   done
-  if [ "$CLOUDONLY" = y ]; then FAST=${CLOUDM:-nemotron-3-super:cloud}; MODEL=$FAST; LABEL="$FAST"; fi
+  if [ "$CLOUDONLY" = y ]; then FAST=${CLOUDM:-deepseek-v4.1-flash:cloud}; MODEL=$FAST; LABEL="$FAST"; fi
 fi
 
 if [ "$IMAGES" = y ]; then

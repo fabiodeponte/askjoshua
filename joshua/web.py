@@ -107,6 +107,9 @@ def default_model():
     local = [v for _, v in models() if not is_cloud(v)]
     if PAIR in local:  # Joshua's own model stays the starting one, wherever the alphabet puts it
         return PAIR
+    qwen = [v for v in local if v.lower().startswith("qwen")]
+    if qwen:  # otherwise a Qwen model, when one is installed: the newest version first (qwen3.5 before qwen3)
+        return sorted(qwen, key=lambda v: [int(x) if x.isdigit() else 0 for x in re.findall(r"\d+", v.split(":")[0])], reverse=True)[0]
     local.sort(key=lambda v: v == apple.NAME)  # Apple Intelligence only if there's nothing else here
     return (local or [models()[0][1]])[0]  # start on a local model; cloud is always a choice you make
 
@@ -3629,6 +3632,7 @@ ICON_HEAD = ("<script>window.JOSHUA_ICONS=" + json.dumps({"emoji": ICONS["emoji"
 SERVICE = os.environ.get("JOSHUA_SERVICE")  # set when Joshua runs in the background from login (launchd / systemd)
 if remote_setting():
     remote.switch(True, PORT)  # your devices on Tailscale can reach Joshua again after a restart
+    threading.Thread(target=remote.wake, daemon=True).start()  # and Tailscale is started, if it isn't running
 # Gradio records every event (our once-a-second timers too) in a "run history" kept in the browser, rewriting it
 # each time: with long chats this blocked the page for most of every second. Joshua doesn't need it.
 LAUNCH_EXTRA = {"run_history": False} if "run_history" in inspect.signature(gr.Blocks.launch).parameters else {}
