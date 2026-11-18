@@ -2687,6 +2687,36 @@ body.noside #leftcol {display: none !important}
 #tune .prose ol, #tune .prose ul {padding-left: 1.6em !important}
 .ftstatus.ok {color: var(--ink) !important}
 #tune .legend, #tune [class*=legend] {display: none !important}
+/* the fine-tuning page: one step at a time */
+#tune .ftlead {opacity: .75; margin: -4px 0 4px}
+#tune .ftempty {opacity: .6; padding: 22px 2px}
+#tune #ftproject, #tune #ftnewrow, #tune .ftadd {gap: 8px !important; align-items: end !important}
+#tune .ftpane {padding: 10px 2px 4px}
+#tune details.ftmore {margin-top: 14px}
+#tune details.ftmore summary {cursor: pointer; color: var(--brand); font-size: .92rem; list-style: none}
+#tune details.ftmore summary::before {content: "▸ "; display: inline-block; transition: transform .15s}
+#tune details.ftmore[open] summary::before {transform: rotate(90deg)}
+#tune details.ftmore > :not(summary) {opacity: .9}
+#tune details.ftmore p, #tune details.ftmore li {margin: .45em 0}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps {border: none !important; background: transparent !important; padding: 0 !important; margin-top: 8px}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps .wrap {display: flex !important; gap: 0 !important; flex-wrap: wrap !important; border-bottom: 1px solid var(--line)}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps label {border: none !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; background: transparent !important;
+  padding: 8px 14px !important; margin: 0 0 -1px !important; color: inherit !important; opacity: .65; box-shadow: none !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps label.selected {opacity: 1; border-bottom-color: var(--brand) !important; color: var(--brand) !important; font-weight: 600}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps label.selected * {color: var(--brand) !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps input {display: none !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune button {min-height: 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tune button.ftmain {background: var(--brand) !important; color: var(--panel) !important; border-color: var(--brand) !important}
+body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tune .prose, body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tune .prose * {font-size: 1rem !important; line-height: 1.5 !important}
+body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tunetitle {font-size: 1.15rem !important; letter-spacing: .06em}
+#ftgrid .cell-menu-button {display: none !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftpreset input {display: none !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune {overflow-x: hidden !important; flex-wrap: nowrap !important}  /* allowed to wrap, a page taller than the window put its lower half in a second column, off screen */
+#tune .ftpane .row, #tune #ftproject, #tune #ftnewrow {flex-wrap: wrap !important; row-gap: 8px !important; max-width: 100% !important}
+#tune .ftpane .row > .form, #tune .ftpane .row > .block:not(button) {min-width: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune .ftpane button, body:not(#a):not(#b):not(#c):not(#d) #tune #ftproject button, body:not(#a):not(#b):not(#c):not(#d) #tune #ftnewrow button {flex: none !important; white-space: nowrap !important; width: auto !important; padding: 0 16px !important; height: 38px !important}
+#tune .ftsave {align-items: center !important}
+#tune .ftsave .ftcount {margin: 0 !important}
 #modelrow {flex-wrap: wrap !important; row-gap: 4px !important}
 #modelrow > #working {flex: 0 0 auto !important; width: auto !important; min-width: 0 !important}
 #modelpick > #cloudbadge {flex: 1 1 0 !important; width: auto !important; min-width: 8ch !important}
