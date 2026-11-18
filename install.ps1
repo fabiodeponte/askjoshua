@@ -80,6 +80,49 @@ function Ask($q, $default) {  # returns $true for yes
     if (-not $a) { $a = $default }
     return ($a -match "^[YySs]")
 }
+# The Ollama API key: you create it on ollama.com (no program can), copy it, and the installer takes it from the
+# clipboard. It's checked with Ollama, saved only in providers.json, and the clipboard is emptied.
+# It never appears on screen or in the log, and it isn't passed on a command line, where other programs could see it.
+$SaveKey = @'
+import json, pathlib, sys, requests
+key = sys.stdin.read().strip()
+if not key or len(key) > 300 or any(c.isspace() for c in key): sys.exit(2)
+try:
+    code = requests.get("https://ollama.com/api/balance", headers={"Authorization": "Bearer " + key}, timeout=15).status_code
+except Exception:
+    code = 0
+if code in (401, 403): sys.exit(3)
+p = pathlib.Path(sys.argv[1])
+try: data = json.loads(p.read_text())
+except Exception: data = {"keys": {}, "models": []}
+data.setdefault("keys", {})["ollama"] = key
+p.write_text(json.dumps(data, indent=1))
+sys.exit(0 if code == 200 else 4)
+'@
+function Ollama-Key {
+    Step "Ollama API key"
+    Dim "Optional. With an API key, Joshua shows how much credit is left on your Ollama account, next to a cloud model's price. Cloud models work without it."
+    if (-not (Ask "Set up the API key now?" "y")) { Dim "You can add it later in Joshua: Models page, under 'Open models in the cloud'."; return }
+    Dim "A page opens on ollama.com: click 'Create API key', name it Joshua, then press the copy button next to the key."
+    Dim "Don't paste it anywhere: when you answer Yes, the installer takes it from the clipboard, checks it with Ollama, saves it on this computer only, and empties the clipboard."
+    Start-Process "https://ollama.com/settings/keys"
+    $file = Join-Path $App "providers.json"
+    for ($try = 0; $try -lt 2; $try++) {
+        if (-not (Ask "Have you copied the key?" "y")) { break }
+        $key = "" + (Get-Clipboard -Raw -ErrorAction SilentlyContinue)
+        $key | & $Py -c $SaveKey $file
+        $rc = $LASTEXITCODE; $key = $null
+        if ($rc -eq 0 -or $rc -eq 4) {
+            cmd /c "echo off | clip"   # empties the clipboard
+            Ok "API key saved"
+            if ($rc -eq 4) { Warn "Ollama didn't answer just now, so the key isn't checked yet: if the credit doesn't show in Joshua, paste a new one on the Models page" }
+            return
+        }
+        if ($rc -eq 3) { Warn "Ollama refused that key. Copy it again (or make a new one) and answer Yes." }
+        else { Warn "The clipboard doesn't hold an API key. Press the copy button next to the key and answer Yes." }
+    }
+    Dim "No key saved. You can add it later in Joshua: Models page, under 'Open models in the cloud'."
+}
 function Write-Utf8($path, $text) { [IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding $false)) }   # no BOM: Python reads it as plain UTF-8
 
 # The name in big letters, drawn with block characters
@@ -275,6 +318,7 @@ if ($Cloud) {
     if ($CloudOnly) { if (-not $c) { $c = "nemotron-3-super:cloud" }; $Fast = $c; $Model = $c; $Label = $c }
 }
 Write-Utf8 (Join-Path $App "config.json") ('{"model": "' + $Model + '", "fast": "' + $Fast + '", "label": "' + $Label + '", "tune_base": "Qwen/Qwen3-4B-Instruct-2507", "tune_template": "qwen3:4b-instruct-2507-q4_K_M"}')
+if ($Account) { Ollama-Key }
 
 # ---------- 5. launcher ----------
 Step "Joshua launcher"

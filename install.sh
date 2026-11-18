@@ -37,6 +37,63 @@ ollama_signin() {  # 'ollama signin' prints the page to open and waits until you
   if [ -n "$url" ]; then say "  ${dim}Opening the page in your browser…${off}"; open_url "$url"; fi
   wait $pid; local rc=$?; rm -f "$log"; return $rc
 }
+# The Ollama API key: you create it on ollama.com (no program can), copy it, and the installer takes it from the
+# clipboard. It's checked with Ollama, saved only in providers.json (readable only by you), and the clipboard is emptied.
+# It never appears on screen or in the log, and it isn't passed on a command line, where other programs could see it.
+clip_read() {
+  if [ "$(uname)" = Darwin ]; then pbpaste
+  elif command -v wl-paste >/dev/null; then wl-paste -n 2>/dev/null
+  elif command -v xclip >/dev/null; then xclip -o -selection clipboard 2>/dev/null
+  elif command -v xsel >/dev/null; then xsel -ob 2>/dev/null; fi
+}
+clip_clear() {
+  if [ "$(uname)" = Darwin ]; then pbcopy </dev/null
+  elif command -v wl-copy >/dev/null; then wl-copy --clear 2>/dev/null
+  elif command -v xclip >/dev/null; then xclip -selection clipboard </dev/null 2>/dev/null
+  elif command -v xsel >/dev/null; then xsel -cb 2>/dev/null; fi
+}
+SAVE_KEY='
+import json, pathlib, sys, requests
+key = sys.stdin.read().strip()
+if not key or len(key) > 300 or any(c.isspace() for c in key): sys.exit(2)          # not a key
+try:
+    code = requests.get("https://ollama.com/api/balance", headers={"Authorization": "Bearer " + key}, timeout=15).status_code
+except Exception:
+    code = 0                                                                         # no answer: saved anyway
+if code in (401, 403): sys.exit(3)                                                   # Ollama refused it
+p = pathlib.Path(sys.argv[1])
+try: data = json.loads(p.read_text())
+except Exception: data = {"keys": {}, "models": []}
+data.setdefault("keys", {})["ollama"] = key
+p.write_text(json.dumps(data, indent=1)); p.chmod(0o600)
+sys.exit(0 if code == 200 else 4)'
+ollama_key() {
+  step "Ollama API key"
+  say "  ${dim}Optional. With an API key, Joshua shows how much credit is left on your Ollama account, next to a cloud model's price."
+  say "  Cloud models work without it.${off}"
+  ask "Set up the API key now?" y || { say "  ${dim}You can add it later in Joshua: Models page, under “Open models in the cloud”.${off}"; return 0; }
+  say "  ${dim}A page opens on ollama.com: click \"Create API key\", name it Joshua, then press the copy button next to the key."
+  say "  Don't paste it anywhere: when you answer Yes, the installer takes it from the clipboard, checks it with Ollama,"
+  say "  saves it on this computer only, and empties the clipboard.${off}"
+  open_url "https://ollama.com/settings/keys"
+  local try key rc
+  for try in 1 2; do
+    ask "Have you copied the key?" y || break
+    key=$(clip_read)
+    if [ -z "$key" ] && [ -z "${JOSHUA_GUI:-}" ]; then  # no clipboard tool here: paste it, hidden
+      printf "  Paste the key (it won't show) and press Enter: "; read -rs key </dev/tty || key=""; echo
+    fi
+    rc=0; printf "%s" "$key" | "$PY" -c "$SAVE_KEY" "$APP/providers.json" || rc=$?
+    key=""
+    case $rc in
+      0) clip_clear; ok "API key saved: Joshua shows your Ollama credit"; return 0;;
+      4) clip_clear; ok "API key saved"; warn "Ollama didn't answer just now, so the key isn't checked yet: if the credit doesn't show in Joshua, paste a new one on the Models page"; return 0;;
+      3) warn "Ollama refused that key. Copy it again (or make a new one) and answer Yes.";;
+      *) warn "The clipboard doesn't hold an API key. Press the copy button next to the key and answer Yes.";;
+    esac
+  done
+  say "  ${dim}No key saved. You can add it later in Joshua: Models page, under “Open models in the cloud”.${off}"
+}
 warn() { printf "  ${amber}!${off} %s\n" "$*"; }
 die()  { printf "\n${red}✗ %s${off}\n" "$*"; exit 1; }
 ask()  {  # ask "question" default(y/n) -> returns 0 for yes
@@ -373,6 +430,7 @@ fi
 cat > "$APP/config.json" <<EOF
 {"model": "$MODEL", "fast": "$FAST", "label": "$LABEL", "tune_base": "$TUNE_BASE", "tune_template": "qwen3:4b-instruct-2507-q4_K_M"}
 EOF
+[ "$ACCOUNT" = y ] && ollama_key
 
 # ---------- 6. launcher ----------
 step "Joshua launcher"
