@@ -107,6 +107,9 @@ def default_model():
     local = [v for _, v in models() if not is_cloud(v)]
     if PAIR in local:  # Joshua's own model stays the starting one, wherever the alphabet puts it
         return PAIR
+    qwen = [v for v in local if v.lower().startswith("qwen")]
+    if qwen:  # otherwise a Qwen model, when one is installed: the newest version first (qwen3.5 before qwen3)
+        return sorted(qwen, key=lambda v: [int(x) if x.isdigit() else 0 for x in re.findall(r"\d+", v.split(":")[0])], reverse=True)[0]
     local.sort(key=lambda v: v == apple.NAME)  # Apple Intelligence only if there's nothing else here
     return (local or [models()[0][1]])[0]  # start on a local model; cloud is always a choice you make
 
@@ -834,33 +837,62 @@ def starters_html(desk_id):
     return "<div class='starters'>" + cards + "</div>"
 
 
-def my_desk_choices():
-    return [("＋ " + t("New desk"), "")] + [(desks.label(k, i18n.LANG), k) for k, _ in desks.mine()]
+def desk_editor_choices():
+    return [("＋ " + t("New desk"), "")] + [(desks.label(k, i18n.LANG) + ("" if d.get("mine") or not desks.edited(k) else "  · " + t("changed")), k) for k, d in desks.desks()]
 
 
-def my_desk_load(desk_id):
-    d = desks.get(desk_id) if desks.is_mine(desk_id) else None
-    if not d:
-        return "", "", "", [k for k in TOOL_GROUPS if k != "browser"], gr.Button(visible=False)
-    return d.get("icon", ""), desks.text(d["name"], i18n.LANG), d.get("instructions", ""), [k for k in d.get("tools", []) if k in TOOL_GROUPS], gr.Button(visible=True)
+def hidden_desk_choices():
+    return [(desks.text(desks.default(k)["name"], i18n.LANG), k) for k in desks.hidden()]
 
 
-def my_desk_save(desk_id, icon, name, instructions, tools):
+def desk_editor_load(desk_id):
+    """The editor shows one desk: what Joshua is told there, its tools and its tasks (in the language you see)."""
+    d = desks.get(desk_id)
+    if not d:  # a new desk
+        return ("", "", "", [k for k in TOOL_GROUPS if k != "browser"], [["", "", ""]], gr.Button(visible=False), gr.Button(visible=False), "")
+    rows = [[s.get("icon", ""), desks.text(s["title"], i18n.LANG), desks.text(s["prompt"], i18n.LANG)] for s in d.get("starters", [])] or [["", "", ""]]
+    builtin = not d.get("mine")
+    note = "<div class='cloudstat'>" + (t("Your desk") if not builtin else t("Your own version") if desks.edited(desk_id) else t("Joshua's own")) + "</div>"
+    return (d.get("icon", ""), desks.text(d["name"], i18n.LANG), d.get("instructions", ""), [k for k in d.get("tools", []) if k in TOOL_GROUPS], rows,
+            gr.Button(visible=builtin and desks.edited(desk_id)), gr.Button(visible=True), note)
+
+
+def _rows(table):
+    rows = table.values.tolist() if hasattr(table, "values") else (table or [])
+    return [{"icon": str(r[0] or "").strip()[:4], "title": str(r[1] or "").strip(), "prompt": str(r[2] or "").strip()} for r in rows if len(r) >= 3 and str(r[1] or "").strip()]
+
+
+def desk_editor_save(desk_id, icon, name, instructions, tools, table):
     if not (name or "").strip() or not (instructions or "").strip():
         gr.Warning(t("Give the desk a name and write its instructions."))
-        return gr.skip(), gr.skip(), gr.skip()
-    desk_id = desks.save_mine(desk_id if desks.is_mine(desk_id) else "", name, (icon or "").strip()[:4], instructions, tools or [])
-    gr.Info(t("Saved: {name} is among the desks under the message box.", name=name.strip()))
-    return gr.Dropdown(choices=my_desk_choices(), value=desk_id), gr.Radio(choices=desk_choices()), gr.Button(visible=True)
+        return (gr.skip(),) * 10
+    desk_id = desks.save(desk_id, name, icon or "", instructions, tools or [], _rows(table), i18n.LANG)
+    gr.Info(t("Saved: chats at this desk follow it from the next message."))
+    return (gr.Dropdown(choices=desk_editor_choices(), value=desk_id), gr.Radio(choices=desk_choices())) + desk_editor_load(desk_id)
 
 
-def my_desk_delete(desk_id):
+def desk_editor_reset(desk_id):
+    desks.reset(desk_id)
+    gr.Info(t("Joshua's own version is back."))
+    return (gr.Dropdown(choices=desk_editor_choices(), value=desk_id), gr.Radio(choices=desk_choices())) + desk_editor_load(desk_id)
+
+
+def desk_editor_remove(desk_id):
     if desk_id is None:  # you cancelled
-        return (gr.skip(),) * 7
-    if desk_id and desks.is_mine(desk_id):
-        desks.delete_mine(desk_id)
-        gr.Info(t("Desk deleted. Its chats stay, at no desk."))
-    return (gr.Dropdown(choices=my_desk_choices(), value=""), gr.Radio(choices=desk_choices())) + my_desk_load("")
+        return (gr.skip(),) * 12
+    if desk_id:
+        desks.remove(desk_id)
+        gr.Info(t("Desk removed. Its chats stay, at no desk."))
+    first = desk_editor_choices()[1][1] if len(desk_editor_choices()) > 1 else ""
+    return ((gr.Dropdown(choices=desk_editor_choices(), value=first), gr.Radio(choices=desk_choices())) + desk_editor_load(first)
+            + (gr.Row(visible=bool(desks.hidden())), gr.Dropdown(choices=hidden_desk_choices(), value=None)))
+
+
+def desk_editor_back(desk_id):
+    if desk_id:
+        desks.unhide(desk_id)
+    return (gr.Dropdown(choices=desk_editor_choices(), value=desk_id or gr.skip()), gr.Radio(choices=desk_choices())) + desk_editor_load(desk_id) + (
+        gr.Row(visible=bool(desks.hidden())), gr.Dropdown(choices=hidden_desk_choices(), value=None))
 
 
 def desk_choices():
@@ -1808,27 +1840,71 @@ def delete_chat(cid):
     if busy(cid):
         gr.Warning(t("Joshua is still answering in this chat. Press Stop first, then you can delete it."))
         return nothing
-    title = re.sub(r"[^\w -]+", "", load(cid)["title"] or "chat")[:40].strip() or "chat"
-    dest = f"Joshua chat - {title} - {cid}"
-    try:
-        if agent.MAC:
-            shutil.move(str(ROOT / cid), str(pathlib.Path.home() / ".Trash" / dest))
-        elif agent.WIN:  # the Recycle Bin, through Windows' own file operations
-            subprocess.run(["powershell", "-NoProfile", "-Command", "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory("
-                            + json.dumps(str(ROOT / cid)) + ", 'OnlyErrorDialogs', 'SendToRecycleBin')"], check=True, timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
-        else:  # the Linux desktop Trash: the files, plus a note saying where they came from
-            trash = pathlib.Path.home() / ".local" / "share" / "Trash"
-            (trash / "files").mkdir(parents=True, exist_ok=True), (trash / "info").mkdir(parents=True, exist_ok=True)
-            (trash / "info" / f"{dest}.trashinfo").write_text(f"[Trash Info]\nPath={ROOT / cid}\nDeletionDate={time.strftime('%Y-%m-%dT%H:%M:%S')}\n")
-            shutil.move(str(ROOT / cid), str(trash / "files" / dest))
-    except Exception:
-        shutil.rmtree(ROOT / cid, ignore_errors=True)
+    conv = load(cid)
+    conv["deleted_at"] = time.time()
+    write_chat(cid, conv)
+    BIN.mkdir(exist_ok=True)
+    shutil.rmtree(BIN / cid, ignore_errors=True)
+    shutil.move(str(ROOT / cid), str(BIN / cid))
     JOBS.pop(cid, None)
-    gr.Info(t("Chat deleted (moved to the Trash)."))
+    gr.Info(t("Chat moved to the bin: you can restore it there for {n} days.", n=BIN_DAYS))
     return new_chat()
 
 
 SEEN = {}
+
+# ---------- the bin: deleted chats wait here for 30 days, then they're gone ----------
+
+BIN = ROOT / ".bin"  # inside the chats folder: it moves and is backed up with your chats, and updates never touch it
+BIN_DAYS = 30
+
+
+def bin_items():
+    """The chats in the bin, the most recently deleted first: (id, title, deleted at)."""
+    out = []
+    for p in BIN.iterdir() if BIN.exists() else []:
+        try:
+            c = json.loads((p / "chat.json").read_text(encoding="utf-8"))
+            out.append((p.name, cap(c.get("title") or t("New chat")), c.get("deleted_at") or p.stat().st_mtime))
+        except Exception:
+            pass
+    return sorted(out, key=lambda x: -x[2])
+
+
+def bin_purge():
+    for cid, _, when in bin_items():
+        if time.time() - when > BIN_DAYS * 86400:
+            shutil.rmtree(BIN / cid, ignore_errors=True)
+
+
+def bin_view():
+    items = bin_items()
+    rows = "".join(f"<div class='task'><b>{html.escape(title)}</b><br><span>{t('deleted {when}', when=time.strftime('%d/%m %H:%M', time.localtime(when)))}"
+                   f" · {t('gone in {n} days', n=max(0, BIN_DAYS - int((time.time() - when) // 86400)))}</span></div>" for _, title, when in items)
+    listing = rows or "<div class='cloudstat'>" + t("The bin is empty.") + "</div>"
+    return listing, gr.Dropdown(choices=[(title, cid) for cid, title, _ in items], value=None), gr.Column(visible=bool(items))
+
+
+def bin_restore(cid):
+    if cid and (BIN / cid).exists():
+        shutil.move(str(BIN / cid), str(ROOT / cid))
+        conv = load(cid)
+        conv.pop("deleted_at", None)
+        write_chat(cid, conv)
+        gr.Info(t("Restored: the chat is back in the list."))
+    return bin_view() + (gr.Radio(choices=conv_choices()),)
+
+
+def bin_forever(cid):
+    if cid:
+        shutil.rmtree(BIN / cid, ignore_errors=True)
+    return bin_view()
+
+
+def bin_empty(go):
+    if go:
+        shutil.rmtree(BIN, ignore_errors=True)
+    return bin_view()
 
 
 LIVE_EVERY = 1.5  # seconds between redraws of a chat while Joshua writes it
@@ -1869,13 +1945,14 @@ def poll(cid, request: gr.Request):
 
 
 CSS = """
-body:not([data-screen="green"]):not([data-screen="amber"]):not([data-screen="modern"]):not([data-screen="modern-night"]):not([data-screen="modern-paper"]):not([data-screen="blue"]):not([data-screen="black"]):not([data-screen="white"]) {--bg: #dfdbc3; --bg-hi: #e9e5cf; --panel: #e7e3cc; --codebg: #d4cfb3; --line: rgba(90, 60, 40, .45); --cyan: #9c3b1c; --glow: transparent; --ink: #3b2322; --dim: #7a6250; --amber: #9c3b1c; --red: #b3261e; --codeink: #3b2322; --shadow: none}
+body:not([data-screen="green"]):not([data-screen="amber"]):not([data-screen="modern"]):not([data-screen="modern-night"]):not([data-screen="modern-paper"]):not([data-screen="modern-paper-night"]):not([data-screen="blue"]):not([data-screen="black"]):not([data-screen="white"]) {--bg: #dfdbc3; --bg-hi: #e9e5cf; --panel: #e7e3cc; --codebg: #d4cfb3; --line: rgba(90, 60, 40, .45); --cyan: #9c3b1c; --glow: transparent; --ink: #3b2322; --dim: #7a6250; --amber: #9c3b1c; --red: #b3261e; --codeink: #3b2322; --shadow: none}
 body[data-screen="black"] {--bg: #000308; --bg-hi: #040a14; --panel: #050a14; --codebg: #02050a; --line: #8fe9ff; --cyan: #8fe9ff; --glow: rgba(80, 200, 255, .55); --ink: #a6e6ff; --dim: #5d8ea6; --amber: #ffb347; --red: #ff5a4e; --codeink: #59f08a; --shadow: 0 0 8px rgba(80, 200, 255, .55); --check: #ffb347}
-body[data-screen="black"] {--bw: 2px; --panel-shadow: 0 0 8px var(--glow), inset 0 0 18px rgba(80, 200, 255, .12); --case: uppercase; --tglow: 0 0 3px rgba(120, 220, 255, .35); --flick: flick 3s infinite; --pbw: 2px; --pline: var(--amber); --pglow: 0 0 8px rgba(255, 179, 71, .35)}
-body[data-screen="black"]::after {content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, .22) 0, rgba(0, 0, 0, .22) 1px, transparent 1px, transparent 3px)}
+body[data-screen="black"], body[data-screen="green"] {--bw: 2px; --panel-shadow: 0 0 8px var(--glow), inset 0 0 18px rgba(80, 200, 255, .12); --case: uppercase; --tglow: 0 0 3px rgba(120, 220, 255, .35); --flick: flick 3s infinite; --pbw: 2px; --pline: var(--amber); --pglow: 0 0 8px rgba(255, 179, 71, .35)}
+body[data-screen="black"]::after, body[data-screen="green"]::after {content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, .22) 0, rgba(0, 0, 0, .22) 1px, transparent 1px, transparent 3px)}
 body {--bw: 1px; --panel-shadow: 0 0 8px var(--glow); --case: none; --tglow: none; --flick: none; --pbw: 1px; --pline: color-mix(in srgb, var(--amber) 70%, transparent); --pglow: 0 0 5px color-mix(in srgb, var(--amber) 25%, transparent)}
 body[data-screen="white"] {--bg: #ffffff; --bg-hi: #ffffff; --panel: #fbfbfb; --codebg: #f1f1f1; --line: rgba(0, 0, 0, .26); --cyan: #000000; --glow: transparent; --ink: #141414; --dim: #6b6b6b; --amber: #1f5fbf; --red: #c4271d; --codeink: #141414; --shadow: none}
-body[data-screen="green"] {--bg: #0e1a14; --bg-hi: #1a3024; --panel: #13241b; --codebg: #09130e; --line: rgba(140, 255, 180, .42); --cyan: #8dffb4; --glow: rgba(120, 255, 170, .2); --ink: #d4f7df; --dim: #86b096; --amber: #ffd27a; --red: #ff6b5e; --codeink: #8dffb4; --shadow: 0 0 6px rgba(120, 255, 170, .35)}
+body[data-screen="green"] {--bg: #000300; --bg-hi: #010801; --panel: #020802; --codebg: #010501; --line: #33ff66; --cyan: #7dff8a; --glow: rgba(60, 255, 110, .5); --ink: #7dff8a; --dim: #3c9a4a; --amber: #d6ffb8; --red: #ff6b5e; --codeink: #7dff8a; --shadow: 0 0 8px rgba(60, 255, 110, .5); --check: #d6ffb8}  /* Black, in the green of WOPR's screens */
+body[data-screen="green"] {--panel-shadow: 0 0 8px var(--glow), inset 0 0 18px rgba(60, 255, 110, .1); --tglow: 0 0 3px rgba(90, 255, 130, .35); --pglow: 0 0 8px rgba(214, 255, 184, .3)}
 body[data-screen="amber"] {--bg: #1c120c; --bg-hi: #2e1d13; --panel: #25170f; --codebg: #140c07; --line: rgba(255, 180, 100, .45); --cyan: #ffb866; --glow: rgba(255, 170, 80, .2); --ink: #ffe5c8; --dim: #bf9370; --amber: #9fe3ff; --red: #ff6b5e; --codeink: #ffd08a; --shadow: 0 0 6px rgba(255, 170, 80, .35)}
 body[data-screen="blue"] {--bg: #08101b; --bg-hi: #10203a; --panel: #0d1625; --codebg: #060b14; --line: rgba(143, 233, 255, .5); --cyan: #8fe9ff; --glow: rgba(80, 200, 255, .26); --ink: #d6ecf5; --dim: #7fa3b5; --amber: #ffbf66; --red: #ff6b5e; --codeink: #6fe8a0; --shadow: 0 0 6px rgba(80, 200, 255, .4)}
 :root body, :root body .dark {--green: #6fe8a0; --checkbox-background-color-selected: var(--check, var(--cyan)); --checkbox-border-color-selected: var(--check, var(--cyan)); --checkbox-border-color: var(--dim); --slider-color: var(--cyan); --button-primary-background-fill: var(--panel); --button-primary-text-color: var(--cyan); --button-primary-border-color: var(--line);
@@ -1924,7 +2001,7 @@ textarea::placeholder {color: var(--dim) !important; opacity: .85}
 #screen input, #textsize input, #kprov input {display: none}
 .side {padding: 12px !important}
 body {--brand: #3f8a49}  /* the logo's green; lighter on the dark screens */
-body[data-screen="black"], body[data-screen="green"], body[data-screen="amber"], body[data-screen="blue"], body[data-screen="modern-night"] {--brand: #7fb86a}
+body[data-screen="black"], body[data-screen="green"], body[data-screen="amber"], body[data-screen="blue"], body[data-screen="modern-night"], body[data-screen="modern-paper-night"] {--brand: #7fb86a}
 #brand, body:not(#a):not(#b) #brand {font-family: 'VT323', monospace !important; font-size: 3.2rem !important; font-weight: 400 !important; letter-spacing: .1em; text-transform: uppercase !important; color: var(--brand) !important; padding: 26px 4px 0 18px !important; text-shadow: none; line-height: 1; white-space: nowrap}
 body:not(#a):not(#b) #brand svg {display: inline-block !important; width: 5.3rem !important; height: 5.3rem !important; max-width: none !important; vertical-align: -.73rem !important; margin: -1.96rem -1.74rem 0 -.81rem !important}  /* the logo is the J, as tall as the letters */
 #brand::after, body:not(#a):not(#b) #brand::after {content: none !important}  /* the cursor now shows when Joshua is working */
@@ -2522,31 +2599,33 @@ body:not(.narrow):not(#a):not(#b):not(#c) #modelpick > #model input {font-size: 
 /* ---------- Paper: the look of a well-set document (like a PDF in macOS Preview) ----------
    Arial / Helvetica, near-black on white, a clear size step between headings and text, lines of 1.5,
    and tables drawn with thin grey rules and a pale header row. */
-body[data-screen="modern-paper"] {--bg: #f6f4ef; --bg-hi: #f6f4ef; --panel: #fffdf9; --codebg: #f1eee7; --line: rgba(0, 0, 0, .12); --cyan: #24665a; --glow: transparent; --ink: #111111; --dim: #6b6b70; --amber: #24665a; --red: #b3261e; --codeink: #111111; --shadow: none; --check: #24665a; --userbg: #ebe7de; --green: #24665a; --soft: rgba(0, 0, 0, .05)}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) {--side: #efebe3}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container *:not(svg):not(path):not(code):not(pre):not(pre *):not(#brand):not(#brand *) {font-family: Arial, 'Helvetica Neue', Helvetica, 'Liberation Sans', sans-serif !important; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose * {font-size: 1.06rem !important; line-height: 1.5 !important; color: var(--ink)}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose * {opacity: 1 !important}  /* the answer in full black, not faded like the folded parts */
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose p {margin: .45em 0 .8em !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h1, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h1 * {font-size: 1.75rem !important; line-height: 1.2 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h2, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h2 * {font-size: 1.5rem !important; line-height: 1.22 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h3, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h3 * {font-size: 1.22rem !important; line-height: 1.25 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h4, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h4 * {font-size: 1.06rem !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(h1, h2, h3, h4) {font-weight: 700 !important; color: #000 !important; letter-spacing: -.01em !important; margin: 1.15em 0 .4em !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(h1, h2, h3, h4):first-child {margin-top: .2em !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose strong, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose b {font-weight: 700 !important; color: #000 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(ul, ol) {padding-left: 1.5em !important; margin: .3em 0 .9em !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose li {margin: .25em 0 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose ul > li {list-style: disc !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose table {border-collapse: collapse !important; width: 100% !important; margin: .7em 0 1.4em !important; border: 1px solid #dbd5c9 !important; display: table !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) {border: 1px solid #dbd5c9 !important; padding: .6em .85em !important; text-align: left !important; vertical-align: middle !important; background: transparent !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th * {background: #ece7dd !important; font-weight: 700 !important; color: #000 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) p {margin: 0 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose blockquote {border-left: 3px solid #dbd5c9 !important; padding-left: 1em !important; color: #333 !important; margin: .6em 0 1em !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose a {color: var(--cyan) !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-wrap {max-width: 56rem !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user * {font-size: 1.02rem !important; line-height: 1.45 !important; color: #111 !important}
-body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #schedtitle, body[data-screen="modern-paper"]:not(#a):not(#b):not(#c) #tunetitle {font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important; font-weight: 700 !important; letter-spacing: -.015em !important; color: #000 !important}
+body[data-screen="modern-paper-night"] {--pp-strong: #fbf7f0; --pp-th: #34302b; --pp-rule: #4a453e; --pp-quote: #cfc8be; --pp-user: #ece6dc; --bg: #1e1c19; --bg-hi: #1e1c19; --panel: #26231f; --codebg: #191714; --line: rgba(255, 240, 220, .11); --cyan: #7cc4b2; --glow: transparent; --ink: #ece6dc; --dim: #a39a8e; --amber: #7cc4b2; --red: #e07a6a; --codeink: #ece6dc; --shadow: none; --check: #7cc4b2; --userbg: #33302b; --green: #7cc4b2; --soft: rgba(124, 196, 178, .1)}
+body[data-screen="modern-paper"] {--pp-strong: #000; --pp-th: var(--pp-th); --pp-rule: var(--pp-rule); --pp-quote: #333; --pp-user: #111; --bg: #f6f4ef; --bg-hi: #f6f4ef; --panel: #fffdf9; --codebg: #f1eee7; --line: rgba(0, 0, 0, .12); --cyan: #24665a; --glow: transparent; --ink: #111111; --dim: #6b6b70; --amber: #24665a; --red: #b3261e; --codeink: #111111; --shadow: none; --check: #24665a; --userbg: #ebe7de; --green: #24665a; --soft: rgba(0, 0, 0, .05)}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) {--side: #efebe3}
+body[data-screen="modern-paper-night"]:not(#a):not(#b):not(#c):not(#d) {--side: #23201c}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) .gradio-container *:not(svg):not(path):not(code):not(pre):not(pre *):not(#brand):not(#brand *) {font-family: Arial, 'Helvetica Neue', Helvetica, 'Liberation Sans', sans-serif !important; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose * {font-size: 1.06rem !important; line-height: 1.5 !important; color: var(--ink)}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-content > .prose * {opacity: 1 !important}  /* the answer in full black, not faded like the folded parts */
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose p {margin: .45em 0 .8em !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h1, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h1 * {font-size: 1.75rem !important; line-height: 1.2 !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h2, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h2 * {font-size: 1.5rem !important; line-height: 1.22 !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h3, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h3 * {font-size: 1.22rem !important; line-height: 1.25 !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h4, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose h4 * {font-size: 1.06rem !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(h1, h2, h3, h4) {font-weight: 700 !important; color: var(--pp-strong) !important; letter-spacing: -.01em !important; margin: 1.15em 0 .4em !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(h1, h2, h3, h4):first-child {margin-top: .2em !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose strong, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose b {font-weight: 700 !important; color: var(--pp-strong) !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(ul, ol) {padding-left: 1.5em !important; margin: .3em 0 .9em !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose li {margin: .25em 0 !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose ul > li {list-style: disc !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose table {border-collapse: collapse !important; width: 100% !important; margin: .7em 0 1.4em !important; border: 1px solid var(--pp-rule) !important; display: table !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) {border: 1px solid var(--pp-rule) !important; padding: .6em .85em !important; text-align: left !important; vertical-align: middle !important; background: transparent !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose th * {background: var(--pp-th) !important; font-weight: 700 !important; color: var(--pp-strong) !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) p {margin: 0 !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose blockquote {border-left: 3px solid var(--pp-rule) !important; padding-left: 1em !important; color: var(--pp-quote) !important; margin: .6em 0 1em !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose a {color: var(--cyan) !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-wrap {max-width: 56rem !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user * {font-size: 1.02rem !important; line-height: 1.45 !important; color: var(--pp-user) !important}
+body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #schedtitle, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #tunetitle {font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important; font-weight: 700 !important; letter-spacing: -.015em !important; color: var(--pp-strong) !important}
 #chat button.jcopied {color: var(--brand) !important; transform: scale(1.15); transition: transform .15s}
 /* ---------- phone: the message box and the switches under it take two short lines, not half the screen ---------- */
 body.narrow:not(#a):not(#b):not(#c) #promptrow {padding: 0 !important; gap: 4px !important; align-items: center !important}
@@ -2997,6 +3076,7 @@ def task_action(name, action):
 
 threading.Thread(target=scheduler, daemon=True).start()
 forget_games()  # games left from the last session
+bin_purge()  # chats deleted more than 30 days ago
 
 
 def css_text(text):
@@ -3005,8 +3085,8 @@ def css_text(text):
 
 
 CSS = CSS.replace("@@WHAT_HELP@@", css_text(t("Hello. What would you like to do today?"))).replace("@@ASK_HINT@@", css_text(t("Everything you write here is stored only on this computer."))).replace("@@MODEL@@", css_text(t("Model:")))
-CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
-CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
+CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
+CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
 CSS += "\n#modelspage .mz0, #setpage .mz0 {background: color-mix(in srgb, var(--ink) 4%, var(--bg)) !important}"
 JS_TEXT = lambda text: json.dumps(text, ensure_ascii=False).replace("'", "\\'")  # a text inside the js="..." handlers below
 
@@ -3035,10 +3115,23 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 models_btn = gr.Button("🧩  " + t("Models"), size="sm", elem_id="modelsbtn")
                 mem_btn_open = gr.Button("🧠  " + t("Background"), size="sm", elem_id="membtn")  # what Joshua knows about you
                 tune = gr.Button("🧪  " + t("Fine-tuning"), size="sm", elem_id="tunebtn")
+                bin_btn = gr.Button("🗑  " + t("Bin"), size="sm", elem_id="binbtn")
                 gr.HTML("<div class='navgap'></div>", elem_id="navgap")
                 set_btn = gr.Button("⚙  " + t("Settings"), size="sm", elem_id="setbtn")
                 feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
         tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
+        with gr.Column(visible=False, scale=5, elem_id="binpage") as bin_panel:
+            with gr.Row():
+                gr.HTML("<div id='schedtitle'>" + t("BIN") + "</div>")
+                bin_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
+            gr.Markdown(t("Chats you delete wait here for {n} days with their files, then they're deleted for good. Restore one to put it back in the list.", n=BIN_DAYS))
+            bin_list = gr.HTML("")
+            with gr.Column(visible=False) as bin_controls:
+                bin_pick = gr.Dropdown([], label=t("Choose a chat"))
+                with gr.Row():
+                    bin_back_btn = gr.Button("↩ " + t("Restore"), size="sm", scale=0, min_width=160, variant="primary")
+                    bin_del = gr.Button(t("Delete for good"), size="sm", scale=0, min_width=160)
+                    bin_all = gr.Button(t("Empty the bin"), size="sm", scale=0, min_width=160, elem_id="binempty")
         with gr.Column(visible=False, scale=5, elem_id="mempage") as mem_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("WHAT JOSHUA KNOWS ABOUT YOU") + "</div>")
@@ -3061,7 +3154,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 set_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Look") + "</h2>")
-                screen = gr.Radio([(t("Paper"), "modern-paper"), (t("Novel"), "novel"), (t("Black"), "black"), (t("White"), "white"), (t("Green"), "green"), (t("Amber"), "amber"), (t("Blue"), "blue"), (t("Modern"), "modern"), (t("Modern night"), "modern-night")], value="modern-paper", label=t("Look"), elem_id="screen")
+                screen = gr.Radio([(t("Paper"), "modern-paper"), (t("Paper night"), "modern-paper-night"), (t("Novel"), "novel"), (t("Black"), "black"), (t("Green"), "green"), (t("Amber"), "amber")], value="modern-paper", label=t("Look"), elem_id="screen")
                 textsize = gr.Radio([("90%", "0.9"), ("100%", "1"), ("110%", "1.1"), ("125%", "1.25"), ("140%", "1.4")], value="1", label=t("Text size"), elem_id="textsize")
                 language = gr.Dropdown([(t("Language: automatic"), "auto")] + [(name, code) for code, name in LANGS.items()], value=i18n.chosen() if i18n.chosen() in LANGS else "auto", label=t("Language"), elem_id="language")
             with gr.Column(elem_classes=["mzone", "mz0"]):
@@ -3075,25 +3168,23 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     br_open = gr.Button("🧭 " + t("Open Joshua's browser"), size="sm", scale=0, min_width=240)
                     br_status = gr.HTML("")
             with gr.Column(elem_classes=["mzone", "mz0"]):
-                gr.HTML("<h2 class='msec'>" + t("Desks") + "</h2><div class='msub'>" + t("A desk sets Joshua up for one kind of work: you choose it under the message box. Here you can rewrite what Joshua is told at each desk, in any language. Your version is kept on this computer and updates never overwrite it; \"Restore the default\" brings back Joshua's own.") + "</div>")
-                desk_boxes = []
-                for desk_id, d in [x for x in desks.desks() if not x[1].get("mine")]:
-                    box_ = gr.Textbox(d["instructions"], lines=10, max_lines=30, label=desks.label(desk_id, i18n.LANG), elem_classes="deskedit")
-                    with gr.Row():
-                        save_ = gr.Button(t("Save"), size="sm", scale=0, min_width=120)
-                        reset_ = gr.Button(t("Restore the default"), size="sm", scale=0, min_width=200)
-                        note_ = gr.HTML("<div class='cloudstat'>" + t("Your own version") + "</div>" if desks.edited(desk_id) else "")
-                    desk_boxes.append((desk_id, box_, save_, reset_, note_))
-                gr.HTML("<h3 class='msec2'>" + t("Your desks") + "</h3><div class='msub'>" + t("Make a desk of your own: a name, an icon (any emoji), what Joshua should know and do there, and the tools it may use. It appears among the desks under the message box.") + "</div>")
-                my_pick = gr.Dropdown(choices=my_desk_choices(), value="", label=t("Desk"), elem_id="mypick")
+                gr.HTML("<h2 class='msec'>" + t("Desks") + "</h2><div class='msub'>" + t("A desk sets Joshua up for one kind of work: you choose it under the message box. Pick a desk to change its name, icon, instructions, tools and the tasks offered on an empty chat, or make a new one. Your changes are kept on this computer and updates never overwrite them.") + "</div>")
+                dk_pick = gr.Dropdown(choices=desk_editor_choices(), value=desk_editor_choices()[1][1] if len(desk_editor_choices()) > 1 else "", label=t("Desk"), elem_id="dkpick")
                 with gr.Row():
-                    my_icon = gr.Textbox("", label=t("Icon"), placeholder="🌿", max_lines=1, scale=0, min_width=90)
-                    my_name = gr.Textbox("", label=t("Name"), placeholder=t("Cooking"), max_lines=1)
-                my_instr = gr.Textbox("", lines=8, max_lines=30, label=t("Instructions"), placeholder=t("You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple."), elem_classes="deskedit")
-                my_tools = gr.CheckboxGroup([(label, key) for key, (label, _) in TOOL_GROUPS.items()], value=[k for k in TOOL_GROUPS if k != "browser"], label=t("Tools at this desk"), elem_id="mytools")
+                    dk_icon = gr.Textbox("", label=t("Icon"), placeholder="🌿", max_lines=1, scale=0, min_width=90)
+                    dk_name = gr.Textbox("", label=t("Name"), placeholder=t("Cooking"), max_lines=1)
+                dk_instr = gr.Textbox("", lines=8, max_lines=12, label=t("Instructions"), placeholder=t("You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple."), elem_classes="deskedit")
+                dk_tools = gr.CheckboxGroup([(label, key) for key, (label, _) in TOOL_GROUPS.items()], value=[], label=t("Tools at this desk"), elem_id="dktools")
+                dk_starters = gr.Dataframe(headers=[t("Icon"), t("Task"), t("Text put in the message box")], datatype=["str", "str", "str"], col_count=(3, "fixed"),
+                                           row_count=(1, "dynamic"), interactive=True, wrap=True, label=t("Tasks on an empty chat: edit a cell by clicking it; add or delete rows from a cell's ⋮ menu"), elem_id="dkstarters")
                 with gr.Row():
-                    my_save = gr.Button(t("Save desk"), size="sm", scale=0, min_width=160, variant="primary")
-                    my_del = gr.Button(t("Delete desk"), size="sm", scale=0, min_width=160, elem_id="mydel", visible=False)
+                    dk_save = gr.Button(t("Save desk"), size="sm", scale=0, min_width=160, variant="primary")
+                    dk_reset = gr.Button(t("Restore the default"), size="sm", scale=0, min_width=200)
+                    dk_remove = gr.Button(t("Remove desk"), size="sm", scale=0, min_width=160, elem_id="dkremove")
+                    dk_note = gr.HTML("")
+                with gr.Row(visible=bool(desks.hidden())) as dk_hiddenrow:
+                    dk_hidden = gr.Dropdown(choices=hidden_desk_choices(), value=None, label=t("Removed desks"), scale=3)
+                    dk_back = gr.Button(t("Bring it back"), size="sm", scale=0, min_width=160)
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Access from anywhere") + "</h2><div class='msub'>" + t("Use Joshua from your other computers, phone or tablet, wherever you are, through Tailscale: a free app that links your own devices in a private network. Nothing is opened to the internet.") + "</div>")
                 remote_on = gr.Checkbox(remote_setting(), label=t("Let my devices on Tailscale reach Joshua"))
@@ -3296,30 +3387,26 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     t_pause.click(lambda n: task_action(n, "pause"), t_pick, [task_list, t_pick, t_controls])
     t_del.click(lambda n: task_action(n, "delete"), t_pick, [task_list, t_pick, t_controls], js="(n) => (n && confirm(" + JS_TEXT(t("Delete '{name}'? It won't run again.")) + ".replace('{name}', n))) ? n : null")
     OTHER = [models_panel, sched_panel, tune_panel]
-    def desk_save(desk_id, words):
-        desks.set_instructions(desk_id, words)
-        gr.Info(t("Saved: chats at this desk follow it from the next message."))
-        return "<div class='cloudstat'>" + t("Your own version") + "</div>" if desks.edited(desk_id) else ""
+    DK = [dk_icon, dk_name, dk_instr, dk_tools, dk_starters, dk_reset, dk_remove, dk_note]
+    dk_pick.input(desk_editor_load, dk_pick, DK)
+    set_btn.click(desk_editor_load, dk_pick, DK)
+    dk_save.click(desk_editor_save, [dk_pick, dk_icon, dk_name, dk_instr, dk_tools, dk_starters], [dk_pick, desk] + DK)
+    dk_reset.click(desk_editor_reset, dk_pick, [dk_pick, desk] + DK)
+    dk_remove.click(desk_editor_remove, dk_pick, [dk_pick, desk] + DK + [dk_hiddenrow, dk_hidden],
+                    js="(d) => (d && confirm(" + JS_TEXT(t("Remove this desk? Its chats stay, at no desk. One of Joshua's desks can be brought back later.")) + ")) ? d : null")
+    dk_back.click(desk_editor_back, dk_hidden, [dk_pick, desk] + DK + [dk_hiddenrow, dk_hidden])
 
-    def desk_reset(desk_id):
-        desks.set_instructions(desk_id, "")
-        return desks.default_instructions(desk_id), ""
-
-    my_pick.input(my_desk_load, my_pick, [my_icon, my_name, my_instr, my_tools, my_del])
-    my_save.click(my_desk_save, [my_pick, my_icon, my_name, my_instr, my_tools], [my_pick, desk, my_del])
-    my_del.click(my_desk_delete, my_pick, [my_pick, desk, my_icon, my_name, my_instr, my_tools, my_del],
-                 js="(d) => (d && confirm(" + JS_TEXT(t("Delete this desk? Its chats stay, at no desk.")) + ")) ? d : null")
-    for desk_id, box_, save_, reset_, note_ in desk_boxes:
-        save_.click(functools.partial(desk_save, desk_id), box_, note_)
-        reset_.click(functools.partial(desk_reset, desk_id), outputs=[box_, note_])
-
-    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back)]:
-        rest = [x for x in (mem_panel, set_panel) if x is not panel]
-        btn.click(lambda: (gr.Column(visible=True),) + (gr.Column(visible=False),) * 6, outputs=[panel, chatcol, rightcol] + OTHER + rest)
+    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back), (bin_btn, bin_panel, bin_back)]:
+        rest = [x for x in (mem_panel, set_panel, bin_panel) if x is not panel]
+        btn.click(lambda n=len(OTHER + rest): (gr.Column(visible=True),) + (gr.Column(visible=False),) * (2 + n), outputs=[panel, chatcol, rightcol] + OTHER + rest)
         back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True)), outputs=[panel, chatcol, rightcol])
         for o in (models_btn, sched, tune):  # opening another page closes this one
             o.click(lambda: gr.Column(visible=False), outputs=panel)
     mem_btn_open.click(mem_view, mem_topic, [mem_topic, mem_text])
+    bin_btn.click(bin_view, outputs=[bin_list, bin_pick, bin_controls])
+    bin_back_btn.click(bin_restore, bin_pick, [bin_list, bin_pick, bin_controls, convs])
+    bin_del.click(bin_forever, bin_pick, [bin_list, bin_pick, bin_controls], js="(c) => (c && confirm(" + JS_TEXT(t("Delete this chat and its files for good? This can't be undone.")) + ")) ? c : null")
+    bin_all.click(bin_empty, bin_all, [bin_list, bin_pick, bin_controls], js="() => confirm(" + JS_TEXT(t("Delete every chat in the bin for good? This can't be undone.")) + ")")
     set_btn.click(api_panel, outputs=[api_info, api_example])
     learn.change(learn_setting, learn)
     remote_on.change(lambda on: (remote_setting(on), remote.switch(on, PORT), remote_html())[2], remote_on, remote_box)
@@ -3376,7 +3463,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     ord_go.click(None, None, ord_val, js="() => window.joshuaOrder || ''").then(reorder_pins, [cid, ord_val], convs, show_progress="hidden")
     ren_go.click(None, None, ren_val, js="() => window.joshuaRename || ''").then(rename_save, [cid, ren_val], [renbox, convs], show_progress="hidden")
     renbox.submit(rename_save, [cid, renbox], [renbox, convs])
-    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat and its files to the Trash? You can restore them from there.")) + ")) ? c : null")
+    dele.click(delete_chat, convs, [chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat to the bin? You can restore it there for 30 days.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
     tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
     tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models(True))), outputs=[tune_panel, chatcol, rightcol, model])
@@ -3560,7 +3647,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
         document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
         b.classList.add('jcopied'); setTimeout(() => b.classList.remove('jcopied'), 1200); }, true) }""")
-    demo.load(None, None, screen, js="() => { let v = 'modern-paper'; try { v = localStorage.getItem('joshua-screen3') || 'modern-paper' } catch (e) {} document.body.dataset.screen = v; return v }")
+    demo.load(None, None, screen, js="() => { let v = 'modern-paper'; try { v = localStorage.getItem('joshua-screen3') || 'modern-paper' } catch (e) {} if (!['modern-paper', 'modern-paper-night', 'novel', 'black', 'green', 'amber'].includes(v)) v = 'modern-paper'; document.body.dataset.screen = v; return v }")
     textsize.change(None, textsize, None, js="(v) => { document.documentElement.style.fontSize = (16 * v) + 'px'; try { localStorage.setItem('joshua-zoom', v) } catch (e) {} }")
     demo.load(None, None, textsize, js="() => { let v = '1'; try { v = localStorage.getItem('joshua-zoom') || '1' } catch (e) {} document.documentElement.style.fontSize = (16 * v) + 'px'; return v }")
     sidetoggle.click(None, None, None, js="""() => {
@@ -3574,12 +3661,20 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         document.addEventListener('click', (e) => {
           if (!document.body.classList.contains('narrow') || !document.body.classList.contains('mside')) return;
           if (e.target.closest('.cmore')) return;
-          if (e.target.closest('#convs label, #newchat, #panels button, #membtn, #setbtn, #modelsbtn, #tunebtn')) setTimeout(() => document.body.classList.remove('mside'), 150);
+          if (e.target.closest('#convs label, #newchat, #panels button, #membtn, #setbtn, #binbtn, #modelsbtn, #tunebtn')) setTimeout(() => document.body.classList.remove('mside'), 150);
         }, true); }""")
     demo.load(None, None, None, js="() => { try { if (localStorage.getItem('joshua-noside')) document.body.classList.add('noside') } catch (e) {} }")
 
 ICON = (pathlib.Path(__file__).parent / "icon.png").resolve()
-APP_HEAD = (f"<link rel='apple-touch-icon' href='/gradio_api/file={ICON}'>"  # the icon Safari uses for "Add to Dock"
+LOOK_EARLY = ("<script>(function () {  // the saved look and text size, before anything is drawn: no flash of another look at start-up\n"
+              "  var ok = ['modern-paper', 'modern-paper-night', 'novel', 'black', 'green', 'amber'], v = 'modern-paper', z = '1';\n"
+              "  try { v = localStorage.getItem('joshua-screen3') || v; z = localStorage.getItem('joshua-zoom') || z } catch (e) {}\n"
+              "  if (ok.indexOf(v) < 0) v = 'modern-paper';\n"
+              "  document.documentElement.style.fontSize = (16 * z) + 'px';\n"
+              "  var set = function () { if (document.body) { document.body.dataset.screen = v; return true } };\n"
+              "  if (!set()) new MutationObserver(function (m, o) { if (set()) o.disconnect() }).observe(document.documentElement, {childList: true});\n"
+              "})();</script>")
+APP_HEAD = LOOK_EARLY + (f"<link rel='apple-touch-icon' href='/gradio_api/file={ICON}'>"  # the icon Safari uses for "Add to Dock"
             "<meta name='apple-mobile-web-app-title' content='Joshua'><meta name='application-name' content='Joshua'>")
 
 # Icons: the interface is written with emoji (in labels, buttons, tool boxes); the page swaps each one for a drawn icon
@@ -3629,6 +3724,7 @@ ICON_HEAD = ("<script>window.JOSHUA_ICONS=" + json.dumps({"emoji": ICONS["emoji"
 SERVICE = os.environ.get("JOSHUA_SERVICE")  # set when Joshua runs in the background from login (launchd / systemd)
 if remote_setting():
     remote.switch(True, PORT)  # your devices on Tailscale can reach Joshua again after a restart
+    threading.Thread(target=remote.wake, daemon=True).start()  # and Tailscale is started, if it isn't running
 # Gradio records every event (our once-a-second timers too) in a "run history" kept in the browser, rewriting it
 # each time: with long chats this blocked the page for most of every second. Joshua doesn't need it.
 LAUNCH_EXTRA = {"run_history": False} if "run_history" in inspect.signature(gr.Blocks.launch).parameters else {}

@@ -116,6 +116,30 @@ def switch(on, port=7860):
     return listening()
 
 
+def wake():
+    """Remote access is on but Tailscale isn't running: start it (the app on Mac and Windows), then, if it's still not
+    connected, 'tailscale up' (it reconnects with the account you already signed in with). The relay then follows
+    within 20 seconds, by itself (_keep)."""
+    if info().get("state") != "stopped":
+        return
+    try:
+        if sys.platform == "darwin" and pathlib.Path("/Applications/Tailscale.app").exists():
+            subprocess.run(["open", "-g", "-a", "Tailscale"], timeout=15)  # -g: in the background, no window
+        elif sys.platform == "win32":
+            gui = pathlib.Path("C:/Program Files/Tailscale/tailscale-ipn.exe")
+            if gui.exists():
+                subprocess.Popen([str(gui)], creationflags=0x08000000)  # no console window
+        for _ in range(10):
+            time.sleep(2)
+            if info().get("state") == "running":
+                return
+        exe = cli()
+        if exe:
+            subprocess.run([exe, "up"], capture_output=True, timeout=20)  # never waits for a sign-in page
+    except Exception as e:
+        print("tailscale:", e)
+
+
 def listening():
     return _relay["r"] is not None
 

@@ -48,6 +48,23 @@ function Step($t) { Write-Host ""; Write-Host "$Mark $t" -ForegroundColor Cyan }
 function Ok($t) { Out "  OK  " "      " $t "Green" }
 function Warn($t) { Out "  !   " "      " $t "Yellow" }
 function Die($t) { Write-Host ""; Out "X " "  " $t "Red"; throw $t }
+function Ollama-SignIn {  # 'ollama signin' prints the page to open and waits until you approve this computer there
+    $log = [IO.Path]::GetTempFileName(); $err = "$log.err"
+    $p = Start-Process -FilePath $Ollama -ArgumentList "signin" -RedirectStandardOutput $log -RedirectStandardError $err -PassThru -WindowStyle Hidden
+    $url = $null
+    for ($i = 0; $i -lt 30 -and -not $url; $i++) {
+        Start-Sleep -Milliseconds 500
+        $text = ((Get-Content $log, $err -Raw -ErrorAction SilentlyContinue) -join "`n")
+        if ($text -match 'https://ollama\.com\S+') { $url = $Matches[0] }
+        if ($p.HasExited) { break }
+    }
+    ((Get-Content $log, $err -ErrorAction SilentlyContinue) | Where-Object { $_.Trim() }) | ForEach-Object { Dim $_.Trim() }
+    if ($url) { Dim "Opening the page in your browser..."; Start-Process $url }
+    $p.WaitForExit()
+    Remove-Item $log, $err -ErrorAction SilentlyContinue
+    return ($p.ExitCode -eq 0)
+}
+
 function Ask($q, $default) {  # returns $true for yes
     if ($env:JOSHUA_YES) { return ($default -eq "y") }
     if ($env:JOSHUA_GUI) {  # the "Install Joshua" window shows the question with Yes and No buttons, and writes back y or n
@@ -127,7 +144,7 @@ if ($LocalNo) {
     if (Ask "Use cloud models only?" $def) { $CloudOnly = $true }
 }
 if ($CloudOnly) {
-    $Cloud = $true; $Label = "Nemotron 3 Super (cloud)"; $ModelGb = 0
+    $Cloud = $true; $Label = "DeepSeek V4.1 Flash (cloud)"; $ModelGb = 0
 } else {
     $Big = if ($Vram -ge 7) { 16 } else { 8 }
     if ($Big -lt 16) { $Size = "4b"; $Speed = $Speed4; Dim "On this computer Joshua uses the 4-billion-parameter model, writing about $Speed4 words a second." }
@@ -146,9 +163,15 @@ if ($CloudOnly) {
     Dim "Images and fine-tuning aren't available on Windows yet. Joshua can still look at images."
     Say ""
     Say "  Cloud models (optional): much bigger models that run on Ollama's servers instead of this computer."
-    Dim "Your chats, files and memory stay stored here, but each message in a cloud chat is sent to Ollama. Joshua sets up Nemotron 3 Super (well under a cent per message), DeepSeek V4.1 Flash and Kimi K3.1 Pro (the most capable, and pricier). You choose per chat."
+    Dim "Your chats, files and memory stay stored here, but each message in a cloud chat is sent to Ollama. Joshua sets up DeepSeek V4.1 Flash (well under a cent per message), Kimi K3.1 Pro (the most capable, and pricier) and Nemotron 3 Super. You choose per chat."
     $def = if ($Speed -lt 4 -and -not $env:JOSHUA_MODEL) { "y" } else { "n" }
     if (Ask "Connect Joshua to Ollama's cloud models?" $def) { $Cloud = $true }
+}
+$Account = $Cloud
+if (-not $Cloud) {
+    Say ""
+    Say "  Ollama account (optional): you'll need one to use cloud models later. It's free to create."
+    if (Ask "Sign in to Ollama, or create an account, now?" "n") { $Account = $true }
 }
 $Need = 2 + $ModelGb; if ($Think) { $Need += $ModelGb }; if ($CloudOnly) { $Need = 1 }
 if ($Free -lt ($Need + 3)) { Die "This needs about $Need GB of disk (plus a little room) and you have $Free GB free." }
@@ -234,20 +257,22 @@ if (-not $CloudOnly) {
         if ($m) { $Model = $m; Ok $m } else { Warn "deep-thinking version not available; skipping" }
     }
 }
+if ($Account) {
+    Step "Ollama account"
+    Dim "A page opens in your browser: sign in to Ollama, or choose 'Sign up' there to create a free account."
+    Dim "Then approve this computer on that page, and come back here: the installation goes on by itself."
+    if (Ollama-SignIn) { Ok "this computer is connected to your Ollama account" }
+    else { Warn "sign-in didn't finish; you can do it later from Joshua (Models page)" }
+}
 if ($Cloud) {
     Step "Cloud models"
-    Dim "Sign in to Ollama in the browser page that opens, and approve this computer. Come back here when it's done."
-    & $Ollama signin
-    if ($LASTEXITCODE -ne 0) { Warn "sign-in didn't finish; you can do it later from Joshua (Models page)" }
     $c = $null
-    foreach ($m in @("nemotron-3-super:cloud", "deepseek-v4.1-flash:cloud", "kimi-k3.1-pro:cloud")) {  # Nemotron first: the default, good and very cheap
-        $ErrorActionPreference = "Continue"   # Windows PowerShell 5 treats Ollama's progress messages, hidden here, as errors: "Stop" would end the installer
+    foreach ($m in @("deepseek-v4.1-flash:cloud", "kimi-k3.1-pro:cloud", "nemotron-3-super:cloud")) {  # DeepSeek first: the default, good and cheap
         & $Ollama pull $m *> $null
-        $ErrorActionPreference = "Stop"
         if ($LASTEXITCODE -eq 0) { Ok "$m added (nothing downloaded: it runs on Ollama's servers)"; if (-not $c) { $c = $m } }
         else { Warn "couldn't add $m now; add it later from Joshua's Models page" }
     }
-    if ($CloudOnly) { if (-not $c) { $c = "nemotron-3-super:cloud" }; $Fast = $c; $Model = $c; $Label = $c }
+    if ($CloudOnly) { if (-not $c) { $c = "deepseek-v4.1-flash:cloud" }; $Fast = $c; $Model = $c; $Label = $c }
 }
 Write-Utf8 (Join-Path $App "config.json") ('{"model": "' + $Model + '", "fast": "' + $Fast + '", "label": "' + $Label + '", "tune_base": "Qwen/Qwen3-4B-Instruct-2507", "tune_template": "qwen3:4b-instruct-2507-q4_K_M"}')
 
@@ -299,41 +324,6 @@ function New-Shortcut($path, $arguments) {
     if (Test-Path $ico) { $s.IconLocation = $ico }
     $s.Description = "Joshua, your AI on your computer"
     $s.Save()
-    Set-AppId $path
-}
-# Joshua's window is an Edge (or Chrome) app window, which Windows files under an ID made from the address: "MSEdge.127.0.0.1_/".
-# Giving the Start menu shortcut that same ID makes the taskbar treat the window as Joshua: pinned, it keeps Joshua's icon, not Edge's.
-$Browser = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
-$AppId = if ($Browser) { "MSEdge.127.0.0.1_/" } else { "Chrome.127.0.0.1_/" }
-function Set-AppId($path) {
-    try {
-        if (-not ("JoshuaLink" -as [type])) {
-            Add-Type @"
-using System; using System.Runtime.InteropServices;
-public static class JoshuaLink {
-    [StructLayout(LayoutKind.Sequential, Pack = 4)] struct PK { public Guid f; public uint p; }
-    [StructLayout(LayoutKind.Explicit)] struct PV { [FieldOffset(0)] public ushort vt; [FieldOffset(8)] public IntPtr p; [FieldOffset(16)] public IntPtr pad; }
-    [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IPS { int GetCount(out uint c); int GetAt(uint i, out PK k); int GetValue(ref PK k, out PV v); int SetValue(ref PK k, ref PV v); int Commit(); }
-    [ComImport, Guid("0000010b-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IPF { void GetClassID(out Guid c); [PreserveSig] int IsDirty(); void Load([MarshalAs(UnmanagedType.LPWStr)] string f, uint mode); void Save([MarshalAs(UnmanagedType.LPWStr)] string f, bool remember); void SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string f); }
-    [ComImport, Guid("00021401-0000-0000-C000-000000000046")] class ShellLink { }
-    public static void Set(string lnk, string id) {
-        var link = new ShellLink();
-        ((IPF)link).Load(lnk, 2);  // read and write
-        var k = new PK { f = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), p = 5 };  // System.AppUserModel.ID
-        var v = new PV { vt = 31, p = Marshal.StringToCoTaskMemUni(id) };
-        var ps = (IPS)link;
-        Marshal.ThrowExceptionForHR(ps.SetValue(ref k, ref v));
-        Marshal.ThrowExceptionForHR(ps.Commit());
-        ((IPF)link).Save(lnk, true);
-        Marshal.FreeCoTaskMem(v.p);
-    }
-}
-"@
-        }
-        [JoshuaLink]::Set($path, $AppId)
-    } catch { Warn "couldn't give the shortcut Joshua's taskbar identity: pinned, it may show the browser's icon" }
 }
 New-Shortcut $StartMenu ""
 Ok "Joshua is in the Start menu"
@@ -351,7 +341,4 @@ if (-not (Test-Path $counted) -and -not $env:JOSHUA_YES) {
 }
 Say "  Open Joshua from the Start menu. It opens at $Url"
 Dim "Everything lives in $HomeDir - stop it with stop.cmd - remove it with uninstall.cmd"
-if ($env:JOSHUA_GUI) {  # the "Install Joshua" window starts Joshua itself, after this script has ended, then closes
-    if (Ask "Start Joshua now?" "y") { [Console]::Out.WriteLine("@@OPEN"); [Console]::Out.Flush() }
-}
-elseif (Ask "Start Joshua now?" "y") { & ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $HomeDir "start.ps1")))) $(if ($env:JOSHUA_YES) { "-NoOpen" } else { "" }) }
+if (Ask "Start Joshua now?" "y") { & ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $HomeDir "start.ps1")))) $(if ($env:JOSHUA_YES) { "-NoOpen" } else { "" }) }
