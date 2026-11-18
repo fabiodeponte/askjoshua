@@ -527,5 +527,20 @@
  "Learn from my past chats": "Ucz się z moich dawnych czatów",
  "Voice": "Głos",
  "Read aloud": "Przeczytaj na głos",
- "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "Przycisk 🔊 pod odpowiedzią czyta ją na głos głosem tego komputera. Wybierz głos dla każdego języka: wybór zostaje na tym komputerze."
+ "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "Przycisk 🔊 pod odpowiedzią czyta ją na głos głosem tego komputera. Wybierz głos dla każdego języka: wybór zostaje na tym komputerze.",
+ "Saved: {name} is among the desks under the message box.": "Zapisano: {name} jest wśród biurek pod polem wiadomości.",
+ "Give the desk a name and write its instructions.": "Nadaj biurku nazwę i napisz jego instrukcje.",
+ "Desk deleted. Its chats stay, at no desk.": "Biurko usunięte. Jego czaty zostają, bez biurka.",
+ "New desk": "Nowe biurko",
+ "Desk": "Biurko",
+ "Instructions": "Instrukcje",
+ "You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple.": "Pracujesz przy biurku kuchennym. Proponuj przepisy z tego, co mam w domu, podawaj ilości dla podanej liczby osób i trzymaj się prostoty.",
+ "Tools at this desk": "Narzędzia tego biurka",
+ "Save desk": "Zapisz biurko",
+ "Delete desk": "Usuń biurko",
+ "Delete this desk? Its chats stay, at no desk.": "Usunąć to biurko? Jego czaty zostają, bez biurka.",
+ "Make a desk of your own: a name, an icon (any emoji), what Joshua should know and do there, and the tools it may use. It appears among the desks under the message box.": "Stwórz własne biurko: nazwę, ikonę (dowolne emoji), co Joshua ma tam wiedzieć i robić oraz narzędzia, których może używać. Pojawi się wśród biurek pod polem wiadomości.",
+ "Icon": "Ikona",
+ "Cooking": "Gotowanie",
+ "Your desks": "Twoje biurka"
 }

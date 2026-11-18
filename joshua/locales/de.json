@@ -527,5 +527,20 @@
  "Learn from my past chats": "Aus meinen bisherigen Chats lernen",
  "Voice": "Stimme",
  "Read aloud": "Vorlesen",
- "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "Die Taste 🔊 unter einer Antwort liest sie vor, mit einer Stimme dieses Computers. Wähle eine Stimme für jede Sprache: Die Wahl bleibt auf diesem Computer."
+ "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "Die Taste 🔊 unter einer Antwort liest sie vor, mit einer Stimme dieses Computers. Wähle eine Stimme für jede Sprache: Die Wahl bleibt auf diesem Computer.",
+ "Saved: {name} is among the desks under the message box.": "Gespeichert: {name} ist bei den Arbeitsplätzen unter dem Nachrichtenfeld.",
+ "Give the desk a name and write its instructions.": "Gib dem Arbeitsplatz einen Namen und schreibe seine Anweisungen.",
+ "Desk deleted. Its chats stay, at no desk.": "Arbeitsplatz gelöscht. Seine Chats bleiben, ohne Arbeitsplatz.",
+ "New desk": "Neuer Arbeitsplatz",
+ "Desk": "Arbeitsplatz",
+ "Instructions": "Anweisungen",
+ "You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple.": "Du arbeitest am Küchen-Arbeitsplatz. Schlage Rezepte mit dem vor, was ich zu Hause habe, gib Mengen für die genannte Personenzahl an und bleib einfach.",
+ "Tools at this desk": "Werkzeuge dieses Arbeitsplatzes",
+ "Save desk": "Arbeitsplatz speichern",
+ "Delete desk": "Arbeitsplatz löschen",
+ "Delete this desk? Its chats stay, at no desk.": "Diesen Arbeitsplatz löschen? Seine Chats bleiben, ohne Arbeitsplatz.",
+ "Make a desk of your own: a name, an icon (any emoji), what Joshua should know and do there, and the tools it may use. It appears among the desks under the message box.": "Erstelle einen eigenen Arbeitsplatz: einen Namen, ein Symbol (beliebiges Emoji), was Joshua dort wissen und tun soll und welche Werkzeuge es nutzen darf. Er erscheint bei den Arbeitsplätzen unter dem Nachrichtenfeld.",
+ "Icon": "Symbol",
+ "Cooking": "Kochen",
+ "Your desks": "Deine Arbeitsplätze"
 }

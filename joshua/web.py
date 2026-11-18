@@ -834,6 +834,35 @@ def starters_html(desk_id):
     return "<div class='starters'>" + cards + "</div>"
 
 
+def my_desk_choices():
+    return [("＋ " + t("New desk"), "")] + [(desks.label(k, i18n.LANG), k) for k, _ in desks.mine()]
+
+
+def my_desk_load(desk_id):
+    d = desks.get(desk_id) if desks.is_mine(desk_id) else None
+    if not d:
+        return "", "", "", [k for k in TOOL_GROUPS if k != "browser"], gr.Button(visible=False)
+    return d.get("icon", ""), desks.text(d["name"], i18n.LANG), d.get("instructions", ""), [k for k in d.get("tools", []) if k in TOOL_GROUPS], gr.Button(visible=True)
+
+
+def my_desk_save(desk_id, icon, name, instructions, tools):
+    if not (name or "").strip() or not (instructions or "").strip():
+        gr.Warning(t("Give the desk a name and write its instructions."))
+        return gr.skip(), gr.skip(), gr.skip()
+    desk_id = desks.save_mine(desk_id if desks.is_mine(desk_id) else "", name, (icon or "").strip()[:4], instructions, tools or [])
+    gr.Info(t("Saved: {name} is among the desks under the message box.", name=name.strip()))
+    return gr.Dropdown(choices=my_desk_choices(), value=desk_id), gr.Radio(choices=desk_choices()), gr.Button(visible=True)
+
+
+def my_desk_delete(desk_id):
+    if desk_id is None:  # you cancelled
+        return (gr.skip(),) * 7
+    if desk_id and desks.is_mine(desk_id):
+        desks.delete_mine(desk_id)
+        gr.Info(t("Desk deleted. Its chats stay, at no desk."))
+    return (gr.Dropdown(choices=my_desk_choices(), value=""), gr.Radio(choices=desk_choices())) + my_desk_load("")
+
+
 def desk_choices():
     return [("💬 " + t("General"), "")] + [(desks.label(k, i18n.LANG), k) for k, _ in desks.desks()]
 
@@ -3048,13 +3077,23 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Desks") + "</h2><div class='msub'>" + t("A desk sets Joshua up for one kind of work: you choose it under the message box. Here you can rewrite what Joshua is told at each desk, in any language. Your version is kept on this computer and updates never overwrite it; \"Restore the default\" brings back Joshua's own.") + "</div>")
                 desk_boxes = []
-                for desk_id, d in desks.desks():
+                for desk_id, d in [x for x in desks.desks() if not x[1].get("mine")]:
                     box_ = gr.Textbox(d["instructions"], lines=10, max_lines=30, label=desks.label(desk_id, i18n.LANG), elem_classes="deskedit")
                     with gr.Row():
                         save_ = gr.Button(t("Save"), size="sm", scale=0, min_width=120)
                         reset_ = gr.Button(t("Restore the default"), size="sm", scale=0, min_width=200)
                         note_ = gr.HTML("<div class='cloudstat'>" + t("Your own version") + "</div>" if desks.edited(desk_id) else "")
                     desk_boxes.append((desk_id, box_, save_, reset_, note_))
+                gr.HTML("<h3 class='msec2'>" + t("Your desks") + "</h3><div class='msub'>" + t("Make a desk of your own: a name, an icon (any emoji), what Joshua should know and do there, and the tools it may use. It appears among the desks under the message box.") + "</div>")
+                my_pick = gr.Dropdown(choices=my_desk_choices(), value="", label=t("Desk"), elem_id="mypick")
+                with gr.Row():
+                    my_icon = gr.Textbox("", label=t("Icon"), placeholder="🌿", max_lines=1, scale=0, min_width=90)
+                    my_name = gr.Textbox("", label=t("Name"), placeholder=t("Cooking"), max_lines=1)
+                my_instr = gr.Textbox("", lines=8, max_lines=30, label=t("Instructions"), placeholder=t("You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple."), elem_classes="deskedit")
+                my_tools = gr.CheckboxGroup([(label, key) for key, (label, _) in TOOL_GROUPS.items()], value=[k for k in TOOL_GROUPS if k != "browser"], label=t("Tools at this desk"), elem_id="mytools")
+                with gr.Row():
+                    my_save = gr.Button(t("Save desk"), size="sm", scale=0, min_width=160, variant="primary")
+                    my_del = gr.Button(t("Delete desk"), size="sm", scale=0, min_width=160, elem_id="mydel", visible=False)
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Access from anywhere") + "</h2><div class='msub'>" + t("Use Joshua from your other computers, phone or tablet, wherever you are, through Tailscale: a free app that links your own devices in a private network. Nothing is opened to the internet.") + "</div>")
                 remote_on = gr.Checkbox(remote_setting(), label=t("Let my devices on Tailscale reach Joshua"))
@@ -3266,6 +3305,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         desks.set_instructions(desk_id, "")
         return desks.default_instructions(desk_id), ""
 
+    my_pick.input(my_desk_load, my_pick, [my_icon, my_name, my_instr, my_tools, my_del])
+    my_save.click(my_desk_save, [my_pick, my_icon, my_name, my_instr, my_tools], [my_pick, desk, my_del])
+    my_del.click(my_desk_delete, my_pick, [my_pick, desk, my_icon, my_name, my_instr, my_tools, my_del],
+                 js="(d) => (d && confirm(" + JS_TEXT(t("Delete this desk? Its chats stay, at no desk.")) + ")) ? d : null")
     for desk_id, box_, save_, reset_, note_ in desk_boxes:
         save_.click(functools.partial(desk_save, desk_id), box_, note_)
         reset_.click(functools.partial(desk_reset, desk_id), outputs=[box_, note_])

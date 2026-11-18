@@ -527,5 +527,20 @@
  "Learn from my past chats": "Apprendre de mes conversations passées",
  "Voice": "Voix",
  "Read aloud": "Lire à voix haute",
- "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "Le bouton 🔊 sous une réponse la lit à voix haute, avec une voix de cet ordinateur. Choisis une voix pour chaque langue : le choix reste sur cet ordinateur."
+ "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "Le bouton 🔊 sous une réponse la lit à voix haute, avec une voix de cet ordinateur. Choisis une voix pour chaque langue : le choix reste sur cet ordinateur.",
+ "Saved: {name} is among the desks under the message box.": "Enregistré : {name} est parmi les bureaux sous la zone de message.",
+ "Give the desk a name and write its instructions.": "Donne un nom au bureau et écris ses instructions.",
+ "Desk deleted. Its chats stay, at no desk.": "Bureau supprimé. Ses conversations restent, sans bureau.",
+ "New desk": "Nouveau bureau",
+ "Desk": "Bureau",
+ "Instructions": "Instructions",
+ "You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple.": "Tu travailles au bureau cuisine. Propose des recettes avec ce que j'ai à la maison, donne les quantités pour le nombre de personnes que je dis et reste simple.",
+ "Tools at this desk": "Outils de ce bureau",
+ "Save desk": "Enregistrer le bureau",
+ "Delete desk": "Supprimer le bureau",
+ "Delete this desk? Its chats stay, at no desk.": "Supprimer ce bureau ? Ses conversations restent, sans bureau.",
+ "Make a desk of your own: a name, an icon (any emoji), what Joshua should know and do there, and the tools it may use. It appears among the desks under the message box.": "Crée ton propre bureau : un nom, une icône (n'importe quel emoji), ce que Joshua doit savoir et faire là, et les outils qu'il peut utiliser. Il apparaît parmi les bureaux sous la zone de message.",
+ "Icon": "Icône",
+ "Cooking": "Cuisine",
+ "Your desks": "Tes bureaux"
 }

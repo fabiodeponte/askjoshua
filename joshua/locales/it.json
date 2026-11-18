@@ -527,5 +527,20 @@
  "Learn from my past chats": "Impara dalle mie chat passate",
  "Voice": "Voce",
  "Read aloud": "Leggi ad alta voce",
- "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "Il pulsante 🔊 sotto una risposta la legge ad alta voce, con una voce di questo computer. Scegli una voce per ogni lingua: la scelta resta su questo computer."
+ "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "Il pulsante 🔊 sotto una risposta la legge ad alta voce, con una voce di questo computer. Scegli una voce per ogni lingua: la scelta resta su questo computer.",
+ "Saved: {name} is among the desks under the message box.": "Salvato: {name} è tra i desk sotto il riquadro dei messaggi.",
+ "Give the desk a name and write its instructions.": "Dai un nome al desk e scrivi le sue istruzioni.",
+ "Desk deleted. Its chats stay, at no desk.": "Desk eliminato. Le sue chat restano, senza desk.",
+ "New desk": "Nuovo desk",
+ "Desk": "Desk",
+ "Instructions": "Istruzioni",
+ "You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple.": "Lavori al desk della cucina. Suggerisci ricette con quello che ho in casa, dai le dosi per il numero di persone che dico e resta semplice.",
+ "Tools at this desk": "Strumenti di questo desk",
+ "Save desk": "Salva il desk",
+ "Delete desk": "Elimina il desk",
+ "Delete this desk? Its chats stay, at no desk.": "Eliminare questo desk? Le sue chat restano, senza desk.",
+ "Make a desk of your own: a name, an icon (any emoji), what Joshua should know and do there, and the tools it may use. It appears among the desks under the message box.": "Crea un desk tuo: un nome, un'icona (qualsiasi emoji), cosa deve sapere e fare Joshua lì e gli strumenti che può usare. Compare tra i desk sotto il riquadro dei messaggi.",
+ "Icon": "Icona",
+ "Cooking": "Cucina",
+ "Your desks": "I tuoi desk"
 }

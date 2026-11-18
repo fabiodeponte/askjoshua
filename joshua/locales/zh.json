@@ -527,5 +527,20 @@
  "Learn from my past chats": "从我过去的聊天中学习",
  "Voice": "语音",
  "Read aloud": "朗读",
- "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "回答下方的 🔊 按钮会用这台电脑上的语音朗读回答。为每种语言选择一个语音：选择保存在这台电脑上。"
+ "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "回答下方的 🔊 按钮会用这台电脑上的语音朗读回答。为每种语言选择一个语音：选择保存在这台电脑上。",
+ "Saved: {name} is among the desks under the message box.": "已保存：{name} 已出现在消息框下方的工作台中。",
+ "Give the desk a name and write its instructions.": "请给工作台起个名字并写下它的说明。",
+ "Desk deleted. Its chats stay, at no desk.": "工作台已删除。它的聊天会保留，但不属于任何工作台。",
+ "New desk": "新工作台",
+ "Desk": "工作台",
+ "Instructions": "说明",
+ "You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple.": "你在烹饪工作台工作。根据我家里有的食材推荐菜谱，按我说的人数给出用量，保持简单。",
+ "Tools at this desk": "此工作台的工具",
+ "Save desk": "保存工作台",
+ "Delete desk": "删除工作台",
+ "Delete this desk? Its chats stay, at no desk.": "删除这个工作台？它的聊天会保留，但不属于任何工作台。",
+ "Make a desk of your own: a name, an icon (any emoji), what Joshua should know and do there, and the tools it may use. It appears among the desks under the message box.": "创建你自己的工作台：名字、图标（任意表情符号）、Joshua 在那里应该知道和做的事，以及它可以使用的工具。它会出现在消息框下方的工作台中。",
+ "Icon": "图标",
+ "Cooking": "烹饪",
+ "Your desks": "你的工作台"
 }

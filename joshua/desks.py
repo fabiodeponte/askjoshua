@@ -2,11 +2,12 @@
 and starter prompts for the empty chat. Everything stays on this computer: desks.json, shipped with Joshua, is the
 default; what the user changes in Settings is kept apart in memory/desk-edits.json, so an update brings new desks
 and better defaults without ever undoing the user's own words."""
-import copy, json, pathlib
+import copy, json, pathlib, re
 
 HERE = pathlib.Path(__file__).parent
 DEFAULT = HERE / "desks.json"
 EDITS = HERE / "memory" / "desk-edits.json"
+MINE = HERE / "memory" / "desks-mine.json"  # desks you made yourself, in Settings
 
 
 def _read(p):
@@ -22,7 +23,39 @@ def data():
     for desk_id, change in _read(EDITS).items():
         if desk_id in found["desks"]:
             found["desks"][desk_id].update(change)
+    for desk_id, d in _read(MINE).items():
+        found["desks"][desk_id] = dict(d, mine=True)
     return found
+
+
+def mine():
+    """Your own desks, as (id, desk)."""
+    return [(k, d) for k, d in desks() if d.get("mine")]
+
+
+def is_mine(desk_id):
+    return desk_id in _read(MINE)
+
+
+def save_mine(desk_id, name, icon, instructions, tools):
+    """Creates or changes one of your desks; returns its id."""
+    found = _read(MINE)
+    if not desk_id:
+        base = "my-" + (re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "desk")
+        desk_id, n = base, 2
+        while desk_id in found or desk_id in _read(DEFAULT).get("desks", {}):
+            desk_id, n = f"{base}-{n}", n + 1
+    order = found.get(desk_id, {}).get("order", 50 + len(found))
+    found[desk_id] = {"order": order, "icon": icon.strip(), "name": name.strip(), "tools": list(tools), "instructions": instructions.strip(), "starters": []}
+    MINE.parent.mkdir(exist_ok=True)
+    MINE.write_text(json.dumps(found, ensure_ascii=False, indent=1), encoding="utf-8")
+    return desk_id
+
+
+def delete_mine(desk_id):
+    found = _read(MINE)
+    found.pop(desk_id, None)
+    MINE.write_text(json.dumps(found, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def desks():
