@@ -641,5 +641,8 @@
  "Remove from the library": "Usuń z biblioteki",
  "Remove this book from the library? Your file isn't touched.": "Usunąć tę książkę z biblioteki? Twój plik pozostaje nietknięty.",
  "Speed": "Szybkość",
- "{p}% read": "przeczytano {p}%"
+ "{p}% read": "przeczytano {p}%",
+ "Volume": "Głośność",
+ "Pause between paragraphs": "Pauza między akapitami",
+ "No pause": "Bez pauzy"
 }

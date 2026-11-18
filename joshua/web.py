@@ -2,7 +2,7 @@ import functools, os, sys
 os.environ.setdefault("GRADIO_RUN_HISTORY", "false")  # see LAUNCH_EXTRA
 if os.environ.get("JOSHUA_LOG"):  # started without a window (Windows): what Joshua prints goes to this file instead
     sys.stdout = sys.stderr = open(os.environ["JOSHUA_LOG"], "a", buffering=1, encoding="utf-8", errors="replace")
-import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, subprocess, sys, threading, time, zipfile, urllib.parse
+import copy, hashlib, html, inspect, json, os, pathlib, platform, re, secrets, shutil, subprocess, sys, threading, time, zipfile, urllib.parse
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
@@ -2267,9 +2267,75 @@ def rd_remove(book_id):
 
 def rd_save(value):
     """The browser reports each paragraph it finishes: that's your place in the book."""
-    book_id, _, pos = (value or "").partition("|")
+    book_id, _, rest = (value or "").partition("|")
+    pos, _, settings = rest.partition("|")
     if book_id and pos.isdigit():
-        reader.set_pos(book_id, int(pos))
+        try:
+            settings = json.loads(settings) if settings else None
+        except ValueError:
+            settings = None
+        reader.set_pos(book_id, int(pos), settings)
+
+
+# ---------- the Mac's own voices ----------
+# Browsers show web pages only some of the Mac's voices: Firefox none of the Premium ones. So on a Mac Joshua speaks
+# with macOS itself: 'say' turns a paragraph into a small audio file, and the page plays it. That works in any browser,
+# and on the phone too. Elsewhere the browser's voices are used.
+
+SAY = os.environ.get("JOSHUA_SAY") or (shutil.which("say") if sys.platform == "darwin" else None)  # JOSHUA_SAY: a stand-in for tests
+TTS_DIR = ROOT / ".tts"  # recent audio, so a paragraph read twice is ready at once
+NOVELTY = {"Albert", "Bad News", "Bahh", "Bells", "Boing", "Bubbles", "Cellos", "Wobble", "Good News", "Jester", "Junior", "Organ",
+           "Superstar", "Ralph", "Trinoids", "Whisper", "Zarvox", "Fred", "Kathy"}
+
+
+@functools.lru_cache(maxsize=1)
+def mac_voices():
+    """The Mac's voices for reading: name and language (en_US), without the novelty ones."""
+    if not SAY:
+        return []
+    try:
+        out = subprocess.run([SAY, "-v", "?"], capture_output=True, text=True, timeout=20).stdout
+    except Exception:
+        return []
+    voices = []
+    for line in out.splitlines():
+        m = re.match(r"^(.+?)\s+([a-z]{2,3}_[A-Za-z0-9]+)\s+#", line)
+        if m and re.sub(r"\s*\(.*\)$", "", m.group(1).strip()) not in NOVELTY:
+            voices.append({"name": m.group(1).strip(), "lang": m.group(2).replace("_", "-")})
+    return voices
+
+
+def tts_voices() -> list:
+    """For the page: the Mac's voices, or nothing (then the browser's are used)."""
+    return mac_voices()
+
+
+def tts(text: str, voice: str) -> str:
+    """A paragraph spoken by the Mac, as the address of an audio file for the page."""
+    names = {v["name"] for v in mac_voices()}
+    text = (text or "").strip()[:4000]
+    if not SAY or not text or voice not in names:
+        return ""
+    TTS_DIR.mkdir(exist_ok=True)
+    key = hashlib.sha1((voice + "\n" + text).encode()).hexdigest()[:20]
+    out = TTS_DIR / f"{key}.m4a"
+    if not out.exists():
+        src = TTS_DIR / f"{key}.txt"
+        src.write_text(text, encoding="utf-8")  # read from a file: the text never becomes a command-line option
+        tmp = TTS_DIR / f"{key}.part.m4a"
+        try:
+            subprocess.run([SAY, "-v", voice, "-f", str(src), "-o", str(tmp), "--file-format=m4af", "--data-format=aac"], timeout=120, check=True,
+                           capture_output=True)
+            tmp.replace(out)
+        except Exception:
+            return ""
+        finally:
+            src.unlink(missing_ok=True)
+            tmp.unlink(missing_ok=True)
+        files = sorted(TTS_DIR.glob("*.m4a"), key=lambda f: f.stat().st_mtime)
+        for f in files[:-400]:  # keep the latest 400 paragraphs
+            f.unlink(missing_ok=True)
+    return "/gradio_api/file=" + urllib.parse.quote(out.as_posix(), safe="/:")
 
 
 LIVE_EVERY = 1.5  # seconds between redraws of a chat while Joshua writes it
@@ -2899,6 +2965,10 @@ body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !importan
 #readpage #rdbar button svg {width: 100%; height: 100%}
 #readpage #rdbar button#rdplay {width: 46px; color: var(--brand)}
 #readpage #rdbar select {height: 34px; border-radius: 8px; border: 1px solid var(--border-color-primary); background: transparent; color: inherit; padding: 0 6px}
+#readpage #rdbar #rdvoice {max-width: 13rem}
+body:not(#a):not(#b):not(#c):not(#d) #readpage #rdbar select {appearance: none; -webkit-appearance: none; height: 34px; border: 1px solid var(--line) !important; border-radius: 8px !important; padding: 0 26px 0 10px !important; background: transparent url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath fill='%23888' d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E\") no-repeat right 8px center / 11px !important; color: inherit !important; font: inherit; font-size: .92rem; cursor: pointer}
+#readpage #rdbar .rdopt {display: inline-flex; align-items: center; gap: 4px; opacity: .85}
+#readpage #rdbar .rdopt input {width: 80px; accent-color: var(--brand)}
 #readpage #rdprog {margin-left: 6px; font-variant-numeric: tabular-nums; opacity: .8}
 #readpage #rdhint {margin-left: auto; opacity: .55; font-size: .85rem}
 #readpage #rdbook {max-width: 44rem; margin: 6px auto 40vh; font-size: 1.08rem; line-height: 1.65}
@@ -3527,6 +3597,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                             "<button id='rdplay' title='" + html.escape(t("Read aloud") + " / " + t("Pause")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M240,128a15.74,15.74,0,0,1-7.6,13.51L88.32,229.65a16,16,0,0,1-16.2.3A15.86,15.86,0,0,1,64,216.13V39.87a15.86,15.86,0,0,1,8.12-13.82,16,16,0,0,1,16.2.3L232.4,114.49A15.74,15.74,0,0,1,240,128Z'/></svg></button>"
                             "<button id='rdnext' title='" + html.escape(t("Next paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,40V216a8,8,0,0,1-16,0V146.77L72.43,221.55A15.95,15.95,0,0,1,48,208.12V47.88A15.95,15.95,0,0,1,72.43,34.45L192,109.23V40a8,8,0,0,1,16,0Z'/></svg></button>"
                             "<select id='rdrate' title='" + html.escape(t("Speed")) + "'>" + "".join(f"<option value='{r}'>{r}×</option>" for r in ("0.8", "0.9", "1", "1.1", "1.25", "1.5", "1.75", "2")) + "</select>"
+                            "<select id='rdvoice' title='" + html.escape(t("Voice")) + "'></select>"
+                            "<label class='rdopt' title='" + html.escape(t("Volume")) + "'>🔊 <input id='rdvol' type='range' min='0.1' max='1' step='0.05' value='1'></label>"
+                            "<select id='rdgap' title='" + html.escape(t("Pause between paragraphs")) + "'>" + "".join(f"<option value='{g}'>{lab}</option>" for g, lab in (("0", t("No pause")), ("0.5", "½ s"), ("1", "1 s"), ("2", "2 s"))) + "</select>"
                             "<span id='rdprog'></span><span id='rdhint'>" + html.escape(t("Click a paragraph to read from there.")) + "</span></div>")
         with gr.Column(visible=False, scale=5, elem_id="readpage") as read_panel:
             with gr.Row():
@@ -3896,6 +3969,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
            tw_mlist, tw_mpick, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, m_save, m_remove, tw_lead, tw_review]
     W_IN = [tw_state, tw_step, tw_sel, tw_name, tw_icon, tw_purpose, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, tw_lead]
     team_btn.click(team_page, outputs=TM_PAGE)
+    gr.api(tts_voices, api_name="voices", queue=False)
+    gr.api(tts, api_name="tts", concurrency_limit=2)
     RD = [rd_list, rd_pick, rd_controls, rd_libcol, rd_view, rd_book]
     read_btn.click(rd_library, outputs=RD)
     rd_lib.click(rd_library, outputs=RD)
@@ -4104,6 +4179,41 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           setTimeout(() => inp.focus(), 60); };
         document.addEventListener('click', (e) => { if (e.target.closest('.wopr .wline')) armed = true; }, true);
         new MutationObserver(() => { clearTimeout(window.joshuaWopr); window.joshuaWopr = setTimeout(attach, 200); }).observe(document.body, {childList: true, subtree: true}); }""")
+    demo.load(None, None, None, js="""() => {  // Joshua's voice, for 🔊 and the Reader: on a Mac the Mac speaks (with its Premium voices), elsewhere the browser
+        const V = window.joshuaVoice = {mac: null, token: 0, el: new Audio()};
+        const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+        const call = async (name, data) => { try {  // Gradio's own way to call a Python function from the page: ask, then collect the answer
+            const r = await fetch('/gradio_api/call/' + name, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data})});
+            const id = (await r.json()).event_id, txt = await (await fetch('/gradio_api/call/' + name + '/' + id)).text();
+            const m = txt.match(/event: complete\\s*\\ndata: (.*)/); return m ? JSON.parse(m[1])[0] : null; } catch (e) { return null; } };
+        V.ready = call('voices', []).then(v => { V.mac = v && v.length ? v : null; });
+        const saved = (k) => { try { return localStorage.getItem('joshua-voice-' + k) } catch (e) { return null } };
+        V.macVoice = (k, name) => { const mine = (V.mac || []).filter(v => v.lang.toLowerCase().startsWith(k));
+          const v = (name && mine.find(v => v.name === name)) || mine.find(v => v.name === saved(k)) || mine.find(v => /premium/i.test(v.name)) || mine.find(v => /enhanced/i.test(v.name))
+            || mine.find(v => /^(Samantha|Alice|Thomas|Anna|Zosia|Tingting)/.test(v.name)) || mine[0]; return v ? v.name : ''; };
+        const made = new Map();  // paragraphs already turned into audio, or on their way
+        V.url = (text, k, name) => { const who = V.macVoice(k, name), key = who + '|' + text; if (!made.has(key)) { made.set(key, call('tts', [text, who]));
+            if (made.size > 60) made.delete(made.keys().next().value); } return made.get(key); };
+        V.prefetch = (text, k, name) => { if (V.mac && text) V.url(text, k, name); };
+        V.list = (k) => V.mac ? V.mac.filter(v => v.lang.toLowerCase().startsWith(k)).map(v => v.name)
+          : (window.speechSynthesis ? speechSynthesis.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith(k)).map(v => v.name) : []);
+        V.current = (k, name) => V.mac ? V.macVoice(k, name) : ((name && window.speechSynthesis && speechSynthesis.getVoices().find(v => v.name === name)) || (window.joshuaVoiceFor ? window.joshuaVoiceFor(k) : null) || {}).name || '';
+        V.unlock = () => { const a = V.el; if (a.paused) { a.src = SILENT; a.play().catch(() => {}); } };  // a sound started by your click lets the next ones play (Safari, phones)
+        V.stop = () => { V.token++; V.el.onended = V.el.onerror = null; V.el.pause(); if (window.speechSynthesis) speechSynthesis.cancel(); };
+        const pieces = (t) => { const out = []; (t.match(/[^.!?。！？;:]+[.!?。！？;:]*["'»”)\\]]*\\s*/g) || [t]).forEach(s => {
+            while (s.length > 220) { let k = s.lastIndexOf(', ', 220); if (k < 80) k = s.lastIndexOf(' ', 220); if (k < 40) k = 220; out.push(s.slice(0, k + 1)); s = s.slice(k + 1); }
+            if (s.trim()) out.push(s); }); return out; };  // browsers cut off long texts: short pieces
+        V.say = async (text, k, rate, onend, opts) => {  // says one piece of text, then calls onend (unless stopped meanwhile); opts: voice, volume
+          opts = opts || {};
+          const tok = ++V.token; let fired = false; const done = () => { if (!fired && tok === V.token) { fired = true; if (onend) onend(); } };
+          await V.ready; if (tok !== V.token) return;
+          if (V.mac) { const url = await V.url(text, k, opts.voice); if (tok !== V.token) return; if (!url) return done();
+            const a = V.el; a.onended = a.onerror = null; a.src = url; a.playbackRate = rate || 1; a.preservesPitch = true; a.volume = opts.volume == null ? 1 : opts.volume; a.onended = done; a.onerror = done; a.play().catch(done); return; }
+          const synth = window.speechSynthesis; if (!synth) return done(); synth.cancel();
+          const v = (opts.voice && synth.getVoices().find(x => x.name === opts.voice)) || (window.joshuaVoiceFor ? window.joshuaVoiceFor(k) : null), parts = pieces(text);
+          parts.forEach((p, i) => { const u = new SpeechSynthesisUtterance(p.trim()); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = k; u.rate = rate || 1;
+            u.volume = opts.volume == null ? 1 : opts.volume;
+            if (i === parts.length - 1) u.onend = done; synth.speak(u); }); }; }""")
     demo.load(None, None, None, js="""() => {  // 🔊 under each answer: reads the answer aloud with a voice of this computer, in the answer's language
         const synth = window.speechSynthesis; if (!synth) return;
         const ICON = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M154.64,26.61a6,6,0,0,0-6.32.65L77.94,82H32A14,14,0,0,0,18,96v64a14,14,0,0,0,14,14H77.94l70.38,54.74A6,6,0,0,0,158,224V32A6,6,0,0,0,154.64,26.61ZM30,160V96a2,2,0,0,1,2-2H74v68H32A2,2,0,0,1,30,160Zm116,51.73L86,165.07V90.93l60-46.66Zm50.53-108.85a38,38,0,0,1,0,50.24,6,6,0,1,1-9-7.94,26,26,0,0,0,0-34.37,6,6,0,0,1,9-7.93ZM246,128a77.86,77.86,0,0,1-19.86,52,6,6,0,1,1-8.94-8,66,66,0,0,0,0-88,6,6,0,1,1,8.94-8A77.86,77.86,0,0,1,246,128Z"/></svg>', TITLE = """ + JS_TEXT(t("Read aloud")) + """, SAMPLE = {it: 'Ciao, sono Joshua.', en: 'Hello, I am Joshua.', fr: 'Bonjour, je suis Joshua.', de: 'Hallo, ich bin Joshua.', pl: 'Cześć, jestem Joshua.', zh: '你好，我是Joshua。'};
@@ -4124,11 +4234,13 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           return out.join('\\n').replace(/https?:\\/\\/\\S+/g, '').replace(/[*#_`>|]/g, ' ').replace(/\\[(\\d+)\\]/g, '').replace(/\\s+\\n/g, '\\n').trim(); };
         window.joshuaVoiceFor = (k) => voiceFor(k);
         let current = null;
-        const stop = () => { synth.cancel(); if (current) current.classList.remove('speaking'); current = null; };
-        const speak = (text, k, btn) => { if (window.jrPause) window.jrPause(); stop(); const v = voiceFor(k); current = btn; if (btn) btn.classList.add('speaking');
-          const parts = text.match(/[^.!?。！？\\n]+[.!?。！？]*\\s*/g) || [text];  // sentence by sentence: long texts get cut off in one piece
-          parts.forEach((p, i) => { const u = new SpeechSynthesisUtterance(p.trim()); if (v) { u.voice = v; u.lang = v.lang; }
-            if (i === parts.length - 1) u.onend = () => { if (current === btn) stop(); }; synth.speak(u); }); };
+        const stop = () => { window.joshuaVoice.stop(); if (current) current.classList.remove('speaking'); current = null; };
+        const blocks = (t) => { const out = []; t.split(/\\n+/).forEach(p => { p = p.trim(); if (!p) return;  // paragraphs, joined up to ~600 characters
+            if (out.length && out[out.length - 1].length + p.length < 600) out[out.length - 1] += '\\n' + p; else out.push(p); }); return out.length ? out : [t]; };
+        const speak = (text, k, btn) => { if (window.jrPause) window.jrPause(); stop(); current = btn; if (btn) btn.classList.add('speaking');
+          const V = window.joshuaVoice, parts = blocks(text); let i = 0; V.unlock();
+          const next = () => { if (current !== btn) return; if (i >= parts.length) return stop(); if (parts[i + 1]) V.prefetch(parts[i + 1], k); V.say(parts[i++], k, 1, next); };
+          next(); };
         const add = () => document.querySelectorAll('#chat .message-buttons').forEach(bar => {
           if (bar.querySelector('.speak')) return;
           let row = bar.previousElementSibling; while (row && !row.querySelector('.message')) row = row.previousElementSibling;
@@ -4136,53 +4248,68 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           const b = document.createElement('button'); b.className = 'speak icon-button'; b.type = 'button'; b.title = TITLE; b.setAttribute('aria-label', TITLE); b.innerHTML = ICON;
           b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (current === b) return stop(); const txt = clean(row); if (txt) speak(txt, lang(txt), b); });
           const copy = bar.querySelector("button[aria-label='Copy message']"); (copy ? copy.parentElement : bar).appendChild(b); });
-        const fill = () => document.querySelectorAll('#voicepick select').forEach(sel => { const k = sel.dataset.lang, vs = synth.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith(k));
-          if (sel.options.length === vs.length + 1) return; const cur = voiceFor(k);
-          sel.innerHTML = '<option value="">—</option>' + vs.map(v => '<option' + (cur && v.name === cur.name ? ' selected' : '') + '>' + v.name + '</option>').join(''); });
+        const fill = () => document.querySelectorAll('#voicepick select').forEach(sel => { const k = sel.dataset.lang, V = window.joshuaVoice;
+          const names = V.mac ? V.mac.filter(v => v.lang.toLowerCase().startsWith(k)).map(v => v.name) : synth.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith(k)).map(v => v.name);
+          if (sel.dataset.n === String(names.length) + !!V.mac) return; sel.dataset.n = String(names.length) + !!V.mac;
+          const cur = V.mac ? V.macVoice(k) : (voiceFor(k) || {}).name;
+          sel.innerHTML = '<option value="">—</option>' + names.map(n => '<option' + (n === cur ? ' selected' : '') + '>' + n + '</option>').join(''); });
+        window.joshuaVoice.ready.then(fill);
         document.addEventListener('change', (e) => { const sel = e.target.closest('#voicepick select'); if (!sel) return; try { localStorage.setItem('joshua-voice-' + sel.dataset.lang, sel.value) } catch (x) {} });
         document.addEventListener('click', (e) => { const t = e.target.closest('#voicepick .vtest'); if (!t) return; e.preventDefault(); speak(SAMPLE[t.dataset.lang], t.dataset.lang, null); }, true);
         synth.onvoiceschanged = fill;
         new MutationObserver(() => { clearTimeout(window.joshuaSpeak); window.joshuaSpeak = setTimeout(() => { add(); fill(); }, 250); }).observe(document.body, {childList: true, subtree: true}); }""")
     demo.load(None, None, None, js="""() => {  // the Reader: reads the open book paragraph by paragraph, and tells Joshua each paragraph it finishes
-        const synth = window.speechSynthesis; if (!synth) return;
+        const V = window.joshuaVoice;
         const PAUSE = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48V208a16,16,0,0,1-16,16H160a16,16,0,0,1-16-16V48a16,16,0,0,1,16-16h40A16,16,0,0,1,216,48ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Z"/></svg>';
-        const R = window.jr = {id: null, i: 0, texts: [], lang: '', playing: false, token: 0, rate: 1};
+        const R = window.jr = {id: null, i: 0, texts: [], lang: '', playing: false, token: 0, rate: 1, voice: '', volume: 1, gap: 0};
         try { R.rate = +(localStorage.getItem('joshua-reader-rate') || 1) } catch (e) {}
         let PLAY = null;
         const book = () => document.querySelector('#rdbook');
         const para = (i) => { const b = book(); return b && b.dataset.id === R.id ? b.querySelector('p[data-i="' + i + '"]') : null; };
         const save = () => { const box = document.querySelector('#rdpos textarea, #rdpos input'); if (!box || !R.id) return;
-          box.value = R.id + '|' + R.i; box.dispatchEvent(new Event('input', {bubbles: true})); };
+          box.value = R.id + '|' + R.i + '|' + JSON.stringify({voice: R.voice, rate: R.rate, volume: R.volume, gap: R.gap}); box.dispatchEvent(new Event('input', {bubbles: true})); };
+        const controls = () => {  // the book's own voice, speed, volume and pause, in the bar
+          const vs = document.querySelector('#rdvoice'); if (vs) { const names = V.list(R.lang || 'en'), cur = V.current(R.lang || 'en', R.voice), sig = names.join('|') + '>' + cur;
+            if (vs.dataset.sig !== sig) { vs.dataset.sig = sig; vs.innerHTML = names.map(n => '<option' + (n === cur ? ' selected' : '') + '>' + n + '</option>').join('') || '<option>—</option>'; } }
+          const vol = document.querySelector('#rdvol'); if (vol && document.activeElement !== vol) vol.value = R.volume;
+          const gp = document.querySelector('#rdgap'); if (gp) gp.value = String(R.gap); };
         const show = (scroll) => { const b = book(); if (b && b.dataset.id === R.id) {
             b.querySelectorAll('p.rdnow').forEach(p => p.classList.remove('rdnow')); const p = para(R.i);
             if (p) { p.classList.add('rdnow'); if (scroll) p.scrollIntoView({block: 'center', behavior: 'smooth'}); } }
           const n = R.texts.length, pr = document.querySelector('#rdprog'); if (pr && n) pr.textContent = Math.round(100 * R.i / Math.max(n - 1, 1)) + '%  ·  ' + (R.i + 1) + ' / ' + n;
           const pb = document.querySelector('#rdplay'); if (pb) { if (!PLAY) PLAY = pb.innerHTML; pb.innerHTML = R.playing ? PAUSE : PLAY; }
           const sel = document.querySelector('#rdrate'); if (sel && +sel.value !== R.rate) sel.value = String(R.rate); };
-        const pieces = (t) => { const out = []; (t.match(/[^.!?。！？;:]+[.!?。！？;:]*["'»”)\\]]*\\s*/g) || [t]).forEach(s => {
-            while (s.length > 220) { let k = s.lastIndexOf(', ', 220); if (k < 80) k = s.lastIndexOf(' ', 220); if (k < 40) k = 220; out.push(s.slice(0, k + 1)); s = s.slice(k + 1); }
-            if (s.trim()) out.push(s); }); return out; };  // short pieces: browsers cut off long ones
         const say = () => { if (!R.playing) return; if (R.i >= R.texts.length) { R.playing = false; R.i = R.texts.length - 1; show(false); return; }
-          show(true); const tok = ++R.token, v = window.joshuaVoiceFor ? window.joshuaVoiceFor(R.lang || 'en') : null, parts = pieces(R.texts[R.i]);
-          parts.forEach((t, k) => { const u = new SpeechSynthesisUtterance(t.trim()); if (v) { u.voice = v; u.lang = v.lang; } else if (R.lang) u.lang = R.lang; u.rate = R.rate;
-            if (k === parts.length - 1) u.onend = () => { if (tok !== R.token || !R.playing) return; R.i++; save(); say(); };
-            synth.speak(u); }); };
-        const play = () => { if (!R.texts.length) return; R.playing = true; R.token++; synth.cancel(); say(); };
-        window.jrPause = () => { if (!R.playing) return; R.playing = false; R.token++; synth.cancel(); save(); show(false); };
-        const jump = (i) => { R.i = Math.max(0, Math.min(i, R.texts.length - 1)); R.token++; synth.cancel(); save(); if (R.playing) say(); else show(true); };
+          show(true); const tok = ++R.token, k = R.lang || 'en';
+          if (R.texts[R.i + 1]) V.prefetch(R.texts[R.i + 1], k, R.voice);  // the next paragraph gets ready while this one is read
+          V.say(R.texts[R.i], k, R.rate, () => { if (tok !== R.token || !R.playing) return; R.i++; save(); setTimeout(() => { if (tok === R.token) say(); }, R.gap * 1000); },
+                {voice: R.voice, volume: R.volume}); };
+        const play = () => { if (!R.texts.length) return; R.playing = true; R.token++; V.stop(); V.unlock(); say(); };
+        window.jrPause = () => { if (!R.playing) return; R.playing = false; R.token++; V.stop(); save(); show(false); };
+        const jump = (i) => { R.i = Math.max(0, Math.min(i, R.texts.length - 1)); R.token++; V.stop(); save(); if (R.playing) { V.unlock(); say(); } else show(true); };
         document.addEventListener('click', (e) => {
           if (e.target.closest('#rdplay')) { e.preventDefault(); return R.playing ? window.jrPause() : play(); }
           if (e.target.closest('#rdprev')) { e.preventDefault(); return jump(R.i - 1); }
           if (e.target.closest('#rdnext')) { e.preventDefault(); return jump(R.i + 1); }
-          const p = e.target.closest('#rdbook p[data-i]'); if (p && !getSelection().toString()) { R.i = +p.dataset.i; R.playing = true; R.token++; synth.cancel(); save(); say(); } }, true);
-        document.addEventListener('change', (e) => { if (!e.target.closest('#rdrate')) return; R.rate = +e.target.value;
-          try { localStorage.setItem('joshua-reader-rate', String(R.rate)) } catch (x) {} if (R.playing) { R.token++; synth.cancel(); say(); } });
+          const p = e.target.closest('#rdbook p[data-i]'); if (p && !getSelection().toString()) { R.i = +p.dataset.i; R.playing = true; R.token++; V.stop(); V.unlock(); save(); say(); } }, true);
+        const restart = () => { if (R.playing) { R.token++; V.stop(); V.unlock(); say(); } };
+        document.addEventListener('change', (e) => {
+          if (e.target.closest('#rdvoice')) { R.voice = e.target.value; save(); return restart(); }
+          if (e.target.closest('#rdgap')) { R.gap = +e.target.value; return save(); }
+          if (e.target.closest('#rdvol')) return save(); });
+        document.addEventListener('input', (e) => { if (!e.target.closest('#rdvol')) return; R.volume = +e.target.value; if (V.mac) V.el.volume = R.volume; });
+        document.addEventListener('change', (e) => { if (!e.target.closest('#rdrate')) return; R.rate = +e.target.value; save();
+          try { localStorage.setItem('joshua-reader-rate', String(R.rate)) } catch (x) {}
+          if (R.playing && V.mac) V.el.playbackRate = R.rate; else if (R.playing) { R.token++; V.stop(); say(); } });
         setInterval(() => { const b = book(); if (!b) return;
           if (b.dataset.id !== R.id) {  // another book opened: start where you left it
             if (R.playing) window.jrPause();
             R.id = b.dataset.id; R.lang = b.dataset.lang || ''; R.i = +b.dataset.pos || 0; R.texts = [...b.querySelectorAll('p[data-i]')].map(p => p.textContent);
+            let o = {}; try { o = JSON.parse(b.dataset.settings || '{}') } catch (x) {}
+            R.voice = o.voice || ''; R.volume = o.volume == null ? 1 : +o.volume; R.gap = +o.gap || 0; if (o.rate) R.rate = +o.rate;
+            V.ready.then(controls);
             setTimeout(() => show(true), 150);
-          } else if (!b.querySelector('p.rdnow') || !document.querySelector('#rdprog').textContent) show(false); }, 500);
+          } else { if (!b.querySelector('p.rdnow') || !document.querySelector('#rdprog').textContent) show(false); controls(); } }, 500);
         window.addEventListener('pagehide', () => { if (R.playing) save(); }); }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // a cost box closes when you click anywhere else; one open at a time
         document.querySelectorAll('details.mcost[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });

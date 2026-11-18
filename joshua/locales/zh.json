@@ -641,5 +641,8 @@
  "Remove from the library": "从书库移除",
  "Remove this book from the library? Your file isn't touched.": "从书库移除这本书？你的文件不会受影响。",
  "Speed": "语速",
- "{p}% read": "已读 {p}%"
+ "{p}% read": "已读 {p}%",
+ "Volume": "音量",
+ "Pause between paragraphs": "段落之间的停顿",
+ "No pause": "不停顿"
 }

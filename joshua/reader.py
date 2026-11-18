@@ -238,10 +238,13 @@ def books():
     return sorted(out, key=lambda b: -b.get("opened", 0))
 
 
-def set_pos(book_id, pos):
+def set_pos(book_id, pos, settings=None):
+    """Your place in the book, and the voice, speed, volume and pause you chose for it."""
     book = get(book_id)
     if book:
         book["pos"] = max(0, min(int(pos), len(book["paras"]) - 1))
+        if isinstance(settings, dict):
+            book["settings"] = {k: settings[k] for k in ("voice", "rate", "volume", "gap") if k in settings}
         book["opened"] = time.time()
         _file(book_id).write_text(json.dumps(book, ensure_ascii=False), encoding="utf-8")
 
@@ -258,4 +261,4 @@ def page(book):
     """The reading view: every paragraph, numbered, with the place to continue from. The browser does the reading."""
     paras = "".join(f"<p data-i='{i}'>{html.escape(p)}</p>" for i, p in enumerate(book["paras"]))
     return (f"<div id='rdbook' data-id='{book['id']}' data-lang='{html.escape(book.get('lang') or '')}' data-pos='{book.get('pos', 0)}' "
-            f"data-count='{len(book['paras'])}'><h2 class='rdtitle'>{html.escape(book['title'])}</h2>{paras}</div>")
+            f"data-count='{len(book['paras'])}' data-settings='{html.escape(json.dumps(book.get('settings', {})), quote=True)}'><h2 class='rdtitle'>{html.escape(book['title'])}</h2>{paras}</div>")
