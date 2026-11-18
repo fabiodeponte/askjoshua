@@ -4113,7 +4113,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           const w = (' ' + txt.toLowerCase().replace(/[^\\p{L}\\s]/gu, ' ') + ' ').split(/\\s+/).slice(0, 400); let best = 'en', top = 0;
           for (const [k, list] of Object.entries(WORDS)) { const n = w.filter(x => x && list.includes(' ' + x + ' ')).length; if (n > top) { best = k; top = n; } } return best; };
         const voiceFor = (k) => { const vs = synth.getVoices(); let name = null; try { name = localStorage.getItem('joshua-voice-' + k) } catch (e) {}
-          return vs.find(v => v.name === name) || (PREFER[k] || []).map(p => vs.find(v => v.name.startsWith(p))).find(Boolean) || vs.find(v => v.lang && v.lang.toLowerCase().startsWith(k)) || null; };
+          const mine = vs.filter(v => v.lang && v.lang.toLowerCase().startsWith(k));  // a Premium or Enhanced voice (a free download in the Mac's settings) sounds far more natural
+          const best = mine.find(v => /premium/i.test(v.name)) || mine.find(v => /enhanced|neural|natural/i.test(v.name));
+          return vs.find(v => v.name === name) || best || (PREFER[k] || []).map(p => vs.find(v => v.name.startsWith(p))).find(Boolean) || mine[0] || null; };
         const clean = (row) => { const c = row.cloneNode(true);
           const leaves = [...c.querySelectorAll('.message')].filter(m => !m.querySelector('.message') && !m.querySelector('.thought-group'));  // the answer, not the thinking, sources, steps
           leaves.forEach(m => m.querySelectorAll('pre, table, button, svg, .ji').forEach(x => x.remove()));  // nor code, tables, icons
