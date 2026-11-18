@@ -524,5 +524,8 @@
  "All your chats have already been read.": "你的所有聊天都已读过。",
  "Reading your chats: {k} of {n} · {found} new notes so far": "正在读取聊天：第 {k} 个，共 {n} 个 · 目前新增 {found} 条笔记",
  "Reads each chat you've had so far, once, with a model on this computer when you have one, and adds what it learns about you to these notes. It can take a few minutes.": "把你至今的每个聊天读一遍（有本地模型时用本地模型），并把了解到的关于你的信息加入这些笔记。可能需要几分钟。",
- "Learn from my past chats": "从我过去的聊天中学习"
+ "Learn from my past chats": "从我过去的聊天中学习",
+ "Voice": "语音",
+ "Read aloud": "朗读",
+ "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "回答下方的 🔊 按钮会用这台电脑上的语音朗读回答。为每种语言选择一个语音：选择保存在这台电脑上。"
 }

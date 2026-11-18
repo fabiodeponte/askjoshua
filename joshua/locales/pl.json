@@ -524,5 +524,8 @@
  "All your chats have already been read.": "Wszystkie twoje czaty zostały już przeczytane.",
  "Reading your chats: {k} of {n} · {found} new notes so far": "Czytanie czatów: {k} z {n} · dotąd {found} nowych notatek",
  "Reads each chat you've had so far, once, with a model on this computer when you have one, and adds what it learns about you to these notes. It can take a few minutes.": "Czyta raz każdy twój dotychczasowy czat, modelem na tym komputerze, jeśli go masz, i dodaje do tych notatek to, czego się o tobie dowie. Może to potrwać kilka minut.",
- "Learn from my past chats": "Ucz się z moich dawnych czatów"
+ "Learn from my past chats": "Ucz się z moich dawnych czatów",
+ "Voice": "Głos",
+ "Read aloud": "Przeczytaj na głos",
+ "The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.": "Przycisk 🔊 pod odpowiedzią czyta ją na głos głosem tego komputera. Wybierz głos dla każdego języka: wybór zostaje na tym komputerze."
 }

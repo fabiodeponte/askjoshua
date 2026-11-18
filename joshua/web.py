@@ -2405,6 +2405,15 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+/* the 🔊 button under answers, and the voice choices in Settings */
+#chat button.speak {display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--dim); cursor: pointer; padding: 4px; border-radius: 6px}
+#chat button.speak svg {width: 15px; height: 15px}
+#chat button.speak:hover {color: var(--ink); background: var(--soft)}
+#chat button.speak.speaking {color: var(--brand) !important; animation: busyblink 1.2s ease-in-out infinite}
+#voicepick {display: grid; gap: 6px; margin-top: 6px}
+#voicepick .vrow {display: grid; grid-template-columns: 7rem 1fr auto; gap: 8px; align-items: center}
+#voicepick select {padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit}
+#voicepick .vtest {background: var(--soft); border: none; border-radius: 8px; padding: 5px 10px; cursor: pointer; color: var(--ink)}
 /* a chat Joshua is working on: a green dot that blinks next to its title */
 body:not(#a):not(#b):not(#c):not(#d) #convs label span.ji-busy, body:not(#a):not(#b):not(#c):not(#d) #convs label span.ji-busy * {color: #2e8b3e !important; fill: #2e8b3e !important; opacity: 1}
 body:not(#a):not(#b):not(#c):not(#d) #convs label span.ji-busy {animation: busyblink 1.2s ease-in-out infinite; -webkit-mask-image: none !important; mask-image: none !important}  /* the fade at the end of long titles must not touch the dot */
@@ -2996,6 +3005,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 textsize = gr.Radio([("90%", "0.9"), ("100%", "1"), ("110%", "1.1"), ("125%", "1.25"), ("140%", "1.4")], value="1", label=t("Text size"), elem_id="textsize")
                 language = gr.Dropdown([(t("Language: automatic"), "auto")] + [(name, code) for code, name in LANGS.items()], value=i18n.chosen() if i18n.chosen() in LANGS else "auto", label=t("Language"), elem_id="language")
             with gr.Column(elem_classes=["mzone", "mz0"]):
+                gr.HTML("<h2 class='msec'>" + t("Voice") + "</h2><div class='msub'>" + t("The 🔊 button under an answer reads it aloud, with a voice of this computer. Choose a voice for each language: the choice is kept on this computer.") + "</div>"
+                        + "<div id='voicepick'>" + "".join(f"<label class='vrow'><span>{n}</span><select data-lang='{k}'></select><button type='button' class='vtest' data-lang='{k}'>▶</button></label>" for k, n in {'it': 'Italiano', 'en': 'English', 'fr': 'Français', 'de': 'Deutsch', 'pl': 'Polski', 'zh': '中文'}.items()) + "</div>")
+            with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Tools") + "</h2><div class='msub'>" + t("What Joshua can do while it answers. Switch off the ones you don't want it to use. The list is part of Joshua: new tools come with updates.") + "</div>")
                 tools_on = gr.CheckboxGroup([(label, key) for key, (label, _) in TOOL_GROUPS.items()], value=[k for k in TOOL_GROUPS if k not in tools_off()], show_label=False, elem_id="toolson")
                 gr.Markdown(t("**Joshua's browser** is a Firefox window of its own, separate from yours. To let Joshua work on a site where you need an account, open the window, go to the site and sign in yourself: the sign-in is kept there, also after a restart. Joshua never types passwords. Remember that with a cloud model, the pages Joshua reads are sent to that model."), elem_id="browserhelp")
@@ -3421,6 +3433,42 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           setTimeout(() => inp.focus(), 60); };
         document.addEventListener('click', (e) => { if (e.target.closest('.wopr .wline')) armed = true; }, true);
         new MutationObserver(() => { clearTimeout(window.joshuaWopr); window.joshuaWopr = setTimeout(attach, 200); }).observe(document.body, {childList: true, subtree: true}); }""")
+    demo.load(None, None, None, js="""() => {  // 🔊 under each answer: reads the answer aloud with a voice of this computer, in the answer's language
+        const synth = window.speechSynthesis; if (!synth) return;
+        const ICON = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M154.64,26.61a6,6,0,0,0-6.32.65L77.94,82H32A14,14,0,0,0,18,96v64a14,14,0,0,0,14,14H77.94l70.38,54.74A6,6,0,0,0,158,224V32A6,6,0,0,0,154.64,26.61ZM30,160V96a2,2,0,0,1,2-2H74v68H32A2,2,0,0,1,30,160Zm116,51.73L86,165.07V90.93l60-46.66Zm50.53-108.85a38,38,0,0,1,0,50.24,6,6,0,1,1-9-7.94,26,26,0,0,0,0-34.37,6,6,0,0,1,9-7.93ZM246,128a77.86,77.86,0,0,1-19.86,52,6,6,0,1,1-8.94-8,66,66,0,0,0,0-88,6,6,0,1,1,8.94-8A77.86,77.86,0,0,1,246,128Z"/></svg>', TITLE = """ + JS_TEXT(t("Read aloud")) + """, SAMPLE = {it: 'Ciao, sono Joshua.', en: 'Hello, I am Joshua.', fr: 'Bonjour, je suis Joshua.', de: 'Hallo, ich bin Joshua.', pl: 'Cześć, jestem Joshua.', zh: '你好，我是Joshua。'};
+        const PREFER = {it: ['Alice', 'Federica', 'Luca'], en: ['Samantha', 'Daniel', 'Microsoft Aria', 'Microsoft Jenny', 'Google US English'], fr: ['Thomas', 'Amélie', 'Audrey'], de: ['Anna', 'Petra', 'Markus'], pl: ['Zosia', 'Ewa', 'Krzysztof'], zh: ['Tingting', 'Ting-Ting', 'Lili']};
+        const WORDS = {it: ' il la che di per non una sono è con anche gli delle del alla ', en: ' the and of to is that it you with for are this be on ', fr: ' le les et est des que une pour pas dans sur avec ', de: ' der die und das ist nicht ein zu mit den von sie ', pl: ' i w nie się na jest że to z do jak co ', };
+        const lang = (txt) => { if ((txt.match(/[\\u4e00-\\u9fff]/g) || []).length > 20) return 'zh';
+          const w = (' ' + txt.toLowerCase().replace(/[^\\p{L}\\s]/gu, ' ') + ' ').split(/\\s+/).slice(0, 400); let best = 'en', top = 0;
+          for (const [k, list] of Object.entries(WORDS)) { const n = w.filter(x => x && list.includes(' ' + x + ' ')).length; if (n > top) { best = k; top = n; } } return best; };
+        const voiceFor = (k) => { const vs = synth.getVoices(); let name = null; try { name = localStorage.getItem('joshua-voice-' + k) } catch (e) {}
+          return vs.find(v => v.name === name) || PREFER[k].map(p => vs.find(v => v.name.startsWith(p))).find(Boolean) || vs.find(v => v.lang && v.lang.toLowerCase().startsWith(k)) || null; };
+        const clean = (row) => { const c = row.cloneNode(true);
+          const leaves = [...c.querySelectorAll('.message')].filter(m => !m.querySelector('.message') && !m.querySelector('.thought-group'));  // the answer, not the thinking, sources, steps
+          leaves.forEach(m => m.querySelectorAll('pre, table, button, svg, .ji').forEach(x => x.remove()));  // nor code, tables, icons
+          document.body.appendChild(c); c.style.cssText = 'position:fixed;left:-9999px;top:0';  // innerText needs the copy on the page
+          const out = leaves.map(m => m.innerText); c.remove();
+          return out.join('\\n').replace(/https?:\\/\\/\\S+/g, '').replace(/[*#_`>|]/g, ' ').replace(/\\[(\\d+)\\]/g, '').replace(/\\s+\\n/g, '\\n').trim(); };
+        let current = null;
+        const stop = () => { synth.cancel(); if (current) current.classList.remove('speaking'); current = null; };
+        const speak = (text, k, btn) => { stop(); const v = voiceFor(k); current = btn; if (btn) btn.classList.add('speaking');
+          const parts = text.match(/[^.!?。！？\\n]+[.!?。！？]*\\s*/g) || [text];  // sentence by sentence: long texts get cut off in one piece
+          parts.forEach((p, i) => { const u = new SpeechSynthesisUtterance(p.trim()); if (v) { u.voice = v; u.lang = v.lang; }
+            if (i === parts.length - 1) u.onend = () => { if (current === btn) stop(); }; synth.speak(u); }); };
+        const add = () => document.querySelectorAll('#chat .message-buttons').forEach(bar => {
+          if (bar.querySelector('.speak')) return;
+          let row = bar.previousElementSibling; while (row && !row.querySelector('.message')) row = row.previousElementSibling;
+          if (!row || !row.querySelector('.bot') || row.querySelector('code.language-wopr')) return;
+          const b = document.createElement('button'); b.className = 'speak icon-button'; b.type = 'button'; b.title = TITLE; b.setAttribute('aria-label', TITLE); b.innerHTML = ICON;
+          b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (current === b) return stop(); const txt = clean(row); if (txt) speak(txt, lang(txt), b); });
+          const copy = bar.querySelector("button[aria-label='Copy message']"); (copy ? copy.parentElement : bar).appendChild(b); });
+        const fill = () => document.querySelectorAll('#voicepick select').forEach(sel => { const k = sel.dataset.lang, vs = synth.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith(k));
+          if (sel.options.length === vs.length + 1) return; const cur = voiceFor(k);
+          sel.innerHTML = '<option value="">—</option>' + vs.map(v => '<option' + (cur && v.name === cur.name ? ' selected' : '') + '>' + v.name + '</option>').join(''); });
+        document.addEventListener('change', (e) => { const sel = e.target.closest('#voicepick select'); if (!sel) return; try { localStorage.setItem('joshua-voice-' + sel.dataset.lang, sel.value) } catch (x) {} });
+        document.addEventListener('click', (e) => { const t = e.target.closest('#voicepick .vtest'); if (!t) return; e.preventDefault(); speak(SAMPLE[t.dataset.lang], t.dataset.lang, null); }, true);
+        synth.onvoiceschanged = fill;
+        new MutationObserver(() => { clearTimeout(window.joshuaSpeak); window.joshuaSpeak = setTimeout(() => { add(); fill(); }, 250); }).observe(document.body, {childList: true, subtree: true}); }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // a cost box closes when you click anywhere else; one open at a time
         document.querySelectorAll('details.mcost[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('details.mcost[open]').forEach(d => d.open = false); }); }""")
