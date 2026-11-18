@@ -909,7 +909,8 @@ def present(view, live=False):
     """What the chat shows: runs of working steps become one box. While Joshua works, the box shows the latest step
     and opens on the steps one by one; once the answer comes, it becomes one text with every step, in order.
     Only the screen changes: the chat is saved as it is."""
-    if any(isinstance(m.get("content"), str) and m["content"].startswith("```wopr") for m in view):
+    first = next((m for m in view if m.get("role") == "assistant" and not m.get("metadata") and isinstance(m.get("content"), str)), None)
+    if first and first["content"].startswith("```wopr"):  # a chat that began as a game: one terminal screen
         return wopr_view(view)
     out, run = [], []
 
@@ -1489,7 +1490,7 @@ def send(message, cid, model, thinking, goal, rounds, net, timeout, swarm, agent
         where = (t("From here on this chat is answered by **{model}** on {company}'s servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model, company=providers.company(model))
                  if providers.is_api(model) else t("From here on this chat is answered by **{model}** on Ollama's servers: each message sends the conversation there, including the text of files and pages Joshua reads.", model=model))
         conv["display"].append({"role": "assistant", "content": "☁ *" + where + ("" if cloudmem else " " + t("Your memory notes are not sent.")) + " " + t("Everything stays stored only on this computer.") + "*"})
-    if desk == "falken":
+    if desk == "falken" and not conv["display"]:
         conv["ephemeral"] = True  # a game isn't kept: deleted when you leave it (forget_games)
     if desk == "falken" and text and not files:  # Prof Falken: a game move is played by falken.py, at once, without a model
         reply = falken.play(conv, text)
@@ -2421,6 +2422,19 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+body.narrow:not(#a):not(#b):not(#c):not(#d):not(#e) #modelrow > .form:has(.modeopt) {border-left: none !important; padding-left: 2px !important; margin-left: 0 !important}
+/* ---------- under the message box: desks are one choice (a segmented control); goal and swarm are switches ---------- */
+body:not(#a):not(#b):not(#c):not(#d) #deskpick .wrap {display: inline-flex !important; gap: 0 !important; padding: 2px !important; border: 1px solid color-mix(in srgb, var(--line) 85%, transparent) !important; border-radius: 999px !important; background: color-mix(in srgb, var(--ink) 4%, transparent) !important; width: auto !important}
+body:not(#a):not(#b):not(#c):not(#d) #deskpick label {border: none !important; background: transparent !important; box-shadow: none !important; padding: 3px 11px !important; border-radius: 999px !important}
+body:not(#a):not(#b):not(#c):not(#d) #deskpick label.selected, body:not(#a):not(#b):not(#c):not(#d) #deskpick label:has(input:checked) {background: var(--panel) !important; box-shadow: 0 1px 3px rgba(0, 0, 0, .14) !important}
+body:not(#a):not(#b):not(#c):not(#d) #modelrow > .form:has(.modeopt) {border-left: 1px solid color-mix(in srgb, var(--line) 90%, transparent) !important; padding-left: 12px !important; margin-left: 6px !important; gap: 12px !important}
+body:not(#a):not(#b):not(#c):not(#d) #modelrow .modeopt {border: none !important; background: transparent !important; padding: 2px 0 !important; box-shadow: none !important}
+body:not(#a):not(#b):not(#c):not(#d) #modelrow .modeopt label {display: inline-flex !important; align-items: center !important; gap: 0 !important; position: relative !important}
+body:not(#a):not(#b):not(#c):not(#d) #modelrow .modeopt label::before {content: ""; flex: none; width: 26px; height: 15px; margin-right: 7px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 20%, transparent); transition: background .15s}
+body:not(#a):not(#b):not(#c):not(#d) #modelrow .modeopt label::after {content: ""; position: absolute; left: 2px; top: 50%; width: 11px; height: 11px; margin-top: -5.5px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: left .15s}
+body:not(#a):not(#b):not(#c):not(#d) #modelrow .modeopt:has(input:checked) label::before {background: var(--brand)}
+body:not(#a):not(#b):not(#c):not(#d) #modelrow .modeopt:has(input:checked) label::after {left: 13px}
+@media (prefers-reduced-motion: reduce) {body:not(#a):not(#b):not(#c):not(#d) #modelrow .modeopt label::before, body:not(#a):not(#b):not(#c):not(#d) #modelrow .modeopt label::after {transition: none}}
 /* the 🔊 button under answers, and the voice choices in Settings */
 #chat button.speak {display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--dim); cursor: pointer; padding: 4px; border-radius: 6px}
 #chat button.speak svg {width: 15px; height: 15px}
