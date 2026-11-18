@@ -571,5 +571,10 @@
  "Your desk": "Dein Arbeitsplatz",
  "changed": "geändert",
  "deleted {when}": "gelöscht am {when}",
- "gone in {n} days": "weg in {n} Tagen"
+ "gone in {n} days": "weg in {n} Tagen",
+ "Tasks offered on an empty chat": "Aufgaben in einem leeren Chat",
+ "Add a task": "Aufgabe hinzufügen",
+ "Made by you": "Von dir erstellt",
+ "Built into Joshua": "In Joshua enthalten",
+ "Built into Joshua, changed by you": "In Joshua enthalten, von dir geändert"
 }

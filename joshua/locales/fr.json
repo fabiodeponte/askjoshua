@@ -571,5 +571,10 @@
  "Your desk": "Ton bureau",
  "changed": "modifié",
  "deleted {when}": "supprimée le {when}",
- "gone in {n} days": "disparaît dans {n} jours"
+ "gone in {n} days": "disparaît dans {n} jours",
+ "Tasks offered on an empty chat": "Tâches proposées dans une conversation vide",
+ "Add a task": "Ajouter une tâche",
+ "Made by you": "Créé par vous",
+ "Built into Joshua": "Intégré à Joshua",
+ "Built into Joshua, changed by you": "Intégré à Joshua, modifié par vous"
 }

@@ -849,24 +849,48 @@ def desk_editor_load(desk_id):
     """The editor shows one desk: what Joshua is told there, its tools and its tasks (in the language you see)."""
     d = desks.get(desk_id)
     if not d:  # a new desk
-        return ("", "", "", [k for k in TOOL_GROUPS if k != "browser"], [["", "", ""]], gr.Button(visible=False), gr.Button(visible=False), "")
-    rows = [[s.get("icon", ""), desks.text(s["title"], i18n.LANG), desks.text(s["prompt"], i18n.LANG)] for s in d.get("starters", [])] or [["", "", ""]]
+        return ("", "", "", [k for k in TOOL_GROUPS if k != "browser"], gr.Button(visible=False), gr.Button(visible=False), "", *task_fields([]))
+    rows = [[s.get("icon", ""), desks.text(s["title"], i18n.LANG), desks.text(s["prompt"], i18n.LANG)] for s in d.get("starters", [])]
     builtin = not d.get("mine")
-    note = "<div class='cloudstat'>" + (t("Your desk") if not builtin else t("Your own version") if desks.edited(desk_id) else t("Joshua's own")) + "</div>"
-    return (d.get("icon", ""), desks.text(d["name"], i18n.LANG), d.get("instructions", ""), [k for k in d.get("tools", []) if k in TOOL_GROUPS], rows,
-            gr.Button(visible=builtin and desks.edited(desk_id)), gr.Button(visible=True), note)
+    note = "<div class='cloudstat'>" + (t("Made by you") if not builtin else t("Built into Joshua, changed by you") if desks.edited(desk_id) else t("Built into Joshua")) + "</div>"
+    return (d.get("icon", ""), desks.text(d["name"], i18n.LANG), d.get("instructions", ""), [k for k in d.get("tools", []) if k in TOOL_GROUPS],
+            gr.Button(visible=builtin and desks.edited(desk_id)), gr.Button(visible=True), note, *task_fields(rows))
 
 
-def _rows(table):
-    rows = table.values.tolist() if hasattr(table, "values") else (table or [])
-    return [{"icon": str(r[0] or "").strip()[:4], "title": str(r[1] or "").strip(), "prompt": str(r[2] or "").strip()} for r in rows if len(r) >= 3 and str(r[1] or "").strip()]
+MAX_TASKS = 12
 
 
-def desk_editor_save(desk_id, icon, name, instructions, tools, table):
+def task_fields(rows):
+    """The task lines of the desk editor: the values of every field, then which lines are shown."""
+    rows = [r for r in rows if any(x.strip() for x in r)][:MAX_TASKS]
+    values = [x for r in rows for x in r] + [""] * 3 * (MAX_TASKS - len(rows))
+    return values + [gr.Row(visible=k < max(len(rows), 1)) for k in range(MAX_TASKS)]
+
+
+def task_rows(values):
+    return [list(values[k:k + 3]) for k in range(0, 3 * MAX_TASKS, 3)]
+
+
+def task_add(*values):
+    rows = [r for r in task_rows(values) if any(x.strip() for x in r)]
+    return task_fields(rows + [["", "", ""]]) if len(rows) < MAX_TASKS else [gr.skip()] * (4 * MAX_TASKS)
+
+
+def task_remove(k, *values):
+    rows = task_rows(values)
+    del rows[k]
+    return task_fields(rows)
+
+
+def _rows(values):
+    return [{"icon": (r[0] or "").strip()[:4], "title": (r[1] or "").strip(), "prompt": (r[2] or "").strip()} for r in task_rows(values) if (r[1] or "").strip()]
+
+
+def desk_editor_save(desk_id, icon, name, instructions, tools, *cells):
     if not (name or "").strip() or not (instructions or "").strip():
         gr.Warning(t("Give the desk a name and write its instructions."))
-        return (gr.skip(),) * 10
-    desk_id = desks.save(desk_id, name, icon or "", instructions, tools or [], _rows(table), i18n.LANG)
+        return (gr.skip(),) * (9 + 4 * MAX_TASKS)
+    desk_id = desks.save(desk_id, name, icon or "", instructions, tools or [], _rows(cells), i18n.LANG)
     gr.Info(t("Saved: chats at this desk follow it from the next message."))
     return (gr.Dropdown(choices=desk_editor_choices(), value=desk_id), gr.Radio(choices=desk_choices())) + desk_editor_load(desk_id)
 
@@ -879,7 +903,7 @@ def desk_editor_reset(desk_id):
 
 def desk_editor_remove(desk_id):
     if desk_id is None:  # you cancelled
-        return (gr.skip(),) * 12
+        return (gr.skip(),) * (11 + 4 * MAX_TASKS)
     if desk_id:
         desks.remove(desk_id)
         gr.Info(t("Desk removed. Its chats stay, at no desk."))
@@ -2528,6 +2552,16 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+#setpage .dkhead {margin: 10px 0 2px}
+#setpage .dkrow {gap: 6px !important; margin: 0 !important; align-items: flex-start !important}
+#setpage .dkrow textarea, #setpage .dkrow input {font-size: .9rem !important}
+body:not(#a):not(#b):not(#c):not(#d) #setpage button.dkdel {background: transparent !important; border: none !important; box-shadow: none !important; color: var(--dim) !important; min-width: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d) #setpage button.dkdel:hover {color: var(--red) !important}
+/* the desk editor: its buttons alike (Remove in red), and a readable selected row in the tasks table */
+#dksave, #dkremove, #setpage button.dkbtn {min-height: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d) #dkremove {color: var(--red) !important}
+body:not(#a):not(#b):not(#c):not(#d) #dkstarters :is(tr.selected, td.selected, .selected, [aria-selected="true"]) {background: color-mix(in srgb, var(--brand) 12%, transparent) !important; color: var(--ink) !important}
+body:not(#a):not(#b):not(#c):not(#d) #dkstarters :is(tr.selected, td.selected, .selected, [aria-selected="true"]) * {color: var(--ink) !important}
 body.narrow:not(#a):not(#b):not(#c):not(#d):not(#e) #modelrow > .form:has(.modeopt) {border-left: none !important; padding-left: 2px !important; margin-left: 0 !important}
 /* ---------- under the message box: desks are one choice (a segmented control); goal and swarm are switches ---------- */
 body:not(#a):not(#b):not(#c):not(#d) #deskpick .wrap {display: inline-flex !important; gap: 0 !important; padding: 2px !important; border: 1px solid color-mix(in srgb, var(--line) 85%, transparent) !important; border-radius: 999px !important; background: color-mix(in srgb, var(--ink) 4%, transparent) !important; width: auto !important}
@@ -3174,10 +3208,20 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     dk_name = gr.Textbox("", label=t("Name"), placeholder=t("Cooking"), max_lines=1)
                 dk_instr = gr.Textbox("", lines=8, max_lines=12, label=t("Instructions"), placeholder=t("You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple."), elem_classes="deskedit")
                 dk_tools = gr.CheckboxGroup([(label, key) for key, (label, _) in TOOL_GROUPS.items()], value=[], label=t("Tools at this desk"), elem_id="dktools")
-                dk_starters = gr.Dataframe(headers=[t("Icon"), t("Task"), t("Text put in the message box")], datatype=["str", "str", "str"], col_count=(3, "fixed"),
-                                           row_count=(1, "dynamic"), interactive=True, wrap=True, label=t("Tasks on an empty chat: edit a cell by clicking it; add or delete rows from a cell's ⋮ menu"), elem_id="dkstarters")
+                gr.HTML("<div class='fhead dkhead'>" + t("Tasks offered on an empty chat") + "</div>")
+                dk_rows, dk_cells = [], []
+                for k in range(MAX_TASKS):  # a fixed number of lines: the ones in use are shown
+                    with gr.Row(visible=False, elem_classes="dkrow", equal_height=True) as row_:
+                        c_icon = gr.Textbox("", show_label=False, placeholder="📝", max_lines=1, scale=0, min_width=64, container=False)
+                        c_title = gr.Textbox("", show_label=False, placeholder=t("Task"), max_lines=1, scale=2, container=False)
+                        c_prompt = gr.Textbox("", show_label=False, placeholder=t("Text put in the message box"), lines=1, max_lines=4, scale=5, container=False)
+                        c_del = gr.Button("✕", size="sm", scale=0, min_width=40, elem_classes="dkdel")
+                    dk_rows.append(row_)
+                    dk_cells += [c_icon, c_title, c_prompt]
+                    row_.dk_del = c_del
+                dk_add = gr.Button("＋ " + t("Add a task"), size="sm", scale=0, min_width=180, elem_id="dkadd")
                 with gr.Row():
-                    dk_save = gr.Button(t("Save desk"), size="sm", scale=0, min_width=160, variant="primary")
+                    dk_save = gr.Button(t("Save desk"), size="sm", scale=0, min_width=160, elem_id="dksave")
                     dk_reset = gr.Button(t("Restore the default"), size="sm", scale=0, min_width=200)
                     dk_remove = gr.Button(t("Remove desk"), size="sm", scale=0, min_width=160, elem_id="dkremove")
                     dk_note = gr.HTML("")
@@ -3386,10 +3430,13 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     t_pause.click(lambda n: task_action(n, "pause"), t_pick, [task_list, t_pick, t_controls])
     t_del.click(lambda n: task_action(n, "delete"), t_pick, [task_list, t_pick, t_controls], js="(n) => (n && confirm(" + JS_TEXT(t("Delete '{name}'? It won't run again.")) + ".replace('{name}', n))) ? n : null")
     OTHER = [models_panel, sched_panel, tune_panel]
-    DK = [dk_icon, dk_name, dk_instr, dk_tools, dk_starters, dk_reset, dk_remove, dk_note]
+    DK = [dk_icon, dk_name, dk_instr, dk_tools, dk_reset, dk_remove, dk_note] + dk_cells + dk_rows
+    dk_add.click(task_add, dk_cells, dk_cells + dk_rows, show_progress="hidden")
+    for k, row_ in enumerate(dk_rows):
+        row_.dk_del.click(functools.partial(task_remove, k), dk_cells, dk_cells + dk_rows, show_progress="hidden")
     dk_pick.input(desk_editor_load, dk_pick, DK)
     set_btn.click(desk_editor_load, dk_pick, DK)
-    dk_save.click(desk_editor_save, [dk_pick, dk_icon, dk_name, dk_instr, dk_tools, dk_starters], [dk_pick, desk] + DK)
+    dk_save.click(desk_editor_save, [dk_pick, dk_icon, dk_name, dk_instr, dk_tools] + dk_cells, [dk_pick, desk] + DK)
     dk_reset.click(desk_editor_reset, dk_pick, [dk_pick, desk] + DK)
     dk_remove.click(desk_editor_remove, dk_pick, [dk_pick, desk] + DK + [dk_hiddenrow, dk_hidden],
                     js="(d) => (d && confirm(" + JS_TEXT(t("Remove this desk? Its chats stay, at no desk. One of Joshua's desks can be brought back later.")) + ")) ? d : null")

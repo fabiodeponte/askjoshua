@@ -571,5 +571,10 @@
  "Your desk": "你的工作台",
  "changed": "已修改",
  "deleted {when}": "{when} 删除",
- "gone in {n} days": "{n} 天后删除"
+ "gone in {n} days": "{n} 天后删除",
+ "Tasks offered on an empty chat": "空白对话中提供的任务",
+ "Add a task": "添加任务",
+ "Made by you": "由你创建",
+ "Built into Joshua": "Joshua 内置",
+ "Built into Joshua, changed by you": "Joshua 内置，已由你修改"
 }
