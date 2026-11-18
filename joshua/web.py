@@ -2084,6 +2084,13 @@ def bin_empty(go):
 
 # ---------- the Teams page and its wizard ----------
 
+ICON_CHOICES = list({svg: e for e, svg in reversed(json.loads((pathlib.Path(__file__).parent / "icons.json").read_text(encoding="utf-8"))["emoji"].items()) if svg != "busy"}.values())[::-1]  # one emoji for each icon Joshua draws
+
+
+def icon_pick(label=None, value="", placeholder="", **kw):
+    """An icon field: pick from the icons Joshua draws, or type any emoji."""
+    return gr.Dropdown(ICON_CHOICES, value=value or None, label=label, allow_custom_value=True, filterable=True, **kw)
+
 NEW_MEMBER = {"name": "", "icon": "", "role": "", "instructions": "", "model": "", "tools": [], "goal": False}
 STEPS_WIZ = ("The team", "Members", "Lead", "Check")
 
@@ -2129,9 +2136,9 @@ def wiz_render(state, step, sel):
     return (state, step, sel,
             *(gr.Column(visible=step == k) for k in (1, 2, 3, 4)), head,
             gr.Button(visible=step > 1), gr.Button(visible=step < 4), gr.Button(visible=step == 4, value="✓ " + (t("Save team") if state.get("id") else t("Create team"))),
-            state.get("name", ""), state.get("icon", ""), state.get("purpose", ""),
+            state.get("name", ""), state.get("icon") or None, state.get("purpose", ""),
             listing, gr.Radio(choices=[((x.get("icon") or "👤") + " " + x["name"], k) for k, x in enumerate(members)] + [("＋ " + t("New member"), -1)], value=sel),
-            m["name"], m.get("icon", ""), m.get("role", ""), m.get("instructions", ""),
+            m["name"], m.get("icon") or None, m.get("role", ""), m.get("instructions", ""),
             gr.Dropdown(choices=[(t("Same model as the chat"), "")] + models(), value=m.get("model", "")), m.get("tools", []), bool(m.get("goal")),
             gr.Button(value=t("Save member") if sel >= 0 else "＋ " + t("Add to the team")), gr.Button(visible=sel >= 0),
             gr.Radio(choices=[((x.get("icon") or "👤") + " " + x["name"], x["id"]) for x in members], value=lead), review)
@@ -2835,6 +2842,10 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+/* a field with the cursor in it keeps its look's colour (Gradio's own focus colour is the dark one of its base theme) */
+input, textarea, .wrap {--input-background-fill-focus: var(--input-background-fill)}
+/* with the side menu on screen, its buttons are the way back: no "Back to chat" */
+body:not(.noside):not(.narrow) button.backbtn {display: none !important}
 #teampage .wsteps {display: flex; gap: 18px; flex-wrap: wrap; margin: 4px 0 10px; font-size: .92rem}
 #teampage .wstep {color: var(--dim)}
 #teampage .wstep.on {color: var(--brand); font-weight: 600}
@@ -3448,7 +3459,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         with gr.Column(visible=False, scale=5, elem_id="teampage") as team_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("TEAMS OF AGENTS") + "</div>")
-                team_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
+                team_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
             with gr.Column() as tm_listcol:
                 gr.Markdown(t("A team is a group of agents, each with a role, its own instructions, model and tools. In a chat with a team you write to its lead: the lead hands parts of the work to the others, checks what they return and writes the answer. A team can also have a single member: an agent of its own."))
                 tm_new = gr.Button("＋ " + t("New team"), size="sm", scale=0, min_width=180, elem_id="tmnew")
@@ -3465,14 +3476,14 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 with gr.Column() as tw_s1:
                     gr.Markdown(t("**What is the team for?** For example: an editorial staff that turns notes into finished articles, or a research group that prepares briefings."))
                     with gr.Row():
-                        tw_icon = gr.Textbox(label=t("Icon"), placeholder="👥", max_lines=1, scale=0, min_width=80)
+                        tw_icon = icon_pick(t("Icon"), scale=0, min_width=110)
                         tw_name = gr.Textbox(label=t("Name"), placeholder=t("Editorial staff"), max_lines=1)
                     tw_purpose = gr.Textbox(label=t("Purpose"), placeholder=t("Turns my notes and sources into checked, finished articles."), lines=2)
                 with gr.Column(visible=False) as tw_s2:
                     tw_mlist = gr.Markdown("")
                     tw_mpick = gr.Radio([], show_label=False, elem_id="twmpick")
                     with gr.Row():
-                        m_icon = gr.Textbox(label=t("Icon"), placeholder="👤", max_lines=1, scale=0, min_width=80)
+                        m_icon = icon_pick(t("Icon"), scale=0, min_width=110)
                         m_name = gr.Textbox(label=t("Name"), placeholder=t("Reporter"), max_lines=1, scale=2)
                         m_role = gr.Textbox(label=t("Role"), placeholder=t("finds facts and sources"), max_lines=1, scale=3)
                     m_instr = gr.Textbox(label=t("Instructions"), placeholder=t("How this member works: what it does, how, and what it hands back."), lines=4)
@@ -3497,7 +3508,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         with gr.Column(visible=False, scale=5, elem_id="binpage") as bin_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("BIN") + "</div>")
-                bin_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
+                bin_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
             gr.Markdown(t("Chats you delete wait here for {n} days with their files, then they're deleted for good. Restore one to put it back in the list.", n=BIN_DAYS))
             bin_list = gr.HTML("")
             with gr.Column(visible=False) as bin_controls:
@@ -3509,7 +3520,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         with gr.Column(visible=False, scale=5, elem_id="mempage") as mem_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("WHAT JOSHUA KNOWS ABOUT YOU") + "</div>")
-                mem_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
+                mem_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
             gr.Markdown(t("""After each reply, a model on this computer reads your message and keeps any lasting fact about you: who you are, your work, your projects, how you like answers. Most messages contain nothing to keep. Joshua uses these notes in every chat. You can read, correct or delete them here."""), elem_id="memintro")
             with gr.Row():
                 mem = gr.Checkbox(True, label=t("Use memory"), info=t("Joshua uses these notes in every chat"))
@@ -3525,7 +3536,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         with gr.Column(visible=False, scale=5, elem_id="setpage") as set_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("SETTINGS") + "</div>")
-                set_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160)
+                set_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>" + t("Look") + "</h2>")
                 screen = gr.Radio([(t("Paper"), "modern-paper"), (t("Paper night"), "modern-paper-night"), (t("Novel"), "novel"), (t("Black"), "black"), (t("Green"), "green"), (t("Amber"), "amber")], value="modern-paper", label=t("Look"), elem_id="screen")
@@ -3545,7 +3556,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 gr.HTML("<h2 class='msec'>" + t("Desks") + "</h2><div class='msub'>" + t("A desk sets Joshua up for one kind of work: you choose it under the message box. Pick a desk to change its name, icon, instructions, tools and the tasks offered on an empty chat, or make a new one. Your changes are kept on this computer and updates never overwrite them.") + "</div>")
                 dk_pick = gr.Dropdown(choices=desk_editor_choices(), value=desk_editor_choices()[1][1] if len(desk_editor_choices()) > 1 else "", label=t("Desk"), elem_id="dkpick")
                 with gr.Row():
-                    dk_icon = gr.Textbox("", label=t("Icon"), placeholder="🌿", max_lines=1, scale=0, min_width=90)
+                    dk_icon = icon_pick(t("Icon"), scale=0, min_width=110)
                     dk_name = gr.Textbox("", label=t("Name"), placeholder=t("Cooking"), max_lines=1)
                 dk_instr = gr.Textbox("", lines=8, max_lines=12, label=t("Instructions"), placeholder=t("You are working at the cooking desk. Suggest recipes with what I have at home, give quantities for the number of people I say, and keep it simple."), elem_classes="deskedit")
                 dk_tools = gr.CheckboxGroup([(label, key) for key, (label, _) in TOOL_GROUPS.items()], value=[], label=t("Tools at this desk"), elem_id="dktools")
@@ -3553,7 +3564,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 dk_rows, dk_cells = [], []
                 for k in range(MAX_TASKS):  # a fixed number of lines: the ones in use are shown
                     with gr.Row(visible=False, elem_classes="dkrow", equal_height=True) as row_:
-                        c_icon = gr.Textbox("", show_label=False, placeholder="📝", max_lines=1, scale=0, min_width=64, container=False)
+                        c_icon = icon_pick(show_label=False, container=False, scale=0, min_width=90)
                         c_title = gr.Textbox("", show_label=False, placeholder=t("Task"), max_lines=1, scale=2, container=False)
                         c_prompt = gr.Textbox("", show_label=False, placeholder=t("Text put in the message box"), lines=1, max_lines=4, scale=5, container=False)
                         c_del = gr.Button("✕", size="sm", scale=0, min_width=40, elem_classes="dkdel")
@@ -3589,7 +3600,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         with gr.Column(visible=False, scale=5, elem_id="modelspage") as models_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("MODELS") + "</div>")
-                models_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="modelsback")
+                models_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn", elem_id="modelsback")
             gr.Markdown(t("Best reasoning first, in each group. The score measures reasoning only: public tests of logic, coding, knowledge and use of tools, all in text ([Artificial Analysis](https://artificialanalysis.ai/leaderboards/models), November 2026); for small models it is Joshua's estimate. Reading images or audio, and deep thinking, give no extra points: they are shown on their own, under Abilities. For everyday questions, smaller models are often enough."), elem_id="mintro")
             with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<div class='mzhead'><h2 class='msec'>" + t("Your model menu") + "</h2></div><div class='msub'>" + t("The models you choose from under the chat, in this order. The first one is the default for new chats.") + "</div>")
@@ -3629,7 +3640,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         with gr.Column(visible=False, scale=5, elem_id="schedpanel") as sched_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("SCHEDULED TASKS") + "</div>")
-                sched_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="schedback")
+                sched_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn", elem_id="schedback")
             gr.Markdown(t("Joshua does a task on its own at the time you choose: a morning news summary, a weekly check of a website, a reminder written for you. Each run appears as a ⏰ chat in the list on the left.") + "\n\n" + t("**Only while Joshua is running.** Tasks can't run when the computer is off or asleep, or when Joshua is closed. A task missed in the meantime runs once, as soon as Joshua is open again."), elem_id="schedhelp")
             with gr.Row(equal_height=False):
                 with gr.Column(scale=3, elem_id="schedform"):
