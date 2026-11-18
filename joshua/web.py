@@ -2623,7 +2623,6 @@ body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .pr
 body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose :is(th, td) p {margin: 0 !important}
 body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose blockquote {border-left: 3px solid var(--pp-rule) !important; padding-left: 1em !important; color: var(--pp-quote) !important; margin: .6em 0 1em !important}
 body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.bot .prose a {color: var(--cyan) !important}
-body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message-wrap {max-width: 56rem !important}
 body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #chat .message.user * {font-size: 1.02rem !important; line-height: 1.45 !important; color: var(--pp-user) !important}
 body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #schedtitle, body[data-screen^="modern-paper"]:not(#a):not(#b):not(#c) #tunetitle {font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important; font-weight: 700 !important; letter-spacing: -.015em !important; color: var(--pp-strong) !important}
 #chat button.jcopied {color: var(--brand) !important; transform: scale(1.15); transition: transform .15s}
