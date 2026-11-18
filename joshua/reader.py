@@ -244,13 +244,14 @@ def set_pos(book_id, pos, settings=None):
     if book:
         book["pos"] = max(0, min(int(pos), len(book["paras"]) - 1))
         if isinstance(settings, dict):
-            book["settings"] = {k: settings[k] for k in ("voice", "rate", "volume", "gap") if k in settings}
+            book["settings"] = {k: settings[k] for k in ("voice", "rate", "volume", "gap", "mode") if k in settings}
         book["opened"] = time.time()
         _file(book_id).write_text(json.dumps(book, ensure_ascii=False), encoding="utf-8")
 
 
 def remove(book_id):
     _file(book_id).unlink(missing_ok=True)
+    (LIB / f"{re.sub(r'[^a-z0-9]', '', book_id)}.easy").unlink(missing_ok=True)
 
 
 def percent(pos, count):
@@ -262,3 +263,69 @@ def page(book):
     paras = "".join(f"<p data-i='{i}'>{html.escape(p)}</p>" for i, p in enumerate(book["paras"]))
     return (f"<div id='rdbook' data-id='{book['id']}' data-lang='{html.escape(book.get('lang') or '')}' data-pos='{book.get('pos', 0)}' "
             f"data-count='{len(book['paras'])}' data-settings='{html.escape(json.dumps(book.get('settings', {})), quote=True)}'><h2 class='rdtitle'>{html.escape(book['title'])}</h2>{paras}</div>")
+
+
+# ---------- text for listening ----------
+# What's written for the eye isn't always good for the ear: references to sources, footnote numbers and web addresses
+# get in the way, and a quotation can't be heard without its quotation marks. These rules make a paragraph easy to
+# follow by ear without changing its words; "simpler sentences" also has a model shorten long sentences.
+
+QUOTE = {"en": ("quote", "unquote"), "it": ("cito", "fine citazione"), "fr": ("je cite", "fin de citation"), "de": ("Zitat", "Zitat Ende"),
+         "pl": ("cytuję", "koniec cytatu"), "es": ("cito", "fin de la cita"), "pt": ("cito", "fim da citação"), "zh": ("引用", "引用结束")}
+CITE_WORD = re.compile(r"^(see|cf\.?|e\.g\.,?|i\.e\.,?|vgl\.|voir|cfr\.?|ibid\.?|ibidem|op\.|cit\.?|et|al\.?|and|und|e|i|&|eds?\.?|hrsg\.?|p\.|pp\.|s\.|p|pp|ch\.|chap\.|vol\.|n\.|fn\.|[ivxlc]+|\d+[a-z]?|[-–—,;:.]|\d+[-–]\d+)$", re.I)
+YEAR = re.compile(r"\b(1[5-9]\d\d|20\d\d)[a-z]?\b")
+
+
+def _citation(inner):
+    """True for what's inside brackets when it only points to sources: (Searle 2010), (Searle, 2010, p. 12; Dennett 1991a), (2010)."""
+    if len(inner) > 160 or not YEAR.search(inner):
+        return False
+    tokens = re.findall(r"[^\s,;:]+|[,;:]", inner)
+    names = [w for w in tokens if not CITE_WORD.match(w)]
+    return all(w[:1].isupper() or w[:1] in "'’" for w in names) and len(names) <= 2 * max(len(YEAR.findall(inner)), 1) + 2
+
+
+def _quotes(text, lang):
+    """Longer quotations get spoken quotation marks; a word or two in quotation marks (a title, an irony) stays as it is."""
+    start, end = QUOTE.get(lang, QUOTE["en"])
+
+    def mark(m):
+        inner = m.group(2).strip()
+        if len(inner.split()) < 6:
+            return m.group(0)
+        return f"{m.group(1) or ''}{start}: {inner.rstrip(',')} — {end}{m.group(4) or ''}"
+    return re.sub(r"(\s|^)?[“„«\"]\s?([^“”„«»\"]{3,1500}?)\s?([”“»\"])([.,;:!?]?)", mark, text)
+
+
+def clean(text, lang=""):
+    """A paragraph as it's good to hear it, with the same words."""
+    t = re.sub(r"https?://\S+|www\.\S+", "", text)
+    t = re.sub(r"\s*\[(\d+([-–,]\s*\d+)*|[a-z])\]", "", t)                       # [12], [3–5], [a]
+    t = re.sub(r"[¹²³⁴⁵⁶⁷⁸⁹⁰]+", "", t)                                          # superscript footnote numbers
+    t = re.sub(r"(?<=[a-zÀ-ɏ][.,;:!?”\"»)])\d{1,3}(?=\s|$)", "", t)    # end.12 → end.
+    t = re.sub(r"\s*\(([^()]{2,160})\)", lambda m: "" if _citation(m.group(1)) else m.group(0), t)
+    t = _quotes(t, lang[:2])
+    t = re.sub(r"\s+([.,;:!?])", r"\1", t)
+    return re.sub(r"\s{2,}", " ", t).strip()
+
+
+_easy_lock = __import__("threading").Lock()
+
+
+def easy_get(book_id, key):
+    try:
+        return json.loads((LIB / f"{book_id}.easy").read_text(encoding="utf-8")).get(key)
+    except Exception:
+        return None
+
+
+def easy_put(book_id, key, text):
+    """Rewritten paragraphs are kept next to the book, so a second reading doesn't wait for the model."""
+    with _easy_lock:
+        f = LIB / f"{re.sub(r'[^a-z0-9]', '', book_id)}.easy"
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            data = {}
+        data[key] = text
+        f.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")

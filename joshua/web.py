@@ -2338,6 +2338,55 @@ def tts(text: str, voice: str) -> str:
     return "/gradio_api/file=" + urllib.parse.quote(out.as_posix(), safe="/:")
 
 
+
+SIMPLER = """Rewrite this {language} paragraph so it is easy to follow when heard read aloud. Write it in {language}.
+Keep the meaning and every piece of information: add nothing, leave nothing out, no comments, no explanations.
+Use short main clauses, one idea per sentence. Each sentence starts with its subject and verb.
+Turn subordinate clauses into sentences of their own. Link them with a simple word (and, but, so, then) only where the original has that link.
+No sentence may begin with a word like "although", "while", "if" or "since": state it plainly instead.
+Say everything once: don't repeat a sentence and don't sum up at the end.
+Keep the author's words wherever you can. Keep quotations exactly as they are, with the spoken quotation marks around them.
+Reply with the rewritten {language} paragraph only.
+
+Example (English):
+Paragraph: Although the theory, which was first proposed in 1950 by researchers who worked at Bell Labs, was soon forgotten, it returned when computers became fast enough to test it.
+Rewritten: The theory was first proposed in 1950. It came from researchers at Bell Labs. It was soon forgotten. But it returned when computers became fast enough to test it.
+
+Paragraph: {text}
+Rewritten in {language}:"""
+LANG_NAMES = {"en": "English", "it": "Italian", "fr": "French", "de": "German", "pl": "Polish", "zh": "Chinese", "es": "Spanish", "pt": "Portuguese", "nl": "Dutch",
+              "ru": "Russian", "ja": "Japanese", "uk": "Ukrainian", "ro": "Romanian", "sv": "Swedish", "ca": "Catalan", "cs": "Czech", "el": "Greek"}
+
+
+def rd_text(book_id: str, i: int, mode: str) -> str:
+    """The paragraph as it's read aloud: as written, without citations, or in simpler sentences."""
+    book = reader.get(book_id)
+    if not book or not 0 <= int(i) < len(book["paras"]):
+        return ""
+    text = book["paras"][int(i)]
+    if mode == "raw":
+        return text
+    text = reader.clean(text, book.get("lang") or "")
+    if mode != "simple" or len(text.split()) < 18:  # a short paragraph is easy already
+        return text
+    key = f"simple:{int(i)}"
+    done = reader.easy_get(book_id, key)
+    if done:
+        return done
+    model = default_model()
+    try:
+        language = LANG_NAMES.get((book.get("lang") or "")[:2], "the same language as the paragraph")  # named: otherwise models drift into English
+        out = ollama.chat(model, messages=[{"role": "user", "content": SIMPLER.format(text=text, language=language)}], options={"num_ctx": 4096, "temperature": 0.2},
+                          **think_mode(model, False)).message.content or ""
+        out = split_think(out)[0].strip().strip('"«»“”')
+    except Exception as e:
+        print("simpler sentences:", e, flush=True)
+        return text
+    if not out or not 0.6 < len(out) / max(len(text), 1) < 1.6:  # far shorter or longer: something went wrong, read the paragraph as it is
+        return text
+    reader.easy_put(book_id, key, out)
+    return out
+
 LIVE_EVERY = 1.5  # seconds between redraws of a chat while Joshua writes it
 
 
@@ -3598,6 +3647,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                             "<button id='rdnext' title='" + html.escape(t("Next paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,40V216a8,8,0,0,1-16,0V146.77L72.43,221.55A15.95,15.95,0,0,1,48,208.12V47.88A15.95,15.95,0,0,1,72.43,34.45L192,109.23V40a8,8,0,0,1,16,0Z'/></svg></button>"
                             "<select id='rdrate' title='" + html.escape(t("Speed")) + "'>" + "".join(f"<option value='{r}'>{r}×</option>" for r in ("0.8", "0.9", "1", "1.1", "1.25", "1.5", "1.75", "2")) + "</select>"
                             "<select id='rdvoice' title='" + html.escape(t("Voice")) + "'></select>"
+                            "<select id='rdmode' title='" + html.escape(t("Text read aloud")) + "'>" + "".join(f"<option value='{m}'>{html.escape(lab)}</option>" for m, lab in (("raw", t("As written")), ("clean", t("Without citations")), ("simple", t("Simpler sentences")))) + "</select>"
                             "<label class='rdopt' title='" + html.escape(t("Volume")) + "'>🔊 <input id='rdvol' type='range' min='0.1' max='1' step='0.05' value='1'></label>"
                             "<select id='rdgap' title='" + html.escape(t("Pause between paragraphs")) + "'>" + "".join(f"<option value='{g}'>{lab}</option>" for g, lab in (("0", t("No pause")), ("0.5", "½ s"), ("1", "1 s"), ("2", "2 s"))) + "</select>"
                             "<span id='rdprog'></span><span id='rdhint'>" + html.escape(t("Click a paragraph to read from there.")) + "</span></div>")
@@ -3971,6 +4021,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     team_btn.click(team_page, outputs=TM_PAGE)
     gr.api(tts_voices, api_name="voices", queue=False)
     gr.api(tts, api_name="tts", concurrency_limit=2)
+    gr.api(rd_text, api_name="rd_text", concurrency_limit=2)
     RD = [rd_list, rd_pick, rd_controls, rd_libcol, rd_view, rd_book]
     read_btn.click(rd_library, outputs=RD)
     rd_lib.click(rd_library, outputs=RD)
@@ -4186,6 +4237,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             const r = await fetch('/gradio_api/call/' + name, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data})});
             const id = (await r.json()).event_id, txt = await (await fetch('/gradio_api/call/' + name + '/' + id)).text();
             const m = txt.match(/event: complete\\s*\\ndata: (.*)/); return m ? JSON.parse(m[1])[0] : null; } catch (e) { return null; } };
+        V.call = call;
         V.ready = call('voices', []).then(v => { V.mac = v && v.length ? v : null; });
         const saved = (k) => { try { return localStorage.getItem('joshua-voice-' + k) } catch (e) { return null } };
         V.macVoice = (k, name) => { const mine = (V.mac || []).filter(v => v.lang.toLowerCase().startsWith(k));
@@ -4261,18 +4313,23 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     demo.load(None, None, None, js="""() => {  // the Reader: reads the open book paragraph by paragraph, and tells Joshua each paragraph it finishes
         const V = window.joshuaVoice;
         const PAUSE = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48V208a16,16,0,0,1-16,16H160a16,16,0,0,1-16-16V48a16,16,0,0,1,16-16h40A16,16,0,0,1,216,48ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Z"/></svg>';
-        const R = window.jr = {id: null, i: 0, texts: [], lang: '', playing: false, token: 0, rate: 1, voice: '', volume: 1, gap: 0};
+        const R = window.jr = {id: null, i: 0, texts: [], lang: '', playing: false, token: 0, rate: 1, voice: '', volume: 1, gap: 0, mode: 'clean'};
         try { R.rate = +(localStorage.getItem('joshua-reader-rate') || 1) } catch (e) {}
         let PLAY = null;
         const book = () => document.querySelector('#rdbook');
         const para = (i) => { const b = book(); return b && b.dataset.id === R.id ? b.querySelector('p[data-i="' + i + '"]') : null; };
         const save = () => { const box = document.querySelector('#rdpos textarea, #rdpos input'); if (!box || !R.id) return;
-          box.value = R.id + '|' + R.i + '|' + JSON.stringify({voice: R.voice, rate: R.rate, volume: R.volume, gap: R.gap}); box.dispatchEvent(new Event('input', {bubbles: true})); };
+          box.value = R.id + '|' + R.i + '|' + JSON.stringify({voice: R.voice, rate: R.rate, volume: R.volume, gap: R.gap, mode: R.mode}); box.dispatchEvent(new Event('input', {bubbles: true})); };
         const controls = () => {  // the book's own voice, speed, volume and pause, in the bar
           const vs = document.querySelector('#rdvoice'); if (vs) { const names = V.list(R.lang || 'en'), cur = V.current(R.lang || 'en', R.voice), sig = names.join('|') + '>' + cur;
             if (vs.dataset.sig !== sig) { vs.dataset.sig = sig; vs.innerHTML = names.map(n => '<option' + (n === cur ? ' selected' : '') + '>' + n + '</option>').join('') || '<option>—</option>'; } }
           const vol = document.querySelector('#rdvol'); if (vol && document.activeElement !== vol) vol.value = R.volume;
-          const gp = document.querySelector('#rdgap'); if (gp) gp.value = String(R.gap); };
+          const gp = document.querySelector('#rdgap'); if (gp) gp.value = String(R.gap);
+          const md = document.querySelector('#rdmode'); if (md && md.value !== R.mode) md.value = R.mode; };
+        const spoken = new Map();  // the text heard for each paragraph: without citations, or rewritten in simpler sentences by Joshua
+        const text = (i) => { if (R.mode === 'raw' || i >= R.texts.length) return Promise.resolve(R.texts[i]);
+          const key = R.id + '|' + R.mode + '|' + i; if (!spoken.has(key)) spoken.set(key, V.call('rd_text', [R.id, i, R.mode]).then(t => t || R.texts[i]));
+          return spoken.get(key); };
         const show = (scroll) => { const b = book(); if (b && b.dataset.id === R.id) {
             b.querySelectorAll('p.rdnow').forEach(p => p.classList.remove('rdnow')); const p = para(R.i);
             if (p) { p.classList.add('rdnow'); if (scroll) p.scrollIntoView({block: 'center', behavior: 'smooth'}); } }
@@ -4280,10 +4337,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           const pb = document.querySelector('#rdplay'); if (pb) { if (!PLAY) PLAY = pb.innerHTML; pb.innerHTML = R.playing ? PAUSE : PLAY; }
           const sel = document.querySelector('#rdrate'); if (sel && +sel.value !== R.rate) sel.value = String(R.rate); };
         const say = () => { if (!R.playing) return; if (R.i >= R.texts.length) { R.playing = false; R.i = R.texts.length - 1; show(false); return; }
-          show(true); const tok = ++R.token, k = R.lang || 'en';
-          if (R.texts[R.i + 1]) V.prefetch(R.texts[R.i + 1], k, R.voice);  // the next paragraph gets ready while this one is read
-          V.say(R.texts[R.i], k, R.rate, () => { if (tok !== R.token || !R.playing) return; R.i++; save(); setTimeout(() => { if (tok === R.token) say(); }, R.gap * 1000); },
-                {voice: R.voice, volume: R.volume}); };
+          show(true); const tok = ++R.token, k = R.lang || 'en', i = R.i;
+          [1, 2].forEach(d => { if (i + d < R.texts.length) text(i + d).then(t => { if (d === 1) V.prefetch(t, k, R.voice); }); });  // the next paragraphs get ready while this one is read
+          text(i).then(t => { if (tok !== R.token || !R.playing) return; V.say(t, k, R.rate, () => { if (tok !== R.token || !R.playing) return; R.i++; save(); setTimeout(() => { if (tok === R.token) say(); }, R.gap * 1000); },
+                {voice: R.voice, volume: R.volume}); }); };
         const play = () => { if (!R.texts.length) return; R.playing = true; R.token++; V.stop(); V.unlock(); say(); };
         window.jrPause = () => { if (!R.playing) return; R.playing = false; R.token++; V.stop(); save(); show(false); };
         const jump = (i) => { R.i = Math.max(0, Math.min(i, R.texts.length - 1)); R.token++; V.stop(); save(); if (R.playing) { V.unlock(); say(); } else show(true); };
@@ -4296,6 +4353,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         document.addEventListener('change', (e) => {
           if (e.target.closest('#rdvoice')) { R.voice = e.target.value; save(); return restart(); }
           if (e.target.closest('#rdgap')) { R.gap = +e.target.value; return save(); }
+          if (e.target.closest('#rdmode')) { R.mode = e.target.value; save(); return restart(); }
           if (e.target.closest('#rdvol')) return save(); });
         document.addEventListener('input', (e) => { if (!e.target.closest('#rdvol')) return; R.volume = +e.target.value; if (V.mac) V.el.volume = R.volume; });
         document.addEventListener('change', (e) => { if (!e.target.closest('#rdrate')) return; R.rate = +e.target.value; save();
@@ -4306,7 +4364,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             if (R.playing) window.jrPause();
             R.id = b.dataset.id; R.lang = b.dataset.lang || ''; R.i = +b.dataset.pos || 0; R.texts = [...b.querySelectorAll('p[data-i]')].map(p => p.textContent);
             let o = {}; try { o = JSON.parse(b.dataset.settings || '{}') } catch (x) {}
-            R.voice = o.voice || ''; R.volume = o.volume == null ? 1 : +o.volume; R.gap = +o.gap || 0; if (o.rate) R.rate = +o.rate;
+            R.voice = o.voice || ''; R.volume = o.volume == null ? 1 : +o.volume; R.gap = +o.gap || 0; if (o.rate) R.rate = +o.rate; R.mode = o.mode || 'clean';
             V.ready.then(controls);
             setTimeout(() => show(true), 150);
           } else { if (!b.querySelector('p.rdnow') || !document.querySelector('#rdprog').textContent) show(false); controls(); } }, 500);

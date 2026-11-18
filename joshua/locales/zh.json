@@ -644,5 +644,9 @@
  "{p}% read": "已读 {p}%",
  "Volume": "音量",
  "Pause between paragraphs": "段落之间的停顿",
- "No pause": "不停顿"
+ "No pause": "不停顿",
+ "Text read aloud": "朗读的文字",
+ "As written": "原文",
+ "Without citations": "去掉引注",
+ "Simpler sentences": "更简单的句子"
 }

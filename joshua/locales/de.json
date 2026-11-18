@@ -644,5 +644,9 @@
  "{p}% read": "{p} % gelesen",
  "Volume": "Lautstärke",
  "Pause between paragraphs": "Pause zwischen Absätzen",
- "No pause": "Keine Pause"
+ "No pause": "Keine Pause",
+ "Text read aloud": "Vorgelesener Text",
+ "As written": "Wie geschrieben",
+ "Without citations": "Ohne Quellenangaben",
+ "Simpler sentences": "Einfachere Sätze"
 }
