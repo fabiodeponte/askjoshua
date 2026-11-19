@@ -3,6 +3,7 @@ import html, json, pathlib
 import gradio as gr, pandas as pd
 from markdown_it import MarkdownIt
 import finetune as ft
+import scratch as sc
 from i18n import t
 
 INTRO = t("""
@@ -151,77 +152,275 @@ def more(text, label=None):
 STEPS = [("1", "Model"), ("2", "Examples"), ("3", "Train"), ("4", "Compare"), ("5", "Install")]
 
 
+NEW_INTRO = t("""A model trained from nothing knows only what is in your texts. Joshua builds it in four steps:
+
+1. **Reading.** Every text file in the folder (txt, md, PDF, EPUB, Word, OpenDocument, web pages) is read; repeated paragraphs are dropped, and 1 paragraph in 50 is kept aside to check the model on text it never studies.
+2. **Vocabulary.** The model can only read numbers. Joshua learns 8,192 frequent pieces of your texts (whole words, parts of words, single letters) and gives each a number. The texts become one long list of numbers.
+3. **Training.** The model starts as random numbers. Over and over, it sees 512 numbers of your text and guesses each next one; every wrong guess nudges its weights. The chart shows how wrong it still is (lower is better), and every so often it writes a sample, so you can watch it go from noise to words to sentences. You can stop and carry on later.
+4. **Ollama.** Joshua converts it to Ollama's format, so other programs can use it too.
+
+**How much text?** A model wants about 20 pieces of text for every parameter it has: 200 million for the 10M model, a billion for the 50M one. With less, it learns your texts nearly by heart and repeats them. **What it won't do:** answer questions, follow instructions or use tools. It continues text, in the style of what it read. That's why it doesn't appear in the chat's model menu.""")
+
+
+def new_info(n):
+    d = sc.data(n) if n else None
+    if not d:
+        return "<div class='ftempty'>" + t("Choose a folder with your texts, then press Read them.") + "</div>"
+    best = sc.best_size(n)
+    note = (" " + t("That is little text: the model will mostly learn to repeat it. More text helps more than a bigger model.")) if d["train_tokens"] < 20 * sc.params(sc.SIZES[0]) else ""
+    return ("<div class='ftres'>" + t("{files} files · {words} words · {tokens} pieces of text to learn from.", files=d["files"], words=f"{d['words']:,}", tokens=f"{d['train_tokens']:,}")
+            + " " + t("Suggested size: {size}.", size=best) + html.escape(note) + "</div>")
+
+
+def size_choices(n):
+    if not (n and sc.data(n)):
+        return [(s, s) for s in sc.SIZES]
+    out = []
+    for s in sc.SIZES:
+        h = sc.hours(n, s)
+        when = t("about {n} min", n=max(1, round(h * 60))) if h < 1 else t("about {n} h", n=round(h, 1) if h < 10 else round(h))
+        out.append((f"{s} · {when}", s))
+    return out
+
+
+def samples_html(samples):
+    if not samples:
+        return ""
+    rows = "".join(f"<div class='ftsample'><b>{t('step')} {i}</b> {html.escape(text.strip())}</div>" for i, text in reversed(samples[-5:]))
+    return "<div class='ftsamples'><div class='ftchart-head'>" + t("What it writes, newest first") + "</div>" + rows + "</div>"
+
+
+MAC_OK = ft.MAC and __import__("platform").machine() == "arm64"  # MLX runs on the Apple chip's graphics
+
+
+def build_new():
+    """The page part for a model trained from nothing (scratch.py)."""
+    with gr.Column(visible=False) as col:
+        gr.Markdown(t("A small language model of your own, starting from random numbers and trained only on texts you choose. It learns to continue text in their style."), elem_classes="ftlead")
+        more(NEW_INTRO, t("How it works, and what it can't do"))
+        if not MAC_OK:
+            gr.HTML("<div class='ftempty'>" + t("This needs a Mac with Apple silicon (M1 or later): on other computers, without a big NVIDIA card, it would take weeks.") + "</div>")
+            return col
+        with gr.Row(elem_id="ftproject", equal_height=True):
+            name = gr.Dropdown(choices=sc.projects(), value=None, label=t("Model"), scale=3)
+            newb = gr.Button("＋ " + t("New model"), size="sm", scale=0, min_width=150)
+        with gr.Row(visible=False, equal_height=True) as newrow:
+            newname = gr.Textbox(show_label=False, placeholder=t("a short name in lowercase, like my-novels"), max_lines=1, scale=3, container=False)
+            create = gr.Button(t("Create"), size="sm", scale=0, min_width=110)
+        with gr.Column(visible=False) as work:
+            with gr.Column(elem_classes="ftpane"):
+                gr.Markdown("**1 · " + t("Your texts") + "** " + t("A folder on this computer: every text inside it, and in its subfolders, is read."))
+                with gr.Row(equal_height=True):
+                    folder = gr.Textbox(show_label=False, placeholder=t("the folder's path, like /Users/you/Documents/my-texts"), max_lines=1, scale=4, container=False)
+                    readb = gr.Button(t("Read them"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
+                info = gr.HTML(new_info(None))
+            with gr.Column(elem_classes="ftpane"):
+                gr.Markdown("**2 · " + t("Train") + "** " + t("Bigger models learn more, but need more text and more time. You can stop and carry on later."))
+                size = gr.Radio(size_choices(None), value=sc.SIZES[0], show_label=False, elem_id="ftsize")
+                with gr.Row():
+                    trainb = gr.Button("▶ " + t("Start training"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
+                    stopb = gr.Button("■ " + t("Stop"), size="sm", scale=0, min_width=100)
+                plot = gr.HTML(loss_svg([], []))
+                samples = gr.HTML("")
+            with gr.Column(elem_classes="ftpane"):
+                gr.Markdown("**3 · " + t("Try it") + "** " + t("Write the beginning of a sentence: the model carries on."))
+                with gr.Row(equal_height=True):
+                    prompt = gr.Textbox(show_label=False, placeholder=t("The beginning of a sentence"), scale=4, container=False)
+                    contb = gr.Button(t("Continue"), size="sm", scale=0, min_width=120, elem_classes="ftmain")
+                out = gr.Markdown("", elem_classes="ftans", container=True)
+            with gr.Column(elem_classes="ftpane"):
+                gr.Markdown("**4 · " + t("Add to Ollama") + "** " + t("It becomes `joshua-new-<name>`, for other programs or the terminal."))
+                with gr.Row():
+                    instb = gr.Button("⬇ " + t("Add to Ollama"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
+                    delb = gr.Button(t("Delete this model"), size="sm", scale=0, min_width=170, elem_id="ftdel")
+        seen = gr.State(None)
+
+    def opened(n):
+        n = (n or "").strip().lower()
+        if not ft.NAME_RE.match(n):
+            gr.Warning(t("Use 2–31 lowercase letters, digits or dashes, like 'newsroom-style'."))
+            return (gr.skip(),) * 9
+        sc.pdir(n).mkdir(exist_ok=True)
+        f = sc.pdir(n) / "folder.txt"
+        p = sc.progress(n) or {}
+        chosen = p.get("size") or (sc.best_size(n) if sc.data(n) else sc.SIZES[0])
+        return (gr.Dropdown(choices=sc.projects(), value=n), gr.Row(visible=False), gr.Column(visible=True), f.read_text() if f.exists() else "",
+                new_info(n), gr.Radio(choices=size_choices(n), value=chosen), loss_svg(p.get("train", []), p.get("val", [])), samples_html(p.get("samples", [])), "")
+
+    def need(n):
+        if not n or not sc.pdir(n).exists():
+            gr.Warning(t("First open a model, or start a new one."))
+            return False
+        return True
+
+    def read(n, path):
+        if not need(n):
+            return
+        p = __import__("pathlib").Path(path.strip()).expanduser()
+        if not path.strip() or not p.is_dir():
+            gr.Warning(t("That folder doesn't exist: copy its path from Finder (right-click it, hold ⌥ Option, Copy as Pathname)."))
+            return
+        if sc.trained(n):
+            gr.Info(t("Reading new texts starts the model over: the old one is deleted."))
+        (sc.pdir(n) / "folder.txt").write_text(str(p))
+        try:
+            sc.prepare(n, str(p))
+        except RuntimeError as e:
+            gr.Warning(str(e))
+
+    def start(n, s):
+        if not need(n):
+            return
+        if not sc.data(n):
+            gr.Warning(t("First read your texts (step 1)."))
+            return
+        if ft.ready():
+            gr.Warning(" ".join(ft.ready()))
+            return
+        try:
+            sc.train(n, s)
+            gr.Info(t("Training. It writes a sample every so often: watch it learn below."))
+        except RuntimeError as e:
+            gr.Warning(str(e))
+
+    def cont(n, text):
+        if not need(n):
+            return
+        if not sc.trained(n):
+            gr.Warning(t("Train the model first (step 2)."))
+            return
+        try:
+            sc.try_out(n, text.strip() or "\n")
+        except RuntimeError as e:
+            gr.Warning(str(e))
+
+    def inst(n):
+        if not need(n):
+            return
+        if not sc.trained(n):
+            gr.Warning(t("Train the model first (step 2)."))
+            return
+        try:
+            sc.install(n)
+        except RuntimeError as e:
+            gr.Warning(str(e))
+
+    def delete(n):
+        if not n or not sc.pdir(n).exists():
+            return gr.skip(), gr.skip()
+        if ft.busy() and ft.RUN.name == n:
+            gr.Warning(t("Stop the running step first."))
+            return gr.skip(), gr.skip()
+        sc.delete(n)
+        return gr.Dropdown(choices=sc.projects(), value=None), gr.Column(visible=False)
+
+    def tick(seen_v):
+        run = ft.RUN
+        if run is None or run.kind not in ("reading", "pretraining", "continue") or (id(run), run.version) == seen_v:
+            return (gr.skip(),) * 5 + (seen_v,)
+        sig = (id(run), run.version)
+        if run.kind == "reading":
+            if not run.done:
+                return (gr.skip(),) * 5 + (sig,)
+            n = run.name
+            return new_info(n), gr.Radio(choices=size_choices(n), value=sc.best_size(n) if sc.data(n) else sc.SIZES[0]), loss_svg([], []), "", gr.skip(), sig
+        if run.kind == "pretraining":
+            chart = loss_svg(run.train, run.val) if run.train else gr.skip()
+            return gr.skip(), gr.skip(), chart, samples_html((run.result or {}).get("samples", [])), gr.skip(), sig
+        text = (run.result or {}).get("text")
+        return gr.skip(), gr.skip(), gr.skip(), gr.skip(), (html.escape(text) if text else gr.skip()), sig
+
+    outs = [name, newrow, work, folder, info, size, plot, samples, out]
+    name.input(opened, name, outs)
+    newb.click(lambda: (gr.Row(visible=True), ""), outputs=[newrow, newname])
+    create.click(opened, newname, outs)
+    newname.submit(opened, newname, outs)
+    readb.click(read, [name, folder])
+    folder.submit(read, [name, folder])
+    trainb.click(start, [name, size])
+    stopb.click(lambda: ft.stop())
+    contb.click(cont, [name, prompt])
+    prompt.submit(cont, [name, prompt])
+    instb.click(inst, name)
+    delb.click(delete, name, [name, work], js="(n) => (n && confirm(" + json.dumps(t("Delete this model and its training? A copy added to Ollama stays."), ensure_ascii=False) + ")) ? n : null")
+    gr.Timer(1).tick(tick, seen, [info, size, plot, samples, out, seen], show_progress="hidden")
+    return col
+
+
 def build(conv_root, conv_choices):
     with gr.Column(visible=False, scale=5, elem_id="tune") as panel:
         with gr.Row():
             gr.HTML("<div id='tunetitle'>" + t("FINE-TUNING") + "</div>")
             back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="tuneback", elem_classes="backbtn")
-        gr.Markdown(t("Teach a model your style from examples, here on your computer. The result is a new model in Joshua's menu."), elem_classes="ftlead")
-        res = gr.HTML()
-        more(INTRO, t("What fine-tuning is, and what it can't do"))
-        # the project: open one, or start a new one
-        with gr.Row(elem_id="ftproject", equal_height=True):
-            name = gr.Dropdown(choices=ft.projects(), value=None, label=t("Project"), scale=3, elem_id="ftname")
-            newp = gr.Button("＋ " + t("New project"), size="sm", scale=0, min_width=150)
-        with gr.Row(visible=False, elem_id="ftnewrow", equal_height=True) as newrow:
-            newname = gr.Textbox(show_label=False, placeholder=t("a short name in lowercase, like newsroom-style"), max_lines=1, scale=3, container=False)
-            create = gr.Button(t("Create"), size="sm", scale=0, min_width=110)
-        with gr.Column() as noproj:
-            gr.HTML("<div class='ftempty'>" + t("Open a project, or start a new one: each project has its own examples and training.") + "</div>")
-        with gr.Column(visible=False) as work:
-            steps = gr.Radio([(f"{n} · {t(label)}", n) for n, label in STEPS], value="1", show_label=False, elem_id="ftsteps")
-            with gr.Column(elem_classes="ftpane") as s1:
-                gr.Markdown(t("**Choose the model to teach.** ✓ fits this computer, ✗ doesn't (and why). Bigger models learn better but train more slowly."))
-                basepick = gr.Dropdown(base_choices(), value=ft.DEFAULT, show_label=False, elem_id="ftbase")
-                with gr.Row(visible=False, equal_height=True) as hfrow:
-                    hfrepo = gr.Textbox(show_label=False, container=False, placeholder=t("its name on Hugging Face, like mlx-community/Llama-3.2-3B-Instruct-4bit") if ft.MAC else t("its name on Hugging Face, like meta-llama/Llama-3.2-3B-Instruct"), scale=4)
-                    usehf = gr.Button(t("Use it"), size="sm", scale=0, min_width=100)
-                baseinfo = gr.HTML("")
-                more(STEP1)
-            with gr.Column(visible=False, elem_classes="ftpane") as s2:
-                gr.Markdown(t("**Show the model what you want:** something you might say, and the exact answer you'd like back. 100–500 good examples work best."))
-                with gr.Row(equal_height=True, elem_classes="ftadd"):
-                    upload = gr.UploadButton("📄 " + t("Add from a file"), file_types=[".jsonl", ".json", ".csv"], type="filepath", size="sm", scale=0, min_width=170)
-                    chats = gr.Dropdown(choices=conv_choices(), multiselect=True, label=t("…or pick some of your chats"), scale=3, elem_id="ftchats")
-                    addchats = gr.Button(t("Add from these chats"), size="sm", scale=0, min_width=170)
-                with gr.Row(equal_height=True, elem_classes="ftadd"):
-                    q = gr.Textbox(show_label=False, placeholder=t("You say…"), lines=1, max_lines=6, scale=2, container=False)
-                    a = gr.Textbox(show_label=False, placeholder=t("…and Joshua answers"), lines=1, max_lines=6, scale=3, container=False)
-                    add = gr.Button(t("Add"), size="sm", scale=0, min_width=80)
-                grid = gr.Dataframe(table([]), headers=[t("You say"), t("Joshua answers")], column_count=(2, "fixed"), interactive=True, wrap=True, max_height=380,
-                                    buttons=[], show_search="search", elem_id="ftgrid")
-                with gr.Row(elem_classes="ftsave"):
-                    count = gr.HTML(count_html([]))
-                    saveb = gr.Button(t("Save examples"), size="sm", scale=0, min_width=160, elem_classes="ftmain")
-                more(STEP2)
-            with gr.Column(visible=False, elem_classes="ftpane") as s3:
-                gr.Markdown(t("**Train it.** Start with a light touch: you can always train again more strongly. It takes 15–60 minutes."))
-                preset = gr.Radio([(t(p), p) for p in PRESETS], value="Normal", show_label=False, elem_id="ftpreset")
-                advanced = gr.Checkbox(False, label=t("Advanced settings"))
-                with gr.Row(visible=False) as advrow:
-                    iters = gr.Slider(50, 1500, value=300, step=10, label=t("Steps"))
-                    lr = gr.Dropdown(["1e-5", "2e-5", "5e-5", "1e-4", "2e-4"], value="5e-5", label=t("Learning rate"))
-                    layers = gr.Dropdown([4, 8, 16, 24], value=16, label=t("Layers"))
-                with gr.Row():
-                    trainb = gr.Button("▶ " + t("Start training"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
-                    stopb = gr.Button("■ " + t("Stop"), size="sm", scale=0, min_width=100, elem_id="ftstop")
-                plot = gr.HTML(loss_svg([], []))
-                more(STEP3)
-            with gr.Column(visible=False, elem_classes="ftpane") as s4:
-                gr.Markdown(t("**Compare.** Ask the model before and after training the same question, one that isn't in your examples."))
-                with gr.Row(equal_height=True):
-                    tq = gr.Textbox(show_label=False, placeholder=t("A question that is not in your examples"), scale=4, container=False)
-                    tryb = gr.Button(t("Ask both"), size="sm", scale=0, min_width=120, elem_classes="ftmain")
-                with gr.Row():
-                    before = gr.Markdown("", label=t("Before"), elem_classes="ftans", container=True)
-                    after = gr.Markdown("", label=t("After"), elem_classes="ftans", container=True)
-                more(STEP4)
-            with gr.Column(visible=False, elem_classes="ftpane") as s5:
-                gr.Markdown(t("**Install it.** Your trained model becomes `joshua-<name>` in the model menu."))
-                with gr.Row():
-                    instb = gr.Button("⬇ " + t("Install into Joshua"), size="sm", scale=0, min_width=190, elem_classes="ftmain")
-                    delb = gr.Button(t("Delete this project"), size="sm", scale=0, min_width=170, elem_id="ftdel")
-                more(STEP5)
+        mode = gr.Radio([(t("Teach an existing model"), "teach"), (t("Train a new model from nothing"), "new")], value="teach", show_label=False, elem_id="ftmode")
+        with gr.Column() as teachcol:
+            gr.Markdown(t("Teach a model your style from examples, here on your computer. The result is a new model in Joshua's menu."), elem_classes="ftlead")
+            res = gr.HTML()
+            more(INTRO, t("What fine-tuning is, and what it can't do"))
+            # the project: open one, or start a new one
+            with gr.Row(elem_id="ftproject", equal_height=True):
+                name = gr.Dropdown(choices=ft.projects(), value=None, label=t("Project"), scale=3, elem_id="ftname")
+                newp = gr.Button("＋ " + t("New project"), size="sm", scale=0, min_width=150)
+            with gr.Row(visible=False, elem_id="ftnewrow", equal_height=True) as newrow:
+                newname = gr.Textbox(show_label=False, placeholder=t("a short name in lowercase, like newsroom-style"), max_lines=1, scale=3, container=False)
+                create = gr.Button(t("Create"), size="sm", scale=0, min_width=110)
+            with gr.Column() as noproj:
+                gr.HTML("<div class='ftempty'>" + t("Open a project, or start a new one: each project has its own examples and training.") + "</div>")
+            with gr.Column(visible=False) as work:
+                steps = gr.Radio([(f"{n} · {t(label)}", n) for n, label in STEPS], value="1", show_label=False, elem_id="ftsteps")
+                with gr.Column(elem_classes="ftpane") as s1:
+                    gr.Markdown(t("**Choose the model to teach.** ✓ fits this computer, ✗ doesn't (and why). Bigger models learn better but train more slowly."))
+                    basepick = gr.Dropdown(base_choices(), value=ft.DEFAULT, show_label=False, elem_id="ftbase")
+                    with gr.Row(visible=False, equal_height=True) as hfrow:
+                        hfrepo = gr.Textbox(show_label=False, container=False, placeholder=t("its name on Hugging Face, like mlx-community/Llama-3.2-3B-Instruct-4bit") if ft.MAC else t("its name on Hugging Face, like meta-llama/Llama-3.2-3B-Instruct"), scale=4)
+                        usehf = gr.Button(t("Use it"), size="sm", scale=0, min_width=100)
+                    baseinfo = gr.HTML("")
+                    more(STEP1)
+                with gr.Column(visible=False, elem_classes="ftpane") as s2:
+                    gr.Markdown(t("**Show the model what you want:** something you might say, and the exact answer you'd like back. 100–500 good examples work best."))
+                    with gr.Row(equal_height=True, elem_classes="ftadd"):
+                        upload = gr.UploadButton("📄 " + t("Add from a file"), file_types=[".jsonl", ".json", ".csv"], type="filepath", size="sm", scale=0, min_width=170)
+                        chats = gr.Dropdown(choices=conv_choices(), multiselect=True, label=t("…or pick some of your chats"), scale=3, elem_id="ftchats")
+                        addchats = gr.Button(t("Add from these chats"), size="sm", scale=0, min_width=170)
+                    with gr.Row(equal_height=True, elem_classes="ftadd"):
+                        q = gr.Textbox(show_label=False, placeholder=t("You say…"), lines=1, max_lines=6, scale=2, container=False)
+                        a = gr.Textbox(show_label=False, placeholder=t("…and Joshua answers"), lines=1, max_lines=6, scale=3, container=False)
+                        add = gr.Button(t("Add"), size="sm", scale=0, min_width=80)
+                    grid = gr.Dataframe(table([]), headers=[t("You say"), t("Joshua answers")], column_count=(2, "fixed"), interactive=True, wrap=True, max_height=380,
+                                        buttons=[], show_search="search", elem_id="ftgrid")
+                    with gr.Row(elem_classes="ftsave"):
+                        count = gr.HTML(count_html([]))
+                        saveb = gr.Button(t("Save examples"), size="sm", scale=0, min_width=160, elem_classes="ftmain")
+                    more(STEP2)
+                with gr.Column(visible=False, elem_classes="ftpane") as s3:
+                    gr.Markdown(t("**Train it.** Start with a light touch: you can always train again more strongly. It takes 15–60 minutes."))
+                    preset = gr.Radio([(t(p), p) for p in PRESETS], value="Normal", show_label=False, elem_id="ftpreset")
+                    advanced = gr.Checkbox(False, label=t("Advanced settings"))
+                    with gr.Row(visible=False) as advrow:
+                        iters = gr.Slider(50, 1500, value=300, step=10, label=t("Steps"))
+                        lr = gr.Dropdown(["1e-5", "2e-5", "5e-5", "1e-4", "2e-4"], value="5e-5", label=t("Learning rate"))
+                        layers = gr.Dropdown([4, 8, 16, 24], value=16, label=t("Layers"))
+                    with gr.Row():
+                        trainb = gr.Button("▶ " + t("Start training"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
+                        stopb = gr.Button("■ " + t("Stop"), size="sm", scale=0, min_width=100, elem_id="ftstop")
+                    plot = gr.HTML(loss_svg([], []))
+                    more(STEP3)
+                with gr.Column(visible=False, elem_classes="ftpane") as s4:
+                    gr.Markdown(t("**Compare.** Ask the model before and after training the same question, one that isn't in your examples."))
+                    with gr.Row(equal_height=True):
+                        tq = gr.Textbox(show_label=False, placeholder=t("A question that is not in your examples"), scale=4, container=False)
+                        tryb = gr.Button(t("Ask both"), size="sm", scale=0, min_width=120, elem_classes="ftmain")
+                    with gr.Row():
+                        before = gr.Markdown("", label=t("Before"), elem_classes="ftans", container=True)
+                        after = gr.Markdown("", label=t("After"), elem_classes="ftans", container=True)
+                    more(STEP4)
+                with gr.Column(visible=False, elem_classes="ftpane") as s5:
+                    gr.Markdown(t("**Install it.** Your trained model becomes `joshua-<name>` in the model menu."))
+                    with gr.Row():
+                        instb = gr.Button("⬇ " + t("Install into Joshua"), size="sm", scale=0, min_width=190, elem_classes="ftmain")
+                        delb = gr.Button(t("Delete this project"), size="sm", scale=0, min_width=170, elem_id="ftdel")
+                    more(STEP5)
+        newcol = build_new()
         status = gr.HTML("<div class='ftstatus'>" + t("Ready when you are") + "</div>")
         showlog = gr.Checkbox(False, label=t("Show the console"))
         with gr.Column(visible=False) as logbox:
@@ -397,6 +596,7 @@ def build(conv_root, conv_choices):
         return [gr.Column(visible=str(k + 1) == str(v)) for k in range(5)]
 
     opened = [name, grid, count, chats, plot, basepick, hfrow, hfrepo, baseinfo, noproj, work, steps, *panes, newrow, newname]
+    mode.change(lambda m: (gr.Column(visible=m == "teach"), gr.Column(visible=m == "new")), mode, [teachcol, newcol], show_progress="hidden")
     name.input(open_project, name, opened)
     newp.click(lambda: (gr.Row(visible=True), ""), outputs=[newrow, newname])
     create.click(open_project, newname, opened)

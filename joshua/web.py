@@ -2758,7 +2758,16 @@ body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tunetitle {font-siz
 #tune .ftchart .va {stroke: #e8892a; fill: #e8892a} #tune .ftchart polyline.va {fill: none}
 #tune .ftchart-last, #tune .ftchart-empty {font-size: .85rem; opacity: .65; margin-top: 2px}
 #tune .ftchart-empty {padding: 18px 0}
-body:not(#a):not(#b):not(#c):not(#d) #tune #ftpreset input {display: none !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsize input {display: none !important}
+#tune .ftsamples {margin-top: 10px} #tune .ftsample {font-size: .88rem; padding: 6px 10px; border-left: 2px solid var(--line); margin: 4px 0; white-space: pre-wrap; opacity: .9}
+#tune .ftsample b {color: var(--cyan); font-weight: 600; margin-right: 6px}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftmode {margin: 4px 0 10px; border: none !important; background: transparent !important; padding: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftmode .wrap {display: flex !important; gap: 0 !important; flex-wrap: wrap !important; border-bottom: 1px solid var(--line)}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftmode label {border: none !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; background: transparent !important;
+  padding: 8px 14px !important; margin: 0 0 -1px !important; color: inherit !important; opacity: .65; box-shadow: none !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftmode label.selected {opacity: 1; border-bottom-color: var(--brand) !important; color: var(--brand) !important; font-weight: 600}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftmode label.selected * {color: var(--brand) !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftmode input {display: none !important}
 body:not(#a):not(#b):not(#c):not(#d) #tune {overflow-x: hidden !important; flex-wrap: nowrap !important}  /* allowed to wrap, a page taller than the window put its lower half in a second column, off screen */
 #tune .ftpane .row, #tune #ftproject, #tune #ftnewrow {flex-wrap: wrap !important; row-gap: 8px !important; max-width: 100% !important}
 #tune .ftpane .row > .form, #tune .ftpane .row > .block:not(button) {min-width: 0 !important}
