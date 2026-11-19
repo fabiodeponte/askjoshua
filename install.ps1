@@ -61,8 +61,9 @@ function Ollama-SignIn {  # 'ollama signin' prints the page to open and waits un
     ((Get-Content $log, $err -ErrorAction SilentlyContinue) | Where-Object { $_.Trim() }) | ForEach-Object { Dim $_.Trim() }
     if ($url) { Dim "Opening the page in your browser..."; Start-Process $url }
     $p.WaitForExit()
+    $text = ((Get-Content $log, $err -Raw -ErrorAction SilentlyContinue) -join "`n")
     Remove-Item $log, $err -ErrorAction SilentlyContinue
-    return ($p.ExitCode -eq 0)
+    return ($p.ExitCode -eq 0 -or $text -match 'already signed in')  # signed in before: that's fine too
 }
 
 function Ask($q, $default) {  # returns $true for yes
@@ -183,7 +184,7 @@ if ($LocalNo) {
 } else {
     Say "  Where should Joshua's answers come from? Normally from models on this computer (private, free, works offline)."
     Dim "Or from cloud models only: $CloudText"
-    $def = "n"; if ($Speed4 -lt 3 -and -not $Gpu) { $def = "y"; Dim "Recommended here: local models would be very slow on this computer." }
+    $def = "n"; if (-not $Gpu) { $def = "y"; Dim "Recommended here: without an NVIDIA graphics card, local models would be slow on this computer." }
     if (Ask "Use cloud models only?" $def) { $CloudOnly = $true }
 }
 if ($CloudOnly) {
@@ -311,8 +312,10 @@ if ($Cloud) {
     Step "Cloud models"
     $c = $null
     foreach ($m in @("nemotron-3-super:cloud", "deepseek-v4.1-flash:cloud", "kimi-k3.1-pro:cloud")) {  # Nemotron first: the cloud model Joshua starts with
+        $ErrorActionPreference = "Continue"  # Ollama writes its progress where errors go: Windows PowerShell would stop the installer on it
         & $Ollama pull $m *> $null
-        if ($LASTEXITCODE -eq 0) { Ok "$m added (nothing downloaded: it runs on Ollama's servers)"; if (-not $c) { $c = $m } }
+        $ok = ($LASTEXITCODE -eq 0); $ErrorActionPreference = "Stop"
+        if ($ok) { Ok "$m added (nothing downloaded: it runs on Ollama's servers)"; if (-not $c) { $c = $m } }
         else { Warn "couldn't add $m now; add it later from Joshua's Models page" }
     }
     if ($CloudOnly) { if (-not $c) { $c = "nemotron-3-super:cloud" }; $Fast = $c; $Model = $c; $Label = $c }

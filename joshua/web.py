@@ -2,11 +2,11 @@ import functools, os, sys
 os.environ.setdefault("GRADIO_RUN_HISTORY", "false")  # see LAUNCH_EXTRA
 if os.environ.get("JOSHUA_LOG"):  # started without a window (Windows): what Joshua prints goes to this file instead
     sys.stdout = sys.stderr = open(os.environ["JOSHUA_LOG"], "a", buffering=1, encoding="utf-8", errors="replace")
-import copy, html, inspect, json, os, pathlib, platform, re, secrets, shutil, subprocess, sys, threading, time, zipfile, urllib.parse
+import copy, hashlib, html, inspect, json, os, pathlib, platform, re, secrets, shutil, subprocess, sys, threading, time, zipfile, urllib.parse
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, remote, teams, tune_ui
+import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, reader, remote, teams, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -155,7 +155,7 @@ def badge(choice):
     elif place or (choice != apple.NAME and not providers.is_api(choice) and is_cloud(resolve(choice, True))):
         cost = ""
     else:
-        cost = "<span class='bcost'>" + t("free, on this computer") + "</span>"
+        cost = "<span class='bcost'>" + t("free, local") + "</span>"
     credit = ("<span class='bcredit' data-tip='" + html.escape(t("What is left on your Ollama account: the credit included in your plan plus the credit you bought."), quote=True) + "'>" + t("{n} left", n=money(left)) + "</span>") if left is not None else ""
     return "<div class='cloudbadge'>" + "".join(x for x in (place, "<span class='bicons'>" + icons + "</span>", cost, credit) if x) + "</div>"
 
@@ -240,11 +240,12 @@ def installed_html():
 def other_models_html():
     """Models Joshua uses for other jobs than chatting, kept on this computer: today the speech model for transcription."""
     import transcribe as tr
-    if not tr.model_dir():
-        return ""
+    here = tr.model_dir()  # removed, it stays listed so it can be downloaded again
+    size = f"{tr.size_gb():.1f} GB" if here else t("not downloaded")
+    button = act_button("rmspeech", "whisper", t("Remove")) if here else act_button("getspeech", "whisper", t("Download"))
     return ("<h3 class='msub2'>" + t("Other models on this computer") + "</h3><table class='mrank'><tr><th>" + t("Model") + "</th><th>" + t("Size") + "</th><th>" + t("Used for") + "</th><th></th></tr>"
-            + f"<tr><td class='mname'>🎙️ {tr.NAME}</td><td class='mdim'>{tr.size_gb():.1f} GB</td><td class='mdim'>" + t("transcribing audio and video, on this computer") + "</td><td class='mnote mbtns'>"
-            + act_button("rmspeech", "whisper", t("Remove")) + "</td></tr></table>")
+            + f"<tr><td class='mname'>🎙️ {tr.NAME}</td><td class='mdim'>{size}</td><td class='mdim'>" + t("transcribing audio and video, on this computer") + "</td><td class='mnote mbtns'>"
+            + button + "</td></tr></table>")
 
 
 def cloud_catalog():
@@ -467,7 +468,15 @@ def row_action(act):
     elif kind == "rmspeech":
         import transcribe as tr
         tr.remove()
-        yield gr.skip(), "<div class='cloudstat'>" + t("The speech model was removed. It downloads again the next time you ask for a transcription.") + "</div>", gr.skip(), gr.skip()
+        yield gr.skip(), "<div class='cloudstat'>" + t("The speech model was removed. It downloads again the next time you ask for a transcription, or with Download.") + "</div>", gr.skip(), gr.skip()
+    elif kind == "getspeech":
+        import transcribe as tr
+        yield gr.skip(), "<div class='cloudstat'>" + t("Downloading the speech model (about 1.6 GB)…") + "</div>", gr.skip(), gr.skip()
+        try:
+            tr.download()
+            yield gr.skip(), "<div class='cloudstat'>" + t("The speech model is ready: Joshua can transcribe audio and video.") + "</div>", gr.skip(), gr.skip()
+        except Exception as e:
+            yield gr.skip(), "<div class='cloudstat'>" + t("Couldn't download the speech model: {error}", error=html.escape(str(e))) + "</div>", gr.skip(), gr.skip()
     elif kind == "add":
         m, status = cloud_add_model(tag)
         yield m, gr.skip(), gr.skip(), status
@@ -533,8 +542,9 @@ def check_update():
         return gr.skip(), gr.skip()
     num = lambda v: tuple(int(x) for x in v.split(".") if x.isdigit())  # versions are dates plus a counter: 2026.11.08.3
     if re.fullmatch(r"[\d.]+", latest) and num(latest) > num(VERSION):
-        return "<div class='updnote'>" + t("Joshua {new} is available (you have {old}).", new=html.escape(latest), old=html.escape(VERSION)) + "</div>", gr.Button(visible=True)
-    return "", gr.Button(visible=False)
+        return ("<div class='updnote' title='" + html.escape(t("Joshua {new} is available (you have {old}).", new=latest, old=VERSION), quote=True) + "'>"
+                + t("New version") + "</div>"), gr.Row(visible=True)
+    return "", gr.Row(visible=False)
 
 
 def do_update():
@@ -2226,6 +2236,193 @@ def team_open_chat(team_id):
     return open_conv(new_id) + (gr.Radio(choices=conv_choices(), value=new_id), gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True))
 
 
+# ---------- the Reader ----------
+
+def rd_title(title):
+    """Titles in capitals (often a file's name) are shown in ordinary case."""
+    return title[:1] + title[1:].lower() if title.isupper() and len(title) > 12 else title
+
+
+def rd_library():
+    """The library (no book open): your books, the last read first. A title opens the book; ✕ removes it."""
+    rows = []
+    for b in reader.books():
+        pct = reader.percent(b.get("pos", 0), b["count"])
+        src = b.get("file") or ""
+        kind = (urllib.parse.urlparse(src).netloc.removeprefix("www.") if src.startswith("http") else pathlib.Path(src).suffix.lstrip(".").upper()) if src else t("Text")
+        rows.append(f"<div class='rdrow' data-open='{b['id']}'><div class='rdmain'><div class='rdname'>{html.escape(rd_title(b['title']))}</div>"
+                    f"<div class='rdmeta'>{html.escape(kind)} · " + t("{p}% read", p=pct) + f"</div><div class='rdprogress'><span style='width:{pct}%'></span></div></div>"
+                    f"<button class='rdx' data-remove='{b['id']}' title='" + html.escape(t("Remove from the library"), quote=True) + "'>✕</button></div>")
+    listing = "<div class='rdlib'>" + "".join(rows) + "</div>" if rows else "<div class='rdempty'>" + t("No books yet.") + "</div>"
+    return listing, gr.Column(visible=True), gr.Column(visible=False), ""
+
+
+def rd_show(book_id):
+    book = reader.get(book_id)
+    if not book:
+        return (gr.skip(),) * 4
+    reader.set_pos(book_id, book.get("pos", 0))  # now the last opened
+    book["title"] = rd_title(book["title"])
+    return gr.skip(), gr.Column(visible=False), gr.Column(visible=True), RD_BAR + reader.page(book)  # one block, so the bar stays on top while you scroll
+
+
+def rd_add(path):
+    if not path:
+        return (gr.skip(),) * 4
+    try:
+        book_id = reader.add(path, pathlib.Path(path).name)
+    except Exception as e:
+        gr.Warning(t("Joshua couldn't find text to read in this file.") + (f" ({e})" if str(e) != "no text" else ""))
+        return (gr.skip(),) * 4
+    return rd_show(book_id)
+
+
+def rd_paste(value):
+    """A web address or pasted text, added to the library and opened."""
+    value = (value or "").strip()
+    if not value:
+        return (gr.skip(),) * 5
+    try:
+        book_id = reader.add_url(value) if reader.is_url(value) else reader.add_text(value)
+    except Exception as e:
+        gr.Warning((t("Joshua couldn't read that page.") if reader.is_url(value) else t("Joshua couldn't find text to read in this file.")) + (f" ({e})" if str(e) != "no text" else ""))
+        return (gr.skip(),) * 5
+    return rd_show(book_id) + ("",)
+
+
+def rd_action(value):
+    """A click in the library list: open:<id> or remove:<id>."""
+    act, _, book_id = (value or "").partition(":")
+    if act == "open":
+        return rd_show(book_id)
+    if act == "remove":
+        reader.remove(book_id)
+        return rd_library()
+    return (gr.skip(),) * 4
+
+
+def rd_save(value):
+    """The browser reports each paragraph it finishes: that's your place in the book."""
+    book_id, _, rest = (value or "").partition("|")
+    pos, _, settings = rest.partition("|")
+    if book_id and pos.isdigit():
+        try:
+            settings = json.loads(settings) if settings else None
+        except ValueError:
+            settings = None
+        reader.set_pos(book_id, int(pos), settings)
+
+
+# ---------- the Mac's own voices ----------
+# Browsers show web pages only some of the Mac's voices: Firefox none of the Premium ones. So on a Mac Joshua speaks
+# with macOS itself: 'say' turns a paragraph into a small audio file, and the page plays it. That works in any browser,
+# and on the phone too. Elsewhere the browser's voices are used.
+
+SAY = os.environ.get("JOSHUA_SAY") or (shutil.which("say") if sys.platform == "darwin" else None)  # JOSHUA_SAY: a stand-in for tests
+TTS_DIR = ROOT / ".tts"  # recent audio, so a paragraph read twice is ready at once
+NOVELTY = {"Albert", "Bad News", "Bahh", "Bells", "Boing", "Bubbles", "Cellos", "Wobble", "Good News", "Jester", "Junior", "Organ",
+           "Superstar", "Ralph", "Trinoids", "Whisper", "Zarvox", "Fred", "Kathy"}
+
+
+@functools.lru_cache(maxsize=1)
+def mac_voices():
+    """The Mac's voices for reading: name and language (en_US), without the novelty ones."""
+    if not SAY:
+        return []
+    try:
+        out = subprocess.run([SAY, "-v", "?"], capture_output=True, text=True, timeout=20).stdout
+    except Exception:
+        return []
+    voices = []
+    for line in out.splitlines():
+        m = re.match(r"^(.+?)\s+([a-z]{2,3}_[A-Za-z0-9]+)\s+#", line)
+        if m and re.sub(r"\s*\(.*\)$", "", m.group(1).strip()) not in NOVELTY:
+            voices.append({"name": m.group(1).strip(), "lang": m.group(2).replace("_", "-")})
+    return voices
+
+
+def tts_voices() -> list:
+    """For the page: the Mac's voices, or nothing (then the browser's are used)."""
+    return mac_voices()
+
+
+def tts(text: str, voice: str) -> str:
+    """A paragraph spoken by the Mac, as the address of an audio file for the page."""
+    names = {v["name"] for v in mac_voices()}
+    text = (text or "").strip()[:4000]
+    if not SAY or not text or voice not in names:
+        return ""
+    TTS_DIR.mkdir(exist_ok=True)
+    key = hashlib.sha1((voice + "\n" + text).encode()).hexdigest()[:20]
+    out = TTS_DIR / f"{key}.m4a"
+    if not out.exists():
+        src = TTS_DIR / f"{key}.txt"
+        src.write_text(text, encoding="utf-8")  # read from a file: the text never becomes a command-line option
+        tmp = TTS_DIR / f"{key}.part.m4a"
+        try:
+            subprocess.run([SAY, "-v", voice, "-f", str(src), "-o", str(tmp), "--file-format=m4af", "--data-format=aac"], timeout=120, check=True,
+                           capture_output=True)
+            tmp.replace(out)
+        except Exception:
+            return ""
+        finally:
+            src.unlink(missing_ok=True)
+            tmp.unlink(missing_ok=True)
+        files = sorted(TTS_DIR.glob("*.m4a"), key=lambda f: f.stat().st_mtime)
+        for f in files[:-400]:  # keep the latest 400 paragraphs
+            f.unlink(missing_ok=True)
+    return "/gradio_api/file=" + urllib.parse.quote(out.as_posix(), safe="/:")
+
+
+
+SIMPLER = """Rewrite this {language} paragraph so it is easy to follow when heard read aloud. Write it in {language}.
+Keep the meaning and every piece of information: add nothing, leave nothing out, no comments, no explanations.
+Use short main clauses, one idea per sentence. Each sentence starts with its subject and verb.
+Turn subordinate clauses into sentences of their own. Link them with a simple word (and, but, so, then) only where the original has that link.
+No sentence may begin with a word like "although", "while", "if" or "since": state it plainly instead.
+Say everything once: don't repeat a sentence and don't sum up at the end.
+Keep the author's words wherever you can. Keep quotations exactly as they are, with the spoken quotation marks around them.
+Reply with the rewritten {language} paragraph only.
+
+Example (English):
+Paragraph: Although the theory, which was first proposed in 1950 by researchers who worked at Bell Labs, was soon forgotten, it returned when computers became fast enough to test it.
+Rewritten: The theory was first proposed in 1950. It came from researchers at Bell Labs. It was soon forgotten. But it returned when computers became fast enough to test it.
+
+Paragraph: {text}
+Rewritten in {language}:"""
+LANG_NAMES = {"en": "English", "it": "Italian", "fr": "French", "de": "German", "pl": "Polish", "zh": "Chinese", "es": "Spanish", "pt": "Portuguese", "nl": "Dutch",
+              "ru": "Russian", "ja": "Japanese", "uk": "Ukrainian", "ro": "Romanian", "sv": "Swedish", "ca": "Catalan", "cs": "Czech", "el": "Greek"}
+
+
+def rd_text(book_id: str, i: int, mode: str) -> str:
+    """The paragraph as it's read aloud: as written, without citations, or in simpler sentences."""
+    book = reader.get(book_id)
+    if not book or not 0 <= int(i) < len(book["paras"]):
+        return ""
+    text = book["paras"][int(i)]
+    if mode == "raw":
+        return text
+    text = reader.clean(text, book.get("lang") or "")
+    if mode != "simple" or len(text.split()) < 18:  # a short paragraph is easy already
+        return text
+    key = f"simple:{int(i)}"
+    done = reader.easy_get(book_id, key)
+    if done:
+        return done
+    model = default_model()
+    try:
+        language = LANG_NAMES.get((book.get("lang") or "")[:2], "the same language as the paragraph")  # named: otherwise models drift into English
+        out = ollama.chat(model, messages=[{"role": "user", "content": SIMPLER.format(text=text, language=language)}], options={"num_ctx": 4096, "temperature": 0.2},
+                          **think_mode(model, False)).message.content or ""
+        out = split_think(out)[0].strip().strip('"«»“”')
+    except Exception as e:
+        print("simpler sentences:", e, flush=True)
+        return text
+    if not out or not 0.6 < len(out) / max(len(text), 1) < 1.6:  # far shorter or longer: something went wrong, read the paragraph as it is
+        return text
+    reader.easy_put(book_id, key, out)
+    return out
+
 LIVE_EVERY = 1.5  # seconds between redraws of a chat while Joshua writes it
 
 
@@ -2499,6 +2696,47 @@ body.noside #leftcol {display: none !important}
 #tune .prose ol, #tune .prose ul {padding-left: 1.6em !important}
 .ftstatus.ok {color: var(--ink) !important}
 #tune .legend, #tune [class*=legend] {display: none !important}
+/* the fine-tuning page: one step at a time */
+#tune .ftlead {opacity: .75; margin: -4px 0 4px}
+#tune .ftempty {opacity: .6; padding: 22px 2px}
+#tune #ftproject, #tune #ftnewrow, #tune .ftadd {gap: 8px !important; align-items: end !important}
+#tune .ftpane {padding: 10px 2px 4px}
+#tune details.ftmore {margin-top: 14px}
+#tune details.ftmore summary {cursor: pointer; color: var(--brand); font-size: .92rem; list-style: none}
+#tune details.ftmore summary::before {content: "▸ "; display: inline-block; transition: transform .15s}
+#tune details.ftmore[open] summary::before {transform: rotate(90deg)}
+#tune details.ftmore > :not(summary) {opacity: .9}
+#tune details.ftmore p, #tune details.ftmore li {margin: .45em 0}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps {border: none !important; background: transparent !important; padding: 0 !important; margin-top: 8px}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps .wrap {display: flex !important; gap: 0 !important; flex-wrap: wrap !important; border-bottom: 1px solid var(--line)}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps label {border: none !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; background: transparent !important;
+  padding: 8px 14px !important; margin: 0 0 -1px !important; color: inherit !important; opacity: .65; box-shadow: none !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps label.selected {opacity: 1; border-bottom-color: var(--brand) !important; color: var(--brand) !important; font-weight: 600}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps label.selected * {color: var(--brand) !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftsteps input {display: none !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune button {min-height: 0 !important}
+body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tune button.ftmain {background: var(--brand) !important; color: var(--panel) !important; border-color: var(--brand) !important}
+body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tune .prose, body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tune .prose * {font-size: 1rem !important; line-height: 1.5 !important}
+body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tunetitle {font-size: 1.15rem !important; letter-spacing: .06em}
+#ftgrid .cell-menu-button {display: none !important}
+#tune .ftchart {margin-top: 14px}
+#tune .ftchart-head {font-size: .9rem; opacity: .8; margin-bottom: 4px}
+#tune .ftchart-head .k1 {color: #4a7fb5; margin-left: 10px} #tune .ftchart-head .k2 {color: #e8892a; margin-left: 6px}
+#tune .ftchart svg {width: 100%; height: auto; display: block}
+#tune .ftchart .grid line {stroke: var(--line); stroke-width: 1}
+#tune .ftchart text {fill: currentColor; opacity: .6; font-size: 11px}
+#tune .ftchart polyline {fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke}
+#tune .ftchart .tr {stroke: #4a7fb5; fill: #4a7fb5} #tune .ftchart polyline.tr {fill: none}
+#tune .ftchart .va {stroke: #e8892a; fill: #e8892a} #tune .ftchart polyline.va {fill: none}
+#tune .ftchart-last, #tune .ftchart-empty {font-size: .85rem; opacity: .65; margin-top: 2px}
+#tune .ftchart-empty {padding: 18px 0}
+body:not(#a):not(#b):not(#c):not(#d) #tune #ftpreset input {display: none !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune {overflow-x: hidden !important; flex-wrap: nowrap !important}  /* allowed to wrap, a page taller than the window put its lower half in a second column, off screen */
+#tune .ftpane .row, #tune #ftproject, #tune #ftnewrow {flex-wrap: wrap !important; row-gap: 8px !important; max-width: 100% !important}
+#tune .ftpane .row > .form, #tune .ftpane .row > .block:not(button) {min-width: 0 !important}
+body:not(#a):not(#b):not(#c):not(#d) #tune .ftpane button, body:not(#a):not(#b):not(#c):not(#d) #tune #ftproject button, body:not(#a):not(#b):not(#c):not(#d) #tune #ftnewrow button {flex: none !important; white-space: nowrap !important; width: auto !important; padding: 0 16px !important; height: 38px !important}
+#tune .ftsave {align-items: center !important}
+#tune .ftsave .ftcount {margin: 0 !important}
 #modelrow {flex-wrap: wrap !important; row-gap: 4px !important}
 #modelrow > #working {flex: 0 0 auto !important; width: auto !important; min-width: 0 !important}
 #modelpick > #cloudbadge {flex: 1 1 0 !important; width: auto !important; min-width: 8ch !important}
@@ -2592,7 +2830,14 @@ body[data-screen^="modern"]:not(#a):not(#b) #chatopts .task, body[data-screen^="
 body[data-screen^="modern"]:not(#a):not(#b) .task {border-bottom: none}
 .cloudstat code {word-break: break-all}
 body[data-screen^="modern"]:not(#a):not(#b) #chatopts .prose .cloudstat, body[data-screen^="modern"]:not(#a):not(#b) #chatopts .cloudstat * {font-size: .85rem !important; line-height: 1.45 !important}
-.updnote {font-size: 1rem; line-height: 1.25; color: var(--amber); padding: 4px 4px 0}
+.updnote {font-size: .92rem; line-height: 1.3; color: var(--amber); padding: 0 4px}
+#updrow {align-items: center !important; gap: 8px !important; margin: 2px 0 6px !important; flex-wrap: nowrap !important}
+#updrow .updnote {white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
+body:not(#a):not(#b):not(#c):not(#d) #updrow .updnote {font-size: .88rem !important; letter-spacing: 0 !important}
+#updrow .updnote:first-line {font-weight: 500}
+#updrow .updnote::before {content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; margin-right: 8px; vertical-align: 1px}
+body:not(#a):not(#b):not(#c):not(#d) #updbtn {min-height: 0 !important; height: 28px !important; padding: 0 12px !important; border-radius: 14px !important; font-size: .85rem !important;
+  border: 1px solid currentColor !important; background: transparent !important; color: var(--amber) !important; text-transform: none !important; box-shadow: none !important}
 #updbtn {border: 1px solid var(--amber) !important; background: transparent !important; color: var(--amber) !important}
 body[data-screen^="modern"]:not(#a):not(#b) #localhelp, body[data-screen^="modern"]:not(#a):not(#b) #localhelp *, body[data-screen^="modern"]:not(#a):not(#b) #apihelp, body[data-screen^="modern"]:not(#a):not(#b) #apihelp *, body[data-screen^="modern"]:not(#a):not(#b) #schedhelp, body[data-screen^="modern"]:not(#a):not(#b) #schedhelp *, body[data-screen^="modern"]:not(#a):not(#b) .updnote {font-size: .85rem !important; line-height: 1.45 !important}
 body[data-screen^="modern"]:not(#a):not(#b) #updbtn {border-radius: 10px !important; text-transform: none !important; border: none !important; background: var(--soft) !important; color: var(--cyan) !important}
@@ -2790,7 +3035,7 @@ body.narrow:not(#a):not(#b):not(.mside) #leftcol {display: none !important}
 body.narrow.mside:not(#a):not(#b) #leftcol {display: flex !important; position: fixed !important; inset: 0 !important; z-index: 900 !important; width: 100vw !important; max-width: 100vw !important; flex-basis: auto !important; height: 100dvh !important; max-height: 100dvh !important; border-radius: 0 !important; padding: 56px 16px 24px !important; overflow-y: auto !important}
 body.narrow.noside #leftcol {display: none}
 body.narrow:not(#a):not(#b) #sidetoggle {position: fixed !important; top: 10px !important; left: 10px !important; z-index: 950 !important; font-size: 1.25rem !important; width: 40px !important; height: 40px !important; opacity: .85}
-body.narrow:not(#a):not(#b) #chatcol, body.narrow:not(#a):not(#b) #modelspage, body.narrow:not(#a):not(#b) #schedpanel, body.narrow:not(#a):not(#b) #tune, body.narrow:not(#a):not(#b) #mempage, body.narrow:not(#a):not(#b) #setpage, body.narrow:not(#a):not(#b) #teampage {min-width: 0 !important; width: 100vw !important; max-width: 100vw !important; flex: 1 1 100% !important; padding: 8px 10px 6px !important; border-radius: 0 !important}
+body.narrow:not(#a):not(#b) #chatcol, body.narrow:not(#a):not(#b) #modelspage, body.narrow:not(#a):not(#b) #schedpanel, body.narrow:not(#a):not(#b) #tune, body.narrow:not(#a):not(#b) #mempage, body.narrow:not(#a):not(#b) #setpage, body.narrow:not(#a):not(#b) #teampage, body.narrow:not(#a):not(#b) #readpage {min-width: 0 !important; width: 100vw !important; max-width: 100vw !important; flex: 1 1 100% !important; padding: 8px 10px 6px !important; border-radius: 0 !important}
 body.narrow:not(#a):not(#b) #chatcol {height: 100dvh !important; max-height: 100dvh !important}
 body.narrow:not(#a):not(#b) #chatbar {padding-left: 48px !important; min-height: 40px !important}
 body.narrow:not(#a):not(#b) #chat {min-height: 0 !important}
@@ -2847,6 +3092,44 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+#rdpos, #rdact {display: none !important}
+#readpage .rdintro {opacity: .75; margin-bottom: 4px}
+#readpage #rdadd {gap: 8px !important; align-items: stretch !important; flex-wrap: wrap !important}
+#readpage #rdadd > * {min-height: 40px}
+#readpage #rdadd button {min-height: 40px !important; white-space: nowrap}
+#readpage #rdpaste {flex: 1 1 260px !important}
+#readpage .rdlib {margin-top: 14px; border-top: 1px solid var(--line)}
+#readpage .rdrow {display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--line); cursor: pointer}
+#readpage .rdrow:hover .rdname {color: var(--brand)}
+#readpage .rdmain {flex: 1; min-width: 0}
+#readpage .rdname {font-weight: 600; line-height: 1.3; overflow-wrap: anywhere}
+#readpage .rdmeta {font-size: .85rem; opacity: .65; margin-top: 2px}
+#readpage .rdprogress {height: 3px; border-radius: 2px; background: var(--line); margin-top: 7px; overflow: hidden}
+#readpage .rdprogress span {display: block; height: 100%; background: var(--brand)}
+#readpage .rdx {flex: none; width: 32px; height: 32px; border: none; background: transparent; color: inherit; opacity: .45; border-radius: 8px; cursor: pointer; font-size: .95rem}
+#readpage .rdx:hover {opacity: 1; color: var(--red)}
+body:not(#a):not(#b):not(#c):not(#d) #readpage button.rdx {background: transparent !important; border: none !important; box-shadow: none !important; min-width: 0 !important; padding: 0 !important}
+body.narrow #readpage #rdadd > :has(#rdpaste), body.narrow #readpage #rdpaste {flex: 1 1 100% !important}
+body.narrow #readpage #rdadd > button, body.narrow #readpage #rdadd > :has(button) {flex: 1 1 0 !important}
+#readpage .rdempty {margin-top: 14px; opacity: .6}
+#readpage #rdbar {position: sticky; top: -14px; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 22px 0 8px; margin-top: -14px; background: var(--panel); border-bottom: 1px solid var(--line)}
+#readpage #rdbar button {width: 38px; height: 34px; padding: 8px; border-radius: 8px; border: 1px solid var(--border-color-primary); background: transparent; color: inherit; cursor: pointer}
+#readpage #rdbar button svg {width: 100%; height: 100%}
+#readpage #rdbar button#rdplay {width: 46px; color: var(--brand)}
+#readpage #rdbar select {height: 34px; border-radius: 8px; border: 1px solid var(--border-color-primary); background: transparent; color: inherit; padding: 0 6px}
+#readpage #rdbar #rdvoice {max-width: 13rem}
+body:not(#a):not(#b):not(#c):not(#d) #readpage #rdbar select {appearance: none; -webkit-appearance: none; height: 34px; border: 1px solid var(--line) !important; border-radius: 8px !important; padding: 0 26px 0 10px !important; background: transparent url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath fill='%23888' d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E\") no-repeat right 8px center / 11px !important; color: inherit !important; font: inherit; font-size: .92rem; cursor: pointer}
+#readpage #rdbar .rdopt {display: inline-flex; align-items: center; gap: 4px; opacity: .85}
+#readpage #rdbar .rdopt input {width: 80px; accent-color: var(--brand)}
+#readpage #rdprog {margin-left: 6px; font-variant-numeric: tabular-nums; opacity: .8}
+#readpage #rdhint {margin-left: auto; opacity: .55; font-size: .85rem}
+#readpage #rdhint.rdwarn {opacity: 1; color: var(--brand); font-weight: 600}
+#readpage #rdbook {max-width: 44rem; margin: 6px auto 40vh; font-size: 1.08rem; line-height: 1.65}
+#readpage #rdbook .rdtitle {font-size: 1.5rem; margin: 10px 0 18px}
+#readpage #rdbook p {margin: 0 0 .9em; padding: 2px 8px; border-radius: 6px; cursor: pointer}
+#readpage #rdbook p:hover {background: color-mix(in srgb, var(--brand) 6%, transparent)}
+#readpage #rdbook p.rdnow {background: color-mix(in srgb, var(--brand) 15%, transparent)}
+body:not(#a):not(#b):not(#c):not(#d) #rddel {color: var(--red) !important}
 /* a field with the cursor in it keeps its look's colour (Gradio's own focus colour is the dark one of its base theme) */
 input, textarea, .wrap {--input-background-fill-focus: var(--input-background-fill)}
 /* with the side menu on screen, its buttons are the way back: no "Back to chat" */
@@ -3425,8 +3708,8 @@ def css_text(text):
 
 
 CSS = CSS.replace("@@WHAT_HELP@@", css_text(t("Hello. What would you like to do today?"))).replace("@@ASK_HINT@@", css_text(t("Everything you write here is stored only on this computer."))).replace("@@MODEL@@", css_text(t("Model:")))
-CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage", "#teampage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
-CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn", "#teambtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
+CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage", "#teampage", "#readpage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
+CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn", "#teambtn", "#readbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
 CSS += "\n#modelspage .mz0, #setpage .mz0 {background: color-mix(in srgb, var(--ink) 4%, var(--bg)) !important}"
 JS_TEXT = lambda text: json.dumps(text, ensure_ascii=False).replace("'", "\\'")  # a text inside the js="..." handlers below
 
@@ -3436,8 +3719,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     with gr.Row(equal_height=False):
         with gr.Column(scale=1, min_width=270, elem_classes="side", elem_id="leftcol"):
             gr.HTML("<div id='brand' role='img' aria-label='Joshua'><svg viewBox='0 0 100 100' aria-hidden='true'>" + LOGO + "</svg>OSHUA</div><div class='lights'><span></span><span></span><span></span><span></span><span></span></div><div class='status'>" + t("LOCAL SYSTEM · ONLINE") + "<br>" + t("VERSION") + " " + VERSION + "</div>")
-            updnote = gr.HTML("")
-            updbtn = gr.Button("⬆  " + t("Update Joshua"), size="sm", visible=False, elem_id="updbtn")
+            with gr.Row(visible=False, elem_id="updrow", equal_height=True) as updrow:  # one quiet line when a new version is out
+                updnote = gr.HTML("")
+                updbtn = gr.Button(t("Update"), size="sm", scale=0, min_width=72, elem_id="updbtn")
             new = gr.Button("＋  " + t("New chat"), size="sm", elem_id="newchat")
             mact = gr.Textbox(elem_classes="mhidden", show_label=False, container=False)  # the hidden link between buttons drawn in HTML (tables, chat menus) and Python
             mact_go = gr.Button(elem_id="mactgo", elem_classes="mhidden")
@@ -3453,6 +3737,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             with gr.Column(elem_id="panels"):
                 sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
                 team_btn = gr.Button("👥  " + t("Teams"), size="sm", elem_id="teambtn")
+                read_btn = gr.Button("🎧  " + t("Reader"), size="sm", elem_id="readbtn")
+                rd_pos = gr.Textbox("", elem_id="rdpos", show_label=False, container=False)  # hidden: where the browser reports your place in the book, from any page
                 models_btn = gr.Button("🧩  " + t("Models"), size="sm", elem_id="modelsbtn")
                 mem_btn_open = gr.Button("🧠  " + t("Background"), size="sm", elem_id="membtn")  # what Joshua knows about you
                 tune = gr.Button("🧪  " + t("Fine-tuning"), size="sm", elem_id="tunebtn")
@@ -3461,6 +3747,30 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 set_btn = gr.Button("⚙  " + t("Settings"), size="sm", elem_id="setbtn")
                 feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
         tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
+        RD_BAR = ("<div id='rdbar'><button id='rdprev' title='" + html.escape(t("Previous paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,47.88V208.12a16,16,0,0,1-24.43,13.43L64,146.77V216a8,8,0,0,1-16,0V40a8,8,0,0,1,16,0v69.23L183.57,34.45A15.95,15.95,0,0,1,208,47.88Z'/></svg></button>"
+                            "<button id='rdplay' title='" + html.escape(t("Read aloud") + " / " + t("Pause")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M240,128a15.74,15.74,0,0,1-7.6,13.51L88.32,229.65a16,16,0,0,1-16.2.3A15.86,15.86,0,0,1,64,216.13V39.87a15.86,15.86,0,0,1,8.12-13.82,16,16,0,0,1,16.2.3L232.4,114.49A15.74,15.74,0,0,1,240,128Z'/></svg></button>"
+                            "<button id='rdnext' title='" + html.escape(t("Next paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,40V216a8,8,0,0,1-16,0V146.77L72.43,221.55A15.95,15.95,0,0,1,48,208.12V47.88A15.95,15.95,0,0,1,72.43,34.45L192,109.23V40a8,8,0,0,1,16,0Z'/></svg></button>"
+                            "<select id='rdrate' title='" + html.escape(t("Speed")) + "'>" + "".join(f"<option value='{r}'>{r}×</option>" for r in ("0.8", "0.9", "1", "1.1", "1.25", "1.5", "1.75", "2")) + "</select>"
+                            "<select id='rdvoice' title='" + html.escape(t("Voice")) + "'></select>"
+                            "<select id='rdmode' title='" + html.escape(t("Text read aloud")) + "'>" + "".join(f"<option value='{m}'>{html.escape(lab)}</option>" for m, lab in (("raw", t("As written")), ("clean", t("Without citations")), ("simple", t("Simpler sentences")))) + "</select>"
+                            "<label class='rdopt' title='" + html.escape(t("Volume")) + "'>🔊 <input id='rdvol' type='range' min='0.1' max='1' step='0.05' value='1'></label>"
+                            "<select id='rdgap' title='" + html.escape(t("Pause between paragraphs")) + "'>" + "".join(f"<option value='{g}'>{lab}</option>" for g, lab in (("0", t("No pause")), ("0.5", "½ s"), ("1", "1 s"), ("2", "2 s"))) + "</select>"
+                            "<span id='rdprog'></span><span id='rdhint'>" + html.escape(t("Click a paragraph to read from there.")) + "</span></div>")
+        with gr.Column(visible=False, scale=5, elem_id="readpage") as read_panel:
+            with gr.Row():
+                gr.HTML("<div id='schedtitle'>" + t("READER") + "</div>")
+                read_back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
+            with gr.Column() as rd_libcol:
+                gr.Markdown(t("Joshua reads books, documents and web pages aloud, and remembers where you stopped."), elem_classes="rdintro")
+                with gr.Row(elem_id="rdadd", equal_height=True):
+                    rd_text_in = gr.Textbox(show_label=False, placeholder=t("Paste a web address, or some text"), lines=1, max_lines=8, scale=5, container=False, elem_id="rdpaste")
+                    rd_text_add = gr.Button(t("Add"), size="sm", scale=0, min_width=70)
+                    rd_upload = gr.UploadButton("📄 " + t("Add a file"), file_types=reader.TYPES, type="filepath", size="sm", scale=0, min_width=130)
+                rd_list = gr.HTML("")
+                rd_act = gr.Textbox("", elem_id="rdact", show_label=False, container=False)  # hidden: what you clicked in the list
+            with gr.Column(visible=False) as rd_view:
+                rd_lib = gr.Button("← " + t("Library"), size="sm", scale=0, min_width=140)
+                rd_book = gr.HTML("")
         with gr.Column(visible=False, scale=5, elem_id="teampage") as team_panel:
             with gr.Row():
                 gr.HTML("<div id='schedtitle'>" + t("TEAMS OF AGENTS") + "</div>")
@@ -3799,8 +4109,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     js="(d) => (d && confirm(" + JS_TEXT(t("Remove this desk? Its chats stay, at no desk. One of Joshua's desks can be brought back later.")) + ")) ? d : null")
     dk_back.click(desk_editor_back, dk_hidden, [dk_pick, desk] + DK + [dk_hiddenrow, dk_hidden])
 
-    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back), (bin_btn, bin_panel, bin_back), (team_btn, team_panel, team_back)]:
-        rest = [x for x in (mem_panel, set_panel, bin_panel, team_panel) if x is not panel]
+    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back), (bin_btn, bin_panel, bin_back), (team_btn, team_panel, team_back), (read_btn, read_panel, read_back)]:
+        rest = [x for x in (mem_panel, set_panel, bin_panel, team_panel, read_panel) if x is not panel]
         btn.click(lambda n=len(OTHER + rest): (gr.Column(visible=True),) + (gr.Column(visible=False),) * (2 + n), outputs=[panel, chatcol, rightcol] + OTHER + rest)
         back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True)), outputs=[panel, chatcol, rightcol])
         for o in (models_btn, sched, tune):  # opening another page closes this one
@@ -3813,6 +4123,16 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
            tw_mlist, tw_mpick, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, m_save, m_remove, tw_lead, tw_review]
     W_IN = [tw_state, tw_step, tw_sel, tw_name, tw_icon, tw_purpose, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, tw_lead]
     team_btn.click(team_page, outputs=TM_PAGE)
+    gr.api(tts_voices, api_name="voices", queue=False)
+    gr.api(tts, api_name="tts", concurrency_limit=2)
+    gr.api(rd_text, api_name="rd_text", concurrency_limit=2)
+    RD = [rd_list, rd_libcol, rd_view, rd_book]
+    read_btn.click(rd_library, outputs=RD)
+    rd_lib.click(rd_library, outputs=RD)
+    rd_upload.upload(rd_add, rd_upload, RD)
+    rd_act.change(rd_action, rd_act, RD, show_progress="hidden")
+    rd_text_add.click(rd_paste, rd_text_in, RD + [rd_text_in])
+    rd_pos.change(rd_save, rd_pos, None, show_progress="hidden", queue=False)
     tm_new.click(wiz_open, outputs=WIZ + [tm_listcol, tm_wiz])
     tm_edit.click(wiz_open, tm_pick, WIZ + [tm_listcol, tm_wiz])
     tm_del.click(team_delete, tm_pick, TM_PAGE, js="(c) => (c && confirm(" + JS_TEXT(t("Delete this team? Its chats stay in the list.")) + ")) ? c : null")
@@ -3840,9 +4160,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         menu_html, outputs=menu_list, show_progress="hidden").then(
         lambda: (installed_html(), local_catalog()[1], cloud_catalog()[1]), outputs=[installed, local_list, cloud_list], show_progress="hidden")
     local_upd.click(local_update, outputs=local_status)
-    demo.load(check_update, outputs=[updnote, updbtn])
+    demo.load(check_update, outputs=[updnote, updrow])
     # after an update Joshua restarts, which can take a minute on a slow computer: the page waits, then reloads by itself
-    updbtn.click(do_update, outputs=updnote).then(None, js=WAIT_AND_RELOAD)
+    updbtn.click(lambda: gr.Button(visible=False), outputs=updbtn).then(do_update, outputs=updnote).then(None, js=WAIT_AND_RELOAD)
     connect.click(cloud_connect, outputs=cloud_status)
     k_provider.change(keys_status, k_provider, [k_pick, k_status])
     k_save.click(keys_save, [k_provider, k_key], [k_pick, k_status, k_key])
@@ -4014,6 +4334,51 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           setTimeout(() => inp.focus(), 60); };
         document.addEventListener('click', (e) => { if (e.target.closest('.wopr .wline')) armed = true; }, true);
         new MutationObserver(() => { clearTimeout(window.joshuaWopr); window.joshuaWopr = setTimeout(attach, 200); }).observe(document.body, {childList: true, subtree: true}); }""")
+    demo.load(None, None, None, js="""() => {  // Joshua's voice, for 🔊 and the Reader: on a Mac the Mac speaks (with its Premium voices), elsewhere the browser
+        const V = window.joshuaVoice = {mac: null, token: 0, el: new Audio()};
+        const SILENT = (() => { const n = 2000, b = new Uint8Array(44 + n), d = new DataView(b.buffer), w = (o, t) => [...t].forEach((c, i) => b[o + i] = c.charCodeAt(0));
+          w(0, 'RIFF'); d.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true);
+          d.setUint32(24, 8000, true); d.setUint32(28, 8000, true); d.setUint16(32, 1, true); d.setUint16(34, 8, true); w(36, 'data'); d.setUint32(40, n, true); b.fill(128, 44);
+          return URL.createObjectURL(new Blob([b], {type: 'audio/wav'})); })();  // a quarter of a second of silence: Safari counts it as sound started by your click
+        const call = async (name, data) => { try {  // Gradio's own way to call a Python function from the page: ask, then collect the answer
+            const r = await fetch('/gradio_api/call/' + name, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data})});
+            const id = (await r.json()).event_id, txt = await (await fetch('/gradio_api/call/' + name + '/' + id)).text();
+            const m = txt.match(/event: complete\\s*\\ndata: (.*)/); return m ? JSON.parse(m[1])[0] : null; } catch (e) { return null; } };
+        V.call = call;
+        V.ready = call('voices', []).then(v => { V.mac = v && v.length ? v : null; V.isReady = true; });
+        const saved = (k) => { try { return localStorage.getItem('joshua-voice-' + k) } catch (e) { return null } };
+        V.macVoice = (k, name) => { const mine = (V.mac || []).filter(v => v.lang.toLowerCase().startsWith(k));
+          const v = (name && mine.find(v => v.name === name)) || mine.find(v => v.name === saved(k)) || mine.find(v => /premium/i.test(v.name)) || mine.find(v => /enhanced/i.test(v.name))
+            || mine.find(v => /^(Samantha|Alice|Thomas|Anna|Zosia|Tingting)/.test(v.name)) || mine[0]; return v ? v.name : ''; };
+        const made = new Map(), done = new Map();  // paragraphs on their way to audio, and those ready
+        V.url = (text, k, name) => { const who = V.macVoice(k, name), key = who + '|' + text; if (!made.has(key)) { made.set(key, call('tts', [text, who]).then(u => { if (u) done.set(key, u); if (done.size > 60) done.delete(done.keys().next().value); return u; }));
+            if (made.size > 60) made.delete(made.keys().next().value); } return made.get(key); };
+        V.prefetch = (text, k, name) => { if (V.mac && text) V.url(text, k, name); };
+        V.list = (k) => V.mac ? V.mac.filter(v => v.lang.toLowerCase().startsWith(k)).map(v => v.name)
+          : (window.speechSynthesis ? speechSynthesis.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith(k)).map(v => v.name) : []);
+        V.current = (k, name) => V.mac ? V.macVoice(k, name) : ((name && window.speechSynthesis && speechSynthesis.getVoices().find(v => v.name === name)) || (window.joshuaVoiceFor ? window.joshuaVoiceFor(k) : null) || {}).name || '';
+        V.unlock = () => { const a = V.el; if (a.paused) { a.src = SILENT; a.play().catch(() => {}); } };  // a sound started by your click lets the next ones play (Safari, phones)
+        V.stop = () => { V.token++; V.el.onended = V.el.onerror = null; V.el.pause(); if (window.speechSynthesis) speechSynthesis.cancel(); };
+        const pieces = (t) => { const out = []; (t.match(/[^.!?。！？;:]+[.!?。！？;:]*["'»”)\\]]*\\s*/g) || [t]).forEach(s => {
+            while (s.length > 220) { let k = s.lastIndexOf(', ', 220); if (k < 80) k = s.lastIndexOf(' ', 220); if (k < 40) k = 220; out.push(s.slice(0, k + 1)); s = s.slice(k + 1); }
+            if (s.trim()) out.push(s); }); return out; };  // browsers cut off long texts: short pieces
+        V.say = (text, k, rate, onend, opts) => {  // says one piece of text, then calls onend (unless stopped meanwhile); opts: voice, volume
+          opts = opts || {};
+          const tok = ++V.token; let fired = false; const finish = () => { if (!fired && tok === V.token) { fired = true; if (onend) onend(); } };
+          if (!V.isReady) { V.ready.then(() => { if (tok === V.token) V.say(text, k, rate, onend, opts); }); return; }
+          if (V.mac) {
+            const go = (url) => { if (tok !== V.token) return; if (!url) return finish();
+              const a = V.el; a.onended = a.onerror = null; a.src = url; a.playbackRate = rate || 1; a.preservesPitch = true; a.volume = opts.volume == null ? 1 : opts.volume;
+              a.onended = finish; a.onerror = () => { const b = opts.onblocked || V.onblocked; if (tok === V.token && b) b('error'); };
+              a.play().catch(e => { if (tok !== V.token) return; const b = opts.onblocked || V.onblocked; if (b) b(e && e.name); else finish(); }); };
+            const key = V.macVoice(k, opts.voice) + '|' + text;
+            if (done.has(key)) return go(done.get(key));  // ready: it starts at once, still inside your click
+            V.url(text, k, opts.voice).then(go); return; }
+          const synth = window.speechSynthesis; if (!synth) return finish(); synth.cancel();
+          const v = (opts.voice && synth.getVoices().find(x => x.name === opts.voice)) || (window.joshuaVoiceFor ? window.joshuaVoiceFor(k) : null), parts = pieces(text);
+          parts.forEach((p, i) => { const u = new SpeechSynthesisUtterance(p.trim()); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = k; u.rate = rate || 1;
+            u.volume = opts.volume == null ? 1 : opts.volume;
+            if (i === parts.length - 1) u.onend = finish; synth.speak(u); }); }; }""")
     demo.load(None, None, None, js="""() => {  // 🔊 under each answer: reads the answer aloud with a voice of this computer, in the answer's language
         const synth = window.speechSynthesis; if (!synth) return;
         const ICON = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M154.64,26.61a6,6,0,0,0-6.32.65L77.94,82H32A14,14,0,0,0,18,96v64a14,14,0,0,0,14,14H77.94l70.38,54.74A6,6,0,0,0,158,224V32A6,6,0,0,0,154.64,26.61ZM30,160V96a2,2,0,0,1,2-2H74v68H32A2,2,0,0,1,30,160Zm116,51.73L86,165.07V90.93l60-46.66Zm50.53-108.85a38,38,0,0,1,0,50.24,6,6,0,1,1-9-7.94,26,26,0,0,0,0-34.37,6,6,0,0,1,9-7.93ZM246,128a77.86,77.86,0,0,1-19.86,52,6,6,0,1,1-8.94-8,66,66,0,0,0,0-88,6,6,0,1,1,8.94-8A77.86,77.86,0,0,1,246,128Z"/></svg>', TITLE = """ + JS_TEXT(t("Read aloud")) + """, SAMPLE = {it: 'Ciao, sono Joshua.', en: 'Hello, I am Joshua.', fr: 'Bonjour, je suis Joshua.', de: 'Hallo, ich bin Joshua.', pl: 'Cześć, jestem Joshua.', zh: '你好，我是Joshua。'};
@@ -4023,19 +4388,24 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           const w = (' ' + txt.toLowerCase().replace(/[^\\p{L}\\s]/gu, ' ') + ' ').split(/\\s+/).slice(0, 400); let best = 'en', top = 0;
           for (const [k, list] of Object.entries(WORDS)) { const n = w.filter(x => x && list.includes(' ' + x + ' ')).length; if (n > top) { best = k; top = n; } } return best; };
         const voiceFor = (k) => { const vs = synth.getVoices(); let name = null; try { name = localStorage.getItem('joshua-voice-' + k) } catch (e) {}
-          return vs.find(v => v.name === name) || PREFER[k].map(p => vs.find(v => v.name.startsWith(p))).find(Boolean) || vs.find(v => v.lang && v.lang.toLowerCase().startsWith(k)) || null; };
+          const mine = vs.filter(v => v.lang && v.lang.toLowerCase().startsWith(k));  // a Premium or Enhanced voice (a free download in the Mac's settings) sounds far more natural
+          const best = mine.find(v => /premium/i.test(v.name)) || mine.find(v => /enhanced|neural|natural/i.test(v.name));
+          return vs.find(v => v.name === name) || best || (PREFER[k] || []).map(p => vs.find(v => v.name.startsWith(p))).find(Boolean) || mine[0] || null; };
         const clean = (row) => { const c = row.cloneNode(true);
           const leaves = [...c.querySelectorAll('.message')].filter(m => !m.querySelector('.message') && !m.querySelector('.thought-group'));  // the answer, not the thinking, sources, steps
           leaves.forEach(m => m.querySelectorAll('pre, table, button, svg, .ji').forEach(x => x.remove()));  // nor code, tables, icons
           document.body.appendChild(c); c.style.cssText = 'position:fixed;left:-9999px;top:0';  // innerText needs the copy on the page
           const out = leaves.map(m => m.innerText); c.remove();
           return out.join('\\n').replace(/https?:\\/\\/\\S+/g, '').replace(/[*#_`>|]/g, ' ').replace(/\\[(\\d+)\\]/g, '').replace(/\\s+\\n/g, '\\n').trim(); };
+        window.joshuaVoiceFor = (k) => voiceFor(k);
         let current = null;
-        const stop = () => { synth.cancel(); if (current) current.classList.remove('speaking'); current = null; };
-        const speak = (text, k, btn) => { stop(); const v = voiceFor(k); current = btn; if (btn) btn.classList.add('speaking');
-          const parts = text.match(/[^.!?。！？\\n]+[.!?。！？]*\\s*/g) || [text];  // sentence by sentence: long texts get cut off in one piece
-          parts.forEach((p, i) => { const u = new SpeechSynthesisUtterance(p.trim()); if (v) { u.voice = v; u.lang = v.lang; }
-            if (i === parts.length - 1) u.onend = () => { if (current === btn) stop(); }; synth.speak(u); }); };
+        const stop = () => { window.joshuaVoice.stop(); if (current) current.classList.remove('speaking'); current = null; };
+        const blocks = (t) => { const out = []; t.split(/\\n+/).forEach(p => { p = p.trim(); if (!p) return;  // paragraphs, joined up to ~600 characters
+            if (out.length && out[out.length - 1].length + p.length < 600) out[out.length - 1] += '\\n' + p; else out.push(p); }); return out.length ? out : [t]; };
+        const speak = (text, k, btn) => { if (window.jrPause) window.jrPause(); stop(); current = btn; if (btn) btn.classList.add('speaking');
+          const V = window.joshuaVoice, parts = blocks(text); let i = 0; V.unlock();
+          const next = () => { if (current !== btn) return; if (i >= parts.length) return stop(); if (parts[i + 1]) V.prefetch(parts[i + 1], k); V.say(parts[i++], k, 1, next, {onblocked: () => { if (current === btn) stop(); }}); };
+          next(); };
         const add = () => document.querySelectorAll('#chat .message-buttons').forEach(bar => {
           if (bar.querySelector('.speak')) return;
           let row = bar.previousElementSibling; while (row && !row.querySelector('.message')) row = row.previousElementSibling;
@@ -4043,13 +4413,85 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           const b = document.createElement('button'); b.className = 'speak icon-button'; b.type = 'button'; b.title = TITLE; b.setAttribute('aria-label', TITLE); b.innerHTML = ICON;
           b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (current === b) return stop(); const txt = clean(row); if (txt) speak(txt, lang(txt), b); });
           const copy = bar.querySelector("button[aria-label='Copy message']"); (copy ? copy.parentElement : bar).appendChild(b); });
-        const fill = () => document.querySelectorAll('#voicepick select').forEach(sel => { const k = sel.dataset.lang, vs = synth.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith(k));
-          if (sel.options.length === vs.length + 1) return; const cur = voiceFor(k);
-          sel.innerHTML = '<option value="">—</option>' + vs.map(v => '<option' + (cur && v.name === cur.name ? ' selected' : '') + '>' + v.name + '</option>').join(''); });
+        const fill = () => document.querySelectorAll('#voicepick select').forEach(sel => { const k = sel.dataset.lang, V = window.joshuaVoice;
+          const names = V.mac ? V.mac.filter(v => v.lang.toLowerCase().startsWith(k)).map(v => v.name) : synth.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith(k)).map(v => v.name);
+          if (sel.dataset.n === String(names.length) + !!V.mac) return; sel.dataset.n = String(names.length) + !!V.mac;
+          const cur = V.mac ? V.macVoice(k) : (voiceFor(k) || {}).name;
+          sel.innerHTML = '<option value="">—</option>' + names.map(n => '<option' + (n === cur ? ' selected' : '') + '>' + n + '</option>').join(''); });
+        window.joshuaVoice.ready.then(fill);
         document.addEventListener('change', (e) => { const sel = e.target.closest('#voicepick select'); if (!sel) return; try { localStorage.setItem('joshua-voice-' + sel.dataset.lang, sel.value) } catch (x) {} });
         document.addEventListener('click', (e) => { const t = e.target.closest('#voicepick .vtest'); if (!t) return; e.preventDefault(); speak(SAMPLE[t.dataset.lang], t.dataset.lang, null); }, true);
         synth.onvoiceschanged = fill;
         new MutationObserver(() => { clearTimeout(window.joshuaSpeak); window.joshuaSpeak = setTimeout(() => { add(); fill(); }, 250); }).observe(document.body, {childList: true, subtree: true}); }""")
+    demo.load(None, None, None, js="""() => {  // the Reader: reads the open book paragraph by paragraph, and tells Joshua each paragraph it finishes
+        const V = window.joshuaVoice;
+        const PAUSE = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48V208a16,16,0,0,1-16,16H160a16,16,0,0,1-16-16V48a16,16,0,0,1,16-16h40A16,16,0,0,1,216,48ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Z"/></svg>';
+        const R = window.jr = {id: null, i: 0, texts: [], lang: '', playing: false, token: 0, rate: 1, voice: '', volume: 1, gap: 0, mode: 'clean'};
+        try { R.rate = +(localStorage.getItem('joshua-reader-rate') || 1) } catch (e) {}
+        let PLAY = null;
+        const book = () => document.querySelector('#rdbook');
+        const para = (i) => { const b = book(); return b && b.dataset.id === R.id ? b.querySelector('p[data-i="' + i + '"]') : null; };
+        const save = () => { const box = document.querySelector('#rdpos textarea, #rdpos input'); if (!box || !R.id) return;
+          box.value = R.id + '|' + R.i + '|' + JSON.stringify({voice: R.voice, rate: R.rate, volume: R.volume, gap: R.gap, mode: R.mode}); box.dispatchEvent(new Event('input', {bubbles: true})); };
+        const controls = () => {  // the book's own voice, speed, volume and pause, in the bar
+          const vs = document.querySelector('#rdvoice'); if (vs) { const names = V.list(R.lang || 'en'), cur = V.current(R.lang || 'en', R.voice), sig = names.join('|') + '>' + cur;
+            if (vs.dataset.sig !== sig) { vs.dataset.sig = sig; vs.innerHTML = names.map(n => '<option' + (n === cur ? ' selected' : '') + '>' + n + '</option>').join('') || '<option>—</option>'; } }
+          const vol = document.querySelector('#rdvol'); if (vol && document.activeElement !== vol) vol.value = R.volume;
+          const gp = document.querySelector('#rdgap'); if (gp) gp.value = String(R.gap);
+          const md = document.querySelector('#rdmode'); if (md && md.value !== R.mode) md.value = R.mode; };
+        const spoken = new Map(), ready = new Map();  // the text heard for each paragraph: without citations, or rewritten in simpler sentences by Joshua
+        const text = (i) => { if (R.mode === 'raw' || i >= R.texts.length) return Promise.resolve(R.texts[i]);
+          const key = R.id + '|' + R.mode + '|' + i; if (!spoken.has(key)) spoken.set(key, V.call('rd_text', [R.id, i, R.mode]).then(t => { t = t || R.texts[i]; ready.set(key, t); return t; }));
+          return spoken.get(key); };
+        const show = (scroll) => { const b = book(); if (b && b.dataset.id === R.id) {
+            b.querySelectorAll('p.rdnow').forEach(p => p.classList.remove('rdnow')); const p = para(R.i);
+            if (p) { p.classList.add('rdnow'); if (scroll) p.scrollIntoView({block: 'center', behavior: 'smooth'}); } }
+          const n = R.texts.length, pr = document.querySelector('#rdprog'); if (pr && n) pr.textContent = Math.round(100 * R.i / Math.max(n - 1, 1)) + '%  ·  ' + (R.i + 1) + ' / ' + n;
+          const pb = document.querySelector('#rdplay'); if (pb) { if (!PLAY) PLAY = pb.innerHTML; pb.innerHTML = R.playing ? PAUSE : PLAY; }
+          const sel = document.querySelector('#rdrate'); if (sel && +sel.value !== R.rate) sel.value = String(R.rate); };
+        const say = () => { if (!R.playing) return; if (R.i >= R.texts.length) { R.playing = false; R.i = R.texts.length - 1; show(false); return; }
+          show(true); const tok = ++R.token, k = R.lang || 'en', i = R.i;
+          [1, 2].forEach(d => { if (i + d < R.texts.length) text(i + d).then(t => { if (d === 1) V.prefetch(t, k, R.voice); }); });  // the next paragraphs get ready while this one is read
+          const now = R.mode === 'raw' ? R.texts[i] : ready.get(R.id + '|' + R.mode + '|' + i);  // ready: no waiting, so the sound still counts as started by your click
+          const speak = (t) => { if (tok !== R.token || !R.playing) return; V.say(t, k, R.rate, () => { if (tok !== R.token || !R.playing) return; R.i++; save(); setTimeout(() => { if (tok === R.token) say(); }, R.gap * 1000); },
+                {voice: R.voice, volume: R.volume}); };
+          if (now != null) speak(now); else text(i).then(speak); };
+        V.onblocked = (why) => {  // the browser didn't let the sound start (Safari wants it to come from a click): pause, and ask for ▶
+          if (!R.playing) return; window.jrPause(); const h = document.querySelector('#rdhint');
+          if (h) { h.textContent = why === 'error' ? """ + JS_TEXT(t("This paragraph couldn't be played. Press ▶ to try again.")) + """ : """ + JS_TEXT(t("Press ▶ to start reading.")) + """; h.classList.add('rdwarn'); } };
+        const play = () => { if (!R.texts.length) return; const h = document.querySelector('#rdhint.rdwarn'); if (h) { h.classList.remove('rdwarn'); h.textContent = """ + JS_TEXT(t("Click a paragraph to read from there.")) + """; }
+          R.playing = true; R.token++; V.stop(); V.unlock(); say(); };
+        window.jrPause = () => { if (!R.playing) return; R.playing = false; R.token++; V.stop(); save(); show(false); };
+        const jump = (i) => { R.i = Math.max(0, Math.min(i, R.texts.length - 1)); R.token++; V.stop(); save(); if (R.playing) { V.unlock(); say(); } else show(true); };
+        const act = (v) => { const box = document.querySelector('#rdact textarea, #rdact input'); if (!box) return;
+          box.value = v; box.dispatchEvent(new Event('input', {bubbles: true})); setTimeout(() => { box.value = ''; box.dispatchEvent(new Event('input', {bubbles: true})); }, 400); };
+        document.addEventListener('click', (e) => {
+          const x = e.target.closest('.rdx[data-remove]'); if (x) { e.preventDefault(); e.stopPropagation(); if (confirm(""" + JS_TEXT(t("Remove this book from the library? Your file isn't touched.")) + """)) act('remove:' + x.dataset.remove); return; }
+          const row = e.target.closest('.rdrow[data-open]'); if (row) { e.preventDefault(); return act('open:' + row.dataset.open); }
+          if (e.target.closest('#rdplay')) { e.preventDefault(); return R.playing ? window.jrPause() : play(); }
+          if (e.target.closest('#rdprev')) { e.preventDefault(); return jump(R.i - 1); }
+          if (e.target.closest('#rdnext')) { e.preventDefault(); return jump(R.i + 1); }
+          const p = e.target.closest('#rdbook p[data-i]'); if (p && !getSelection().toString()) { R.i = +p.dataset.i; R.playing = true; R.token++; V.stop(); V.unlock(); save(); say(); } }, true);
+        const restart = () => { if (R.playing) { R.token++; V.stop(); V.unlock(); say(); } };
+        document.addEventListener('change', (e) => {
+          if (e.target.closest('#rdvoice')) { R.voice = e.target.value; save(); return restart(); }
+          if (e.target.closest('#rdgap')) { R.gap = +e.target.value; return save(); }
+          if (e.target.closest('#rdmode')) { R.mode = e.target.value; save(); return restart(); }
+          if (e.target.closest('#rdvol')) return save(); });
+        document.addEventListener('input', (e) => { if (!e.target.closest('#rdvol')) return; R.volume = +e.target.value; if (V.mac) V.el.volume = R.volume; });
+        document.addEventListener('change', (e) => { if (!e.target.closest('#rdrate')) return; R.rate = +e.target.value; save();
+          try { localStorage.setItem('joshua-reader-rate', String(R.rate)) } catch (x) {}
+          if (R.playing && V.mac) V.el.playbackRate = R.rate; else if (R.playing) { R.token++; V.stop(); say(); } });
+        setInterval(() => { const b = book(); if (!b) return;
+          if (b.dataset.id !== R.id) {  // another book opened: start where you left it
+            if (R.playing) window.jrPause();
+            R.id = b.dataset.id; R.lang = b.dataset.lang || ''; R.i = +b.dataset.pos || 0; R.texts = [...b.querySelectorAll('p[data-i]')].map(p => p.textContent);
+            let o = {}; try { o = JSON.parse(b.dataset.settings || '{}') } catch (x) {}
+            R.voice = o.voice || ''; R.volume = o.volume == null ? 1 : +o.volume; R.gap = +o.gap || 0; if (o.rate) R.rate = +o.rate; R.mode = o.mode || 'clean';
+            V.ready.then(controls);
+            setTimeout(() => show(true), 150);
+          } else { if (!b.querySelector('p.rdnow') || !document.querySelector('#rdprog').textContent) show(false); controls(); } }, 500);
+        window.addEventListener('pagehide', () => { if (R.playing) save(); }); }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // a cost box closes when you click anywhere else; one open at a time
         document.querySelectorAll('details.mcost[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('details.mcost[open]').forEach(d => d.open = false); }); }""")
