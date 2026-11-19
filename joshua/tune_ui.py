@@ -137,7 +137,7 @@ def loss_svg(train, val):
     Y = lambda y: 8 + (H - B - 8) * (1 - (y - y0) / (y1 - y0))
     line = lambda ps, cls: (f"<polyline class='{cls}' points='" + " ".join(f"{X(a):.1f},{Y(b):.1f}" for a, b in ps) + "'/>") if len(ps) > 1 else "".join(f"<circle class='{cls}' cx='{X(a):.1f}' cy='{Y(b):.1f}' r='3'/>" for a, b in ps)
     grid = "".join(f"<line x1='{L}' x2='{W - 10}' y1='{Y(v):.1f}' y2='{Y(v):.1f}'/><text x='{L - 6}' y='{Y(v) + 4:.1f}' text-anchor='end'>{v:.1f}</text>" for v in (y1 / 1.08 * k / 4 for k in range(5)))
-    ticks = "".join(f"<text x='{X(v):.1f}' y='{H - 6}' text-anchor='middle'>{int(v)}</text>" for v in (x0 + (x1 - x0) * k / 4 for k in range(5)))
+    ticks = "".join(f"<text x='{X(v):.1f}' y='{H - 6}' text-anchor='{('start', 'middle', 'middle', 'middle', 'end')[k]}'>{int(v)}</text>" for k, v in enumerate(x0 + (x1 - x0) * k / 4 for k in range(5)))  # the end ones inside the chart
     last = f"{t('step')} {int(xs[-1] if not val else max(xs))} · " + t("training") + f" {train[-1][1]:.2f}" + (f" · {t('validation')} {val[-1][1]:.2f}" if val else "")
     return (head + f"<svg viewBox='0 0 {W} {H}'><g class='grid'>{grid}</g><g class='ticks'>{ticks}</g>"
             + line(train, "tr") + line(val, "va") + f"</svg><div class='ftchart-last'>{html.escape(last)}</div></div>")
