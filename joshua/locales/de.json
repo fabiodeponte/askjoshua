@@ -691,5 +691,8 @@
  "The speech model was removed. It downloads again the next time you ask for a transcription, or with Download.": "Das Sprachmodell wurde entfernt. Es wird bei der nächsten Transkription erneut geladen, oder mit Herunterladen.",
  "Downloading the speech model (about 1.6 GB)…": "Lade das Sprachmodell herunter (etwa 1,6 GB)…",
  "The speech model is ready: Joshua can transcribe audio and video.": "Das Sprachmodell ist bereit: Joshua kann Audio und Video transkribieren.",
- "Couldn't download the speech model: {error}": "Das Sprachmodell konnte nicht heruntergeladen werden: {error}"
+ "Couldn't download the speech model: {error}": "Das Sprachmodell konnte nicht heruntergeladen werden: {error}",
+ "Loss, lower is better": "Verlust, niedriger ist besser",
+ "The chart appears when training starts.": "Das Diagramm erscheint, wenn das Training beginnt.",
+ "step": "Schritt"
 }

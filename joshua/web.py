@@ -2719,6 +2719,17 @@ body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tune button.ftmain 
 body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tune .prose, body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tune .prose * {font-size: 1rem !important; line-height: 1.5 !important}
 body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tunetitle {font-size: 1.15rem !important; letter-spacing: .06em}
 #ftgrid .cell-menu-button {display: none !important}
+#tune .ftchart {margin-top: 14px}
+#tune .ftchart-head {font-size: .9rem; opacity: .8; margin-bottom: 4px}
+#tune .ftchart-head .k1 {color: #4a7fb5; margin-left: 10px} #tune .ftchart-head .k2 {color: #e8892a; margin-left: 6px}
+#tune .ftchart svg {width: 100%; height: auto; display: block}
+#tune .ftchart .grid line {stroke: var(--line); stroke-width: 1}
+#tune .ftchart text {fill: currentColor; opacity: .6; font-size: 11px}
+#tune .ftchart polyline {fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke}
+#tune .ftchart .tr {stroke: #4a7fb5; fill: #4a7fb5} #tune .ftchart polyline.tr {fill: none}
+#tune .ftchart .va {stroke: #e8892a; fill: #e8892a} #tune .ftchart polyline.va {fill: none}
+#tune .ftchart-last, #tune .ftchart-empty {font-size: .85rem; opacity: .65; margin-top: 2px}
+#tune .ftchart-empty {padding: 18px 0}
 body:not(#a):not(#b):not(#c):not(#d) #tune #ftpreset input {display: none !important}
 body:not(#a):not(#b):not(#c):not(#d) #tune {overflow-x: hidden !important; flex-wrap: nowrap !important}  /* allowed to wrap, a page taller than the window put its lower half in a second column, off screen */
 #tune .ftpane .row, #tune #ftproject, #tune #ftnewrow {flex-wrap: wrap !important; row-gap: 8px !important; max-width: 100% !important}

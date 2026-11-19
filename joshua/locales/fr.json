@@ -691,5 +691,8 @@
  "The speech model was removed. It downloads again the next time you ask for a transcription, or with Download.": "Le modèle vocal a été supprimé. Il se télécharge à nouveau à la prochaine transcription, ou avec Télécharger.",
  "Downloading the speech model (about 1.6 GB)…": "Téléchargement du modèle vocal (environ 1,6 Go)…",
  "The speech model is ready: Joshua can transcribe audio and video.": "Le modèle vocal est prêt : Joshua peut transcrire l'audio et la vidéo.",
- "Couldn't download the speech model: {error}": "Impossible de télécharger le modèle vocal : {error}"
+ "Couldn't download the speech model: {error}": "Impossible de télécharger le modèle vocal : {error}",
+ "Loss, lower is better": "Perte, plus elle est basse mieux c'est",
+ "The chart appears when training starts.": "Le graphique apparaît quand l'entraînement commence.",
+ "step": "étape"
 }

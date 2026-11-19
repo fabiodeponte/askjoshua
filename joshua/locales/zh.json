@@ -691,5 +691,8 @@
  "The speech model was removed. It downloads again the next time you ask for a transcription, or with Download.": "语音模型已移除。下次转录时会重新下载，或点击“下载”。",
  "Downloading the speech model (about 1.6 GB)…": "正在下载语音模型（约 1.6 GB）……",
  "The speech model is ready: Joshua can transcribe audio and video.": "语音模型已就绪：Joshua 可以转录音频和视频。",
- "Couldn't download the speech model: {error}": "无法下载语音模型：{error}"
+ "Couldn't download the speech model: {error}": "无法下载语音模型：{error}",
+ "Loss, lower is better": "损失，越低越好",
+ "The chart appears when training starts.": "训练开始后会显示图表。",
+ "step": "步"
 }

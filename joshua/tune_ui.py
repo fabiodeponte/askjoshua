@@ -123,6 +123,26 @@ def count_html(rows):
     return f"<div class='ftcount'>{t('{n} EXAMPLES', n=n)} · {tip}</div>"
 
 
+def loss_svg(train, val):
+    """The loss chart, drawn here as a small SVG: training in blue, validation in orange, lower is better."""
+    pts = list(train) + list(val)
+    head = "<div class='ftchart'><div class='ftchart-head'>" + t("Loss, lower is better") + (f" <span class='k1'>■ {t('training')}</span> <span class='k2'>■ {t('validation')}</span>" if pts else "") + "</div>"
+    if len(pts) < 2:
+        return head + "<div class='ftchart-empty'>" + t("The chart appears when training starts.") + "</div></div>"
+    W, H, L, B = 900, 230, 44, 26
+    xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+    x0, x1 = min(xs), max(xs) or 1
+    y0, y1 = 0, max(ys) * 1.08 or 1
+    X = lambda x: L + (W - L - 10) * (x - x0) / max(x1 - x0, 1)
+    Y = lambda y: 8 + (H - B - 8) * (1 - (y - y0) / (y1 - y0))
+    line = lambda ps, cls: (f"<polyline class='{cls}' points='" + " ".join(f"{X(a):.1f},{Y(b):.1f}" for a, b in ps) + "'/>") if len(ps) > 1 else "".join(f"<circle class='{cls}' cx='{X(a):.1f}' cy='{Y(b):.1f}' r='3'/>" for a, b in ps)
+    grid = "".join(f"<line x1='{L}' x2='{W - 10}' y1='{Y(v):.1f}' y2='{Y(v):.1f}'/><text x='{L - 6}' y='{Y(v) + 4:.1f}' text-anchor='end'>{v:.1f}</text>" for v in (y1 / 1.08 * k / 4 for k in range(5)))
+    ticks = "".join(f"<text x='{X(v):.1f}' y='{H - 6}' text-anchor='middle'>{int(v)}</text>" for v in (x0 + (x1 - x0) * k / 4 for k in range(5)))
+    last = f"{t('step')} {int(xs[-1] if not val else max(xs))} · " + t("training") + f" {train[-1][1]:.2f}" + (f" · {t('validation')} {val[-1][1]:.2f}" if val else "")
+    return (head + f"<svg viewBox='0 0 {W} {H}'><g class='grid'>{grid}</g><g class='ticks'>{ticks}</g>"
+            + line(train, "tr") + line(val, "va") + f"</svg><div class='ftchart-last'>{html.escape(last)}</div></div>")
+
+
 def more(text, label=None):
     """The longer explanation of a step, folded away under a line you can open."""
     return gr.HTML("<details class='ftmore'><summary>" + html.escape(label or t("More about this step")) + "</summary>" + MD.render(text) + "</details>")
@@ -185,8 +205,7 @@ def build(conv_root, conv_choices):
                 with gr.Row():
                     trainb = gr.Button("▶ " + t("Start training"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
                     stopb = gr.Button("■ " + t("Stop"), size="sm", scale=0, min_width=100, elem_id="ftstop")
-                plot = gr.LinePlot(pd.DataFrame({"step": [], "loss": [], "set": []}), x="step", y="loss", color="set", height=260, label=t("Loss, lower is better · blue = training · orange = validation"),
-                                   color_map={t("training"): "#4a7fb5", t("validation"): "#e8892a"})
+                plot = gr.HTML(loss_svg([], []))
                 more(STEP3)
             with gr.Column(visible=False, elem_classes="ftpane") as s4:
                 gr.Markdown(t("**Compare.** Ask the model before and after training the same question, one that isn't in your examples."))
@@ -356,8 +375,7 @@ def build(conv_root, conv_choices):
         return gr.Dropdown(choices=ft.projects(), value=None), table([]), count_html([]), gr.Column(visible=True), gr.Column(visible=False)
 
     def plot_df(meta):
-        pts = [(s, v, t("training")) for s, v in meta.get("train", [])] + [(s, v, t("validation")) for s, v in meta.get("val", [])]
-        return pd.DataFrame(pts or [], columns=["step", "loss", "set"])
+        return loss_svg(meta.get("train", []), meta.get("val", []))
 
     def tick(seen_v):
         run = ft.RUN
