@@ -35,7 +35,9 @@ ollama_signin() {  # 'ollama signin' prints the page to open and waits until you
   done
   sed 's/^/  /' "$log"
   if [ -n "$url" ]; then say "  ${dim}Opening the page in your browser…${off}"; open_url "$url"; fi
-  wait $pid; local rc=$?; rm -f "$log"; return $rc
+  wait $pid; local rc=$?
+  grep -qi "already signed in" "$log" && rc=0  # signed in before: that's fine too
+  rm -f "$log"; return $rc
 }
 # The Ollama API key: you create it on ollama.com (no program can), copy it, and the installer takes it from the
 # clipboard. It's checked with Ollama, saved only in providers.json (readable only by you), and the clipboard is emptied.
