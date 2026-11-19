@@ -77,6 +77,13 @@ def size_gb():
     return sum(f.stat().st_size for f in p.rglob("*") if f.is_file() and not f.is_symlink()) / 1e9 if p else 0
 
 
+def download():
+    """Gets the speech model (and the tools that run it) now, instead of at the first transcription."""
+    _install()
+    from huggingface_hub import snapshot_download
+    snapshot_download(REPO)
+
+
 def remove():
     global _model
     import shutil

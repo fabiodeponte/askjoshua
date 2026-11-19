@@ -685,5 +685,11 @@
  "Create": "Erstellen",
  "Add from a file": "Aus einer Datei hinzufügen",
  "**Show the model what you want:** something you might say, and the exact answer you'd like back. 100–500 good examples work best.": "**Zeig dem Modell, was du willst:** etwas, das du sagen könntest, und genau die Antwort, die du zurückhaben möchtest. 100–500 gute Beispiele funktionieren am besten.",
- "Ready to train": "Bereit zum Training"
+ "Ready to train": "Bereit zum Training",
+ "free, local": "kostenlos, lokal",
+ "not downloaded": "nicht heruntergeladen",
+ "The speech model was removed. It downloads again the next time you ask for a transcription, or with Download.": "Das Sprachmodell wurde entfernt. Es wird bei der nächsten Transkription erneut geladen, oder mit Herunterladen.",
+ "Downloading the speech model (about 1.6 GB)…": "Lade das Sprachmodell herunter (etwa 1,6 GB)…",
+ "The speech model is ready: Joshua can transcribe audio and video.": "Das Sprachmodell ist bereit: Joshua kann Audio und Video transkribieren.",
+ "Couldn't download the speech model: {error}": "Das Sprachmodell konnte nicht heruntergeladen werden: {error}"
 }

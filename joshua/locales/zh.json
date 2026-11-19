@@ -685,5 +685,11 @@
  "Create": "创建",
  "Add from a file": "从文件添加",
  "**Show the model what you want:** something you might say, and the exact answer you'd like back. 100–500 good examples work best.": "**告诉模型你想要什么：** 你可能说的话，以及你希望得到的确切回答。100–500 个好示例效果最好。",
- "Ready to train": "可以开始训练"
+ "Ready to train": "可以开始训练",
+ "free, local": "免费，本地",
+ "not downloaded": "未下载",
+ "The speech model was removed. It downloads again the next time you ask for a transcription, or with Download.": "语音模型已移除。下次转录时会重新下载，或点击“下载”。",
+ "Downloading the speech model (about 1.6 GB)…": "正在下载语音模型（约 1.6 GB）……",
+ "The speech model is ready: Joshua can transcribe audio and video.": "语音模型已就绪：Joshua 可以转录音频和视频。",
+ "Couldn't download the speech model: {error}": "无法下载语音模型：{error}"
 }

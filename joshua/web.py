@@ -155,7 +155,7 @@ def badge(choice):
     elif place or (choice != apple.NAME and not providers.is_api(choice) and is_cloud(resolve(choice, True))):
         cost = ""
     else:
-        cost = "<span class='bcost'>" + t("free, on this computer") + "</span>"
+        cost = "<span class='bcost'>" + t("free, local") + "</span>"
     credit = ("<span class='bcredit' data-tip='" + html.escape(t("What is left on your Ollama account: the credit included in your plan plus the credit you bought."), quote=True) + "'>" + t("{n} left", n=money(left)) + "</span>") if left is not None else ""
     return "<div class='cloudbadge'>" + "".join(x for x in (place, "<span class='bicons'>" + icons + "</span>", cost, credit) if x) + "</div>"
 
@@ -240,11 +240,12 @@ def installed_html():
 def other_models_html():
     """Models Joshua uses for other jobs than chatting, kept on this computer: today the speech model for transcription."""
     import transcribe as tr
-    if not tr.model_dir():
-        return ""
+    here = tr.model_dir()  # removed, it stays listed so it can be downloaded again
+    size = f"{tr.size_gb():.1f} GB" if here else t("not downloaded")
+    button = act_button("rmspeech", "whisper", t("Remove")) if here else act_button("getspeech", "whisper", t("Download"))
     return ("<h3 class='msub2'>" + t("Other models on this computer") + "</h3><table class='mrank'><tr><th>" + t("Model") + "</th><th>" + t("Size") + "</th><th>" + t("Used for") + "</th><th></th></tr>"
-            + f"<tr><td class='mname'>🎙️ {tr.NAME}</td><td class='mdim'>{tr.size_gb():.1f} GB</td><td class='mdim'>" + t("transcribing audio and video, on this computer") + "</td><td class='mnote mbtns'>"
-            + act_button("rmspeech", "whisper", t("Remove")) + "</td></tr></table>")
+            + f"<tr><td class='mname'>🎙️ {tr.NAME}</td><td class='mdim'>{size}</td><td class='mdim'>" + t("transcribing audio and video, on this computer") + "</td><td class='mnote mbtns'>"
+            + button + "</td></tr></table>")
 
 
 def cloud_catalog():
@@ -467,7 +468,15 @@ def row_action(act):
     elif kind == "rmspeech":
         import transcribe as tr
         tr.remove()
-        yield gr.skip(), "<div class='cloudstat'>" + t("The speech model was removed. It downloads again the next time you ask for a transcription.") + "</div>", gr.skip(), gr.skip()
+        yield gr.skip(), "<div class='cloudstat'>" + t("The speech model was removed. It downloads again the next time you ask for a transcription, or with Download.") + "</div>", gr.skip(), gr.skip()
+    elif kind == "getspeech":
+        import transcribe as tr
+        yield gr.skip(), "<div class='cloudstat'>" + t("Downloading the speech model (about 1.6 GB)…") + "</div>", gr.skip(), gr.skip()
+        try:
+            tr.download()
+            yield gr.skip(), "<div class='cloudstat'>" + t("The speech model is ready: Joshua can transcribe audio and video.") + "</div>", gr.skip(), gr.skip()
+        except Exception as e:
+            yield gr.skip(), "<div class='cloudstat'>" + t("Couldn't download the speech model: {error}", error=html.escape(str(e))) + "</div>", gr.skip(), gr.skip()
     elif kind == "add":
         m, status = cloud_add_model(tag)
         yield m, gr.skip(), gr.skip(), status
