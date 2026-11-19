@@ -183,7 +183,7 @@ if ($LocalNo) {
 } else {
     Say "  Where should Joshua's answers come from? Normally from models on this computer (private, free, works offline)."
     Dim "Or from cloud models only: $CloudText"
-    $def = "n"; if ($Speed4 -lt 3 -and -not $Gpu) { $def = "y"; Dim "Recommended here: local models would be very slow on this computer." }
+    $def = "n"; if (-not $Gpu) { $def = "y"; Dim "Recommended here: without an NVIDIA graphics card, local models would be slow on this computer." }
     if (Ask "Use cloud models only?" $def) { $CloudOnly = $true }
 }
 if ($CloudOnly) {

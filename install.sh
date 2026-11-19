@@ -190,7 +190,9 @@ if [ -n "$LOCAL_NO" ]; then
 else
   say "  ${bold}Where should Joshua's answers come from?${off} Normally from models on this computer (private, free, works offline)."
   say "  ${dim}Or from cloud models only: $CLOUD_TEXT${off}"
-  DEF=n; [ "$SPEED4" -lt 3 ] && DEF=y && say "  ${dim}Recommended here: local models would be very slow on this computer.${off}"
+  DEF=n
+  if [ "$OS" = Linux ] && [ -z "$GPU" ]; then DEF=y; say "  ${dim}Recommended here: without an NVIDIA graphics card, local models would be slow on this computer.${off}"
+  elif [ "$SPEED4" -lt 3 ]; then DEF=y; say "  ${dim}Recommended here: local models would be very slow on this computer.${off}"; fi
   ask "Use cloud models only?" $DEF && CLOUDONLY=y
 fi
 if [ "$CLOUDONLY" = y ]; then
