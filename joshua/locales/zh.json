@@ -738,5 +738,6 @@
  "The beginning of a sentence": "一句话的开头",
  "Add to Ollama": "添加到 Ollama",
  "Your texts": "你的文本",
- "Try it": "试一试"
+ "Try it": "试一试",
+ "{p} million parameters · {layers} layers · width {h} · {heads} attention heads · middle width {inter} · vocabulary of {vocab} pieces · it sees {ctx} pieces at a time": "{p} 百万参数 · {layers} 层 · 宽度 {h} · {heads} 个注意力头 · 中间宽度 {inter} · 词表 {vocab} 个片段 · 一次看 {ctx} 个片段"
 }

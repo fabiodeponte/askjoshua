@@ -183,6 +183,17 @@ def size_choices(n):
     return out
 
 
+def arch_html(size, n=None):
+    """The chosen size spelled out: what the model is made of."""
+    import scratch_job as job
+    d = sc.data(n) if n else None
+    h, layers, heads, inter = job.SIZES[size]
+    p = sc.params(size, d["vocab"] if d else job.VOCAB)
+    return ("<div class='ftres'>" + t("{p} million parameters · {layers} layers · width {h} · {heads} attention heads · middle width {inter} · vocabulary of {vocab} pieces · it sees {ctx} pieces at a time",
+            p=f"{p / 1e6:.1f}", layers=layers, h=h, heads=heads, inter=inter, vocab=f"{(d['vocab'] if d else job.VOCAB):,}", ctx=job.CTX)
+            + (" · " + t("{n} steps", n=f"{sc.steps(n, size):,}") if d else "") + "</div>")
+
+
 def samples_html(samples):
     if not samples:
         return ""
@@ -217,6 +228,7 @@ def build_new():
             with gr.Column(elem_classes="ftpane"):
                 gr.Markdown("**2 · " + t("Train") + "** " + t("Bigger models learn more, but need more text and more time. You can stop and carry on later."))
                 size = gr.Radio(size_choices(None), value=sc.SIZES[0], show_label=False, elem_id="ftsize")
+                arch = gr.HTML(arch_html(sc.SIZES[0]))
                 with gr.Row():
                     trainb = gr.Button("▶ " + t("Start training"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
                     stopb = gr.Button("■ " + t("Stop"), size="sm", scale=0, min_width=100)
@@ -239,13 +251,13 @@ def build_new():
         n = (n or "").strip().lower()
         if not ft.NAME_RE.match(n):
             gr.Warning(t("Use 2–31 lowercase letters, digits or dashes, like 'newsroom-style'."))
-            return (gr.skip(),) * 9
+            return (gr.skip(),) * 10
         sc.pdir(n).mkdir(exist_ok=True)
         f = sc.pdir(n) / "folder.txt"
         p = sc.progress(n) or {}
         chosen = p.get("size") or (sc.best_size(n) if sc.data(n) else sc.SIZES[0])
         return (gr.Dropdown(choices=sc.projects(), value=n), gr.Row(visible=False), gr.Column(visible=True), f.read_text() if f.exists() else "",
-                new_info(n), gr.Radio(choices=size_choices(n), value=chosen), loss_svg(p.get("train", []), p.get("val", [])), samples_html(p.get("samples", [])), "")
+                new_info(n), gr.Radio(choices=size_choices(n), value=chosen), loss_svg(p.get("train", []), p.get("val", [])), samples_html(p.get("samples", [])), "", arch_html(chosen, n))
 
     def need(n):
         if not n or not sc.pdir(n).exists():
@@ -330,7 +342,8 @@ def build_new():
         text = (run.result or {}).get("text")
         return gr.skip(), gr.skip(), gr.skip(), gr.skip(), (html.escape(text) if text else gr.skip()), sig
 
-    outs = [name, newrow, work, folder, info, size, plot, samples, out]
+    outs = [name, newrow, work, folder, info, size, plot, samples, out, arch]
+    size.change(arch_html, [size, name], arch, show_progress="hidden")
     name.input(opened, name, outs)
     newb.click(lambda: (gr.Row(visible=True), ""), outputs=[newrow, newname])
     create.click(opened, newname, outs)

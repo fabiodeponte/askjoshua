@@ -738,5 +738,6 @@
  "The beginning of a sentence": "L'inizio di una frase",
  "Add to Ollama": "Aggiungi a Ollama",
  "Your texts": "I tuoi testi",
- "Try it": "Provalo"
+ "Try it": "Provalo",
+ "{p} million parameters · {layers} layers · width {h} · {heads} attention heads · middle width {inter} · vocabulary of {vocab} pieces · it sees {ctx} pieces at a time": "{p} milioni di parametri · {layers} strati · larghezza {h} · {heads} teste di attenzione · larghezza intermedia {inter} · vocabolario di {vocab} pezzi · vede {ctx} pezzi alla volta"
 }

@@ -738,5 +738,6 @@
  "The beginning of a sentence": "Der Anfang eines Satzes",
  "Add to Ollama": "Zu Ollama hinzufügen",
  "Your texts": "Deine Texte",
- "Try it": "Ausprobieren"
+ "Try it": "Ausprobieren",
+ "{p} million parameters · {layers} layers · width {h} · {heads} attention heads · middle width {inter} · vocabulary of {vocab} pieces · it sees {ctx} pieces at a time": "{p} Millionen Parameter · {layers} Schichten · Breite {h} · {heads} Attention-Köpfe · mittlere Breite {inter} · Wortschatz von {vocab} Stücken · sieht {ctx} Stücke auf einmal"
 }
