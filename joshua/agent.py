@@ -197,7 +197,19 @@ def read_file(name: str) -> str:
         walk(d.text)
         text = "\n".join(lines)
     elif p.suffix.lower() == ".pdf":
-        text = "\n".join(page.extract_text() or "" for page in PdfReader(p).pages)
+        pages = [page.extract_text() or "" for page in PdfReader(p).pages]
+        text = "\n".join(pages)
+        if len(text.strip()) < 20 * len(pages):  # scanned: pages that are pictures, with no text inside
+            import ocr
+            if not ocr.available():
+                return (text + "\n\n" if text.strip() else "") + "[This PDF is scanned: its pages are pictures, and this computer has no text recognition to read them.]"
+            pages = ocr.pdf_text(p, pages)
+            full = "\n\n".join(f"— {i + 1} —\n{t}" for i, t in enumerate(pages))
+            out = p.with_name(p.stem + ".text.txt")  # the whole text, kept next to the PDF
+            out.write_text(full, encoding="utf-8")
+            note = (f"[This PDF is scanned: its {len(pages)} pages are pictures, and their text was read with text recognition, "
+                    f"which can make small mistakes. The whole text is saved as {out.name}; read it from there for the pages beyond this excerpt.]\n\n")
+            return (note + full)[:20000]
     else:
         raw = p.read_bytes()
         try:

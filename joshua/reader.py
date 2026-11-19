@@ -58,7 +58,21 @@ def _pdf(path):
     after a gap clearly wider than the usual one between lines (headings and paragraph spacing), or after a short line
     that ends a sentence. Page numbers and words split with a hyphen at the end of a line are mended."""
     paras, cur = [], ""
-    for page in PdfReader(str(path)).pages:
+    pages = PdfReader(str(path)).pages
+    texts = [page.extract_text() or "" for page in pages]
+    scanned = {}
+    if any(len(t.strip()) < 20 for t in texts):  # pages that are pictures: read with text recognition
+        import ocr
+        if ocr.available():
+            read = ocr.pdf_text(path, texts)
+            scanned = {i: read[i] for i, t in enumerate(texts) if len(t.strip()) < 20}
+    for k, page in enumerate(pages):
+        if k in scanned:
+            if cur:
+                paras.append(cur)
+                cur = ""
+            paras += _blocks(scanned[k])
+            continue
         lines = [(l, g) for l, g in _pdf_lines(page) if not re.fullmatch(r"[-–—]?\s*\d{1,4}\s*[-–—]?", l)]
         if not lines:
             continue
