@@ -4017,7 +4017,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 swarm = gr.Checkbox(False, label="🐝 " + t("Swarm"), elem_classes=["opt", "modeopt"], elem_id="o_swarm", info=t("Several agents answer in parallel, then one combines the best answer"))
                 working = gr.HTML("", elem_id="working")
                 with gr.Row(elem_id="modelpick"):  # the model and its abilities and price stay together, on one line
-                    model = gr.Dropdown(choices=models(True), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200)
+                    model = gr.Dropdown(choices=models(True), value=default_model(), show_label=False, container=False, elem_id="model", scale=0, min_width=200, filterable=False)  # no typing: on a phone, a tap would open the keyboard and zoom the page
                     cloudbadge = gr.HTML(badge(default_model()), elem_id="cloudbadge")
 
     box.submit(send, [box, cid, model, thinking, goal, rounds, net, timeout, swarm, agents, mem, offline, cloudmem, desk, *team], [chatbot, box, cid, convs, files], concurrency_limit=None)
