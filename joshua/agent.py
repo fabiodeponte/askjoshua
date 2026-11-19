@@ -663,15 +663,21 @@ def transcribe(name: str, language: str = "") -> str:
     if p.suffix.lower() not in tr.AUDIO:
         return f"{name} doesn't look like an audio or video file."
     t0 = time.time()
+    import jlog
+    jlog.note(f"transcription started · {p.name} · {p.stat().st_size / 2**20:.1f} MB · {'Apple chip (MLX)' if tr.APPLE else f'processor, {tr.threads()} of {os.cpu_count()} cores'} · {jlog.memory()}")
     try:
         segments, lang = tr.run(p, language)
     except Exception as e:
+        jlog.error(f"transcription of {p.name} failed after {int(time.time() - t0)} s", e)
         return f"Couldn't transcribe {name}: {e}"
+    jlog.note(f"transcription finished · {p.name} · {len(segments)} pieces · language {lang} · model {tr.USED or 'whisper (Apple)'} · {int(time.time() - t0)} s")
     lines = [f"[{tr._stamp(a)}] {txt}" for a, b, txt in segments if txt]
     out = p.with_name(p.stem + ".transcript.md")
     out.write_text(f"# {p.name}\n\n" + "\n\n".join(lines) + "\n", encoding="utf-8")
     took = int(time.time() - t0)
-    head = f"Transcript of {name} ({tr._stamp(segments[-1][1]) if segments else '0:00'} of audio, language {lang}, done in {took // 60} min {took % 60} s), saved as {out.name}:\n\n"
+    small = tr.USED and tr.USED != "large-v3-turbo"
+    head = (f"Transcript of {name} ({tr._stamp(segments[-1][1]) if segments else '0:00'} of audio, language {lang}, done in {took // 60} min {took % 60} s), saved as {out.name}:\n\n"
+            + (f"(This computer had little free memory, so the smaller speech model '{tr.USED}' was used: tell the user that names and rare words may contain mistakes.)\n\n" if small else ""))
     body = "\n".join(lines)
     return head + (body if len(body) < 15000 else body[:15000] + f"\n\n[… the rest is in {out.name}; read it with read_file]")
 

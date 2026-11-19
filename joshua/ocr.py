@@ -106,6 +106,9 @@ def pdf_pages(path, pages, progress=None):
         done = {}
     todo = [p for p in pages if str(p) not in done]
     if todo:
+        import jlog, time
+        t0 = time.time()
+        jlog.note(f"text recognition started · {path.name} · {len(todo)} pages · {'Apple' if MAC else 'Tesseract'}")
         pdfium = _need("pypdfium2", "pypdfium2")
         pdf = pdfium.PdfDocument(str(path))
         for k, p in enumerate(todo):
@@ -116,6 +119,7 @@ def pdf_pages(path, pages, progress=None):
             if k % 10 == 9 or k == len(todo) - 1:
                 store.write_text(json.dumps(done, ensure_ascii=False), encoding="utf-8")
         pdf.close()
+        jlog.note(f"text recognition finished · {path.name} · {int(time.time() - t0)} s")
     return {p: done.get(str(p), "") for p in pages}
 
 

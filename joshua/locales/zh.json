@@ -694,5 +694,15 @@
  "Couldn't download the speech model: {error}": "无法下载语音模型：{error}",
  "Loss, lower is better": "损失，越低越好",
  "The chart appears when training starts.": "训练开始后会显示图表。",
- "step": "步"
+ "step": "步",
+ "Log": "日志",
+ "What Joshua did and what went wrong, with the time. If something breaks, copy it and send it to whoever helps you.": "Joshua 做了什么、哪里出了错，附带时间。出问题时，复制它并发给帮你的人。",
+ "Show the latest": "显示最新",
+ "Open the folder": "打开文件夹",
+ "Nothing in the log yet.": "日志里还没有内容。",
+ "Joshua isn't answering": "Joshua 没有响应",
+ "It may be busy with a long job, like a transcription, or it may have stopped. Wait a little; if it doesn't come back, restart Joshua. What happened is written in its log:": "它可能正忙于耗时的任务（例如转录），也可能已经停止。请稍等；如果没有恢复，请重启 Joshua。发生了什么记录在它的日志中：",
+ "Reload the page": "重新加载页面",
+ "Joshua is answering again": "Joshua 已恢复响应",
+ "Reload the page to carry on.": "重新加载页面以继续。"
 }

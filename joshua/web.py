@@ -1,7 +1,7 @@
 import functools, os, sys
 os.environ.setdefault("GRADIO_RUN_HISTORY", "false")  # see LAUNCH_EXTRA
-if os.environ.get("JOSHUA_LOG"):  # started without a window (Windows): what Joshua prints goes to this file instead
-    sys.stdout = sys.stderr = open(os.environ["JOSHUA_LOG"], "a", buffering=1, encoding="utf-8", errors="replace")
+import jlog
+jlog.setup()  # the log: AskJoshua/joshua.log, every line with its time
 import copy, hashlib, html, inspect, json, os, pathlib, platform, re, secrets, shutil, subprocess, sys, threading, time, zipfile, urllib.parse
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
@@ -530,6 +530,7 @@ def local_update():
 # ---------- updates of Joshua itself ----------
 
 VERSION = (pathlib.Path(__file__).parent / "VERSION").read_text().strip() if (pathlib.Path(__file__).parent / "VERSION").exists() else "0"
+jlog.started(VERSION)
 SITE = "https://ask.joshua.earth"
 
 
@@ -551,6 +552,7 @@ def do_update():
     """Downloads the new version over this one (your chats, files, memory and settings are left alone), then restarts."""
     import io, requests, tarfile
     here = pathlib.Path(__file__).parent
+    jlog.note(f"update from {VERSION} started")
     try:
         data = requests.get(f"{SITE}/joshua.tar.gz", timeout=60).content
         with tarfile.open(fileobj=io.BytesIO(data)) as t:
@@ -1575,6 +1577,7 @@ def extract_memory(model, user, answer):
 
 
 def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0, pool=(), mem=True, user_text="", offline=False, private=False):
+    jlog.note(f"answer started · chat {cid} · {model}" + (" · goal mode" if goal else "") + (f" · swarm of {swarm}" if swarm else "") + f" · message of {len(user_text or '')} characters")
     net = net and not offline
     agent.set_workspace(conv.get("project") or fdir(cid), net, int(timeout), conv.get("region", "wt-wt"))
     agent.CTX.vision = model if "vision" in caps(model) else FAST
@@ -1660,6 +1663,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
         if evidence and asked:
             asked["content"] = original + "\n\n(Web sources consulted: " + ", ".join(re.findall(r"^https?://\S+", evidence, re.M)) + ")"
     except Exception as e:
+        jlog.error(f"while answering in chat {cid} with {model}", e)
         text = str(e)
         low = text.lower()
         if is_cloud(model) and not providers.is_api(model) and ("unauthorized" in low or "401" in low):
@@ -1682,6 +1686,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
         save(cid, conv)
         job.ended = time.time()
         job.running = False
+        jlog.note(f"answer finished · chat {cid} · {int(job.ended - job.started) if getattr(job, 'started', None) else '?'} s")
         job.publish(shown)
     if conv.get("auto_title") and load(cid).get("auto_title") and user_text and not job.stop.is_set():  # the first answer is in: give the chat a title that sums it up
         answer = (last_answer(shown) or {}).get("content", "")
@@ -1857,6 +1862,29 @@ def upload_files(paths, cid):
         if p.parent != wdir(cid):
             shutil.copy(p, wdir(cid) / p.name)
     return file_list(cid), cid, gr.Radio(choices=conv_choices(), value=cid)
+
+
+def log_view():
+    """The last lines of the log, the most recent at the bottom; errors marked."""
+    lines = jlog.tail(250)
+    return "\n".join(lines) or t("Nothing in the log yet.")
+
+
+def log_folder():
+    folder = str(jlog.PATH.parent)
+    try:
+        if sys.platform == "win32":
+            os.startfile(folder)
+        else:
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", folder])
+    except Exception as e:
+        gr.Warning(str(e))
+
+
+def client_log(text: str) -> str:
+    """What goes wrong in the page (in the browser) is written in the log too."""
+    jlog.note("page · " + (text or "")[:2000])
+    return "ok"
 
 
 def open_folder(cid):
@@ -3092,6 +3120,12 @@ body[data-screen^="modern"]:not(#a):not(#b) #leftcol {gap: 2px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .html-container, body[data-screen^="modern"]:not(#a):not(#b) #leftcol > .block:has(#brand) {margin-bottom: 10px !important}
 body[data-screen^="modern"]:not(#a):not(#b) #convs {margin: 10px 0 4px !important}
 #chat .top-panel {display: none !important}
+#jdown {display: none; position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.35); align-items: center; justify-content: center}
+#jdown.on {display: flex}
+#jdown > div {max-width: 30rem; margin: 16px; padding: 22px 24px; border-radius: 14px; background: var(--panel, #fff); color: var(--text, #222); box-shadow: 0 10px 40px rgba(0,0,0,.25); line-height: 1.5}
+#jdown b {font-size: 1.1rem} #jdown p {margin: 8px 0 14px; opacity: .85} #jdown code {font-size: .85em; overflow-wrap: anywhere}
+#jdown button {padding: 8px 16px; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: var(--brand, inherit); cursor: pointer}
+#logbox textarea {font-family: ui-monospace, Menlo, Consolas, monospace !important; font-size: .78rem !important; line-height: 1.4 !important}
 #rdpos, #rdact {display: none !important}
 #readpage .rdintro {opacity: .75; margin-bottom: 4px}
 #readpage #rdadd {gap: 8px !important; align-items: stretch !important; flex-wrap: wrap !important}
@@ -3905,6 +3939,13 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 net = gr.Checkbox(True, label="🌐 " + t("Internet for code"), info=t("Lets code go online and install packages"))
                 timeout = gr.Slider(10, 600, value=120, step=10, label=t("Code time limit (seconds)"))
             with gr.Column(elem_classes=["mzone", "mz0"]):
+                gr.HTML("<h2 class='msec'>" + t("Log") + "</h2><div class='msub'>" + t("What Joshua did and what went wrong, with the time. If something breaks, copy it and send it to whoever helps you.") + "</div>")
+                log_box = gr.Textbox("", show_label=False, lines=12, max_lines=12, interactive=False, autoscroll=True, buttons=["copy"], elem_id="logbox")
+                with gr.Row():
+                    log_refresh = gr.Button(t("Show the latest"), size="sm", scale=0, min_width=160)
+                    log_open = gr.Button(t("Open the folder"), size="sm", scale=0, min_width=160)
+                gr.HTML("<div class='msub'>" + html.escape(str(jlog.PATH)) + "</div>")
+            with gr.Column(elem_classes=["mzone", "mz0"]):
                 gr.HTML("<h2 class='msec'>🔌 API</h2>")
                 gr.Markdown(API_HELP, elem_id="apihelp")
                 api_info = gr.HTML("")
@@ -4124,6 +4165,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     W_IN = [tw_state, tw_step, tw_sel, tw_name, tw_icon, tw_purpose, m_name, m_icon, m_role, m_instr, m_model, m_tools, m_goal, tw_lead]
     team_btn.click(team_page, outputs=TM_PAGE)
     gr.api(tts_voices, api_name="voices", queue=False)
+    gr.api(client_log, api_name="client_log", queue=False)
+    log_refresh.click(log_view, outputs=log_box)
+    log_open.click(log_folder)
+    set_btn.click(log_view, outputs=log_box)
     gr.api(tts, api_name="tts", concurrency_limit=2)
     gr.api(rd_text, api_name="rd_text", concurrency_limit=2)
     RD = [rd_list, rd_libcol, rd_view, rd_book]
@@ -4334,6 +4379,22 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           setTimeout(() => inp.focus(), 60); };
         document.addEventListener('click', (e) => { if (e.target.closest('.wopr .wline')) armed = true; }, true);
         new MutationObserver(() => { clearTimeout(window.joshuaWopr); window.joshuaWopr = setTimeout(attach, 200); }).observe(document.body, {childList: true, subtree: true}); }""")
+    demo.load(None, None, None, js="""() => {  // what goes wrong in the page goes to Joshua's log; if Joshua stops answering, the page says so
+        let sent = 0;
+        const report = (what) => { if (sent++ > 30) return; try {
+            fetch('/gradio_api/call/client_log', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data: [String(what).slice(0, 2000)]})})
+              .then(r => r.json()).then(j => fetch('/gradio_api/call/client_log/' + j.event_id)).catch(() => {}); } catch (e) {} };
+        window.addEventListener('error', (e) => report('error: ' + e.message + ' (' + (e.filename || '').split('/').pop() + ':' + (e.lineno || '') + ')'));
+        window.addEventListener('unhandledrejection', (e) => report('error: ' + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason)));
+        const box = document.createElement('div'); box.id = 'jdown';
+        box.innerHTML = '<div><b class="t1">""" + JS_TEXT(t("Joshua isn't answering")).strip("'\"") + """</b><p class="t2">""" + JS_TEXT(t("It may be busy with a long job, like a transcription, or it may have stopped. Wait a little; if it doesn't come back, restart Joshua. What happened is written in its log:")).strip("'\"") + """ <code>""" + html.escape(str(jlog.PATH)).replace("\\\\", "\\\\\\\\") + """</code></p><button>""" + JS_TEXT(t("Reload the page")).strip("'\"") + """</button></div>';
+        box.querySelector('button').onclick = () => location.reload(); document.body.appendChild(box);
+        let misses = 0, down = false;
+        setInterval(async () => { let ok = false;
+          try { const r = await fetch('/', {method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(8000)}); ok = r.ok; } catch (e) {}
+          if (ok) { misses = 0; if (down) { down = false; report('Joshua answered the page again after a pause'); box.classList.add('back');
+              box.querySelector('.t1').textContent = """ + JS_TEXT(t("Joshua is answering again")) + """; box.querySelector('.t2').textContent = """ + JS_TEXT(t("Reload the page to carry on.")) + """; } }
+          else if (++misses >= 3 && !down) { down = true; box.classList.remove('back'); box.classList.add('on'); } }, 5000); }""")
     demo.load(None, None, None, js="""() => {  // Joshua's voice, for 🔊 and the Reader: on a Mac the Mac speaks (with its Premium voices), elsewhere the browser
         const V = window.joshuaVoice = {mac: null, token: 0, el: new Audio()};
         const SILENT = (() => { const n = 2000, b = new Uint8Array(44 + n), d = new DataView(b.buffer), w = (o, t) => [...t].forEach((c, i) => b[o + i] = c.charCodeAt(0));

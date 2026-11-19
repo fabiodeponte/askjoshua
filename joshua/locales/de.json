@@ -694,5 +694,15 @@
  "Couldn't download the speech model: {error}": "Das Sprachmodell konnte nicht heruntergeladen werden: {error}",
  "Loss, lower is better": "Verlust, niedriger ist besser",
  "The chart appears when training starts.": "Das Diagramm erscheint, wenn das Training beginnt.",
- "step": "Schritt"
+ "step": "Schritt",
+ "Log": "Protokoll",
+ "What Joshua did and what went wrong, with the time. If something breaks, copy it and send it to whoever helps you.": "Was Joshua getan hat und was schiefging, mit Uhrzeit. Wenn etwas kaputtgeht, kopiere es und schick es dem, der dir hilft.",
+ "Show the latest": "Neueste anzeigen",
+ "Open the folder": "Ordner öffnen",
+ "Nothing in the log yet.": "Noch nichts im Protokoll.",
+ "Joshua isn't answering": "Joshua antwortet nicht",
+ "It may be busy with a long job, like a transcription, or it may have stopped. Wait a little; if it doesn't come back, restart Joshua. What happened is written in its log:": "Vielleicht ist er mit einer langen Aufgabe beschäftigt, etwa einer Transkription, oder er wurde beendet. Warte etwas; wenn er nicht zurückkommt, starte Joshua neu. Was passiert ist, steht in seinem Protokoll:",
+ "Reload the page": "Seite neu laden",
+ "Joshua is answering again": "Joshua antwortet wieder",
+ "Reload the page to carry on.": "Lade die Seite neu, um weiterzumachen."
 }

@@ -694,5 +694,15 @@
  "Couldn't download the speech model: {error}": "Impossible de télécharger le modèle vocal : {error}",
  "Loss, lower is better": "Perte, plus elle est basse mieux c'est",
  "The chart appears when training starts.": "Le graphique apparaît quand l'entraînement commence.",
- "step": "étape"
+ "step": "étape",
+ "Log": "Journal",
+ "What Joshua did and what went wrong, with the time. If something breaks, copy it and send it to whoever helps you.": "Ce que Joshua a fait et ce qui a mal tourné, avec l'heure. Si quelque chose ne marche pas, copiez-le et envoyez-le à qui vous aide.",
+ "Show the latest": "Afficher les derniers",
+ "Open the folder": "Ouvrir le dossier",
+ "Nothing in the log yet.": "Rien dans le journal pour l'instant.",
+ "Joshua isn't answering": "Joshua ne répond pas",
+ "It may be busy with a long job, like a transcription, or it may have stopped. Wait a little; if it doesn't come back, restart Joshua. What happened is written in its log:": "Il est peut-être occupé par une tâche longue, comme une transcription, ou il s'est arrêté. Patientez un peu ; s'il ne revient pas, redémarrez Joshua. Ce qui s'est passé est écrit dans son journal :",
+ "Reload the page": "Recharger la page",
+ "Joshua is answering again": "Joshua répond à nouveau",
+ "Reload the page to carry on.": "Rechargez la page pour continuer."
 }
