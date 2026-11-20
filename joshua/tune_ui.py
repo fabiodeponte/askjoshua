@@ -232,6 +232,19 @@ def samples_html(samples):
     return "<div class='ftsamples'><div class='ftchart-head'>" + t("What it writes, newest first") + "</div>" + rows + "</div>"
 
 
+def project_picker(label, choices, placeholder, elem=None):
+    """Either open one you've made, or make a new one: one choice at a time, so it's clear which you're doing."""
+    has = bool(choices)
+    pick = gr.Radio([(t("Open one I've made"), "open"), (t("Make a new one"), "new")], value="open" if has else "new", show_label=False, elem_classes="ftpick", visible=has)  # none yet: just the name field
+    with gr.Row(visible=has, equal_height=True, elem_id="ftproject") as openrow:
+        name = gr.Dropdown(choices=choices, value=None, label=label, scale=3, elem_id=elem)
+    with gr.Row(visible=not has, equal_height=True) as newrow:
+        newname = gr.Textbox(show_label=False, placeholder=placeholder, max_lines=1, scale=3, container=False)
+        create = gr.Button(t("Create"), size="sm", scale=0, min_width=110)
+    pick.change(lambda p: (gr.Row(visible=p == "open"), gr.Row(visible=p == "new")), pick, [openrow, newrow], show_progress="hidden")
+    return pick, openrow, name, newrow, newname, create
+
+
 MAC_OK = ft.MAC and __import__("platform").machine() == "arm64"  # MLX runs on the Apple chip's graphics
 
 
@@ -244,12 +257,7 @@ def build_new():
         if not MAC_OK:
             gr.HTML("<div class='ftempty'>" + t("This needs a Mac with Apple silicon (M1 or later): on other computers, without a big NVIDIA card, it would take weeks.") + "</div>")
             return col
-        with gr.Row(elem_id="ftproject", equal_height=True):
-            name = gr.Dropdown(choices=sc.projects(), value=None, label=t("Model"), scale=3)
-            newb = gr.Button("＋ " + t("New model"), size="sm", scale=0, min_width=150)
-        with gr.Row(visible=False, equal_height=True) as newrow:
-            newname = gr.Textbox(show_label=False, placeholder=t("a short name in lowercase, like my-novels"), max_lines=1, scale=3, container=False)
-            create = gr.Button(t("Create"), size="sm", scale=0, min_width=110)
+        pick, openrow, name, newrow, newname, create = project_picker(t("Model"), sc.projects(), t("a short name in lowercase, like my-novels"))
 
         def source_picker(stage):
             """Where a stage's texts come from: a folder on this computer, or Wikipedia in a language."""
@@ -316,7 +324,7 @@ def build_new():
         n = (n or "").strip().lower()
         if not ft.NAME_RE.match(n):
             gr.Warning(t("Use 2–31 lowercase letters, digits or dashes, like 'newsroom-style'."))
-            return (gr.skip(),) * 22
+            return (gr.skip(),) * 24
         sc.pdir(n).mkdir(exist_ok=True)
         p, p2 = sc.progress(n) or {}, sc.progress(n, 2) or {}
         chosen = p.get("size") or (sc.best_size(n) if sc.data(n) else sc.SIZES[0])
@@ -326,7 +334,7 @@ def build_new():
                 *pick(s1), new_info(n), gr.Radio(choices=size_choices(n), value=chosen), loss_svg(p.get("train", []), p.get("val", [])),
                 samples_html(p.get("samples", [])), "", arch_html(chosen, n),
                 *pick(s2), stage2_info(n, chosen), loss_svg(p2.get("train", []), p2.get("val", []), p2.get("old", [])), samples_html(p2.get("samples", [])),
-                versions_dd(n), gr.update(value=round(p2.get("mix", 0.2) * 100)))
+                versions_dd(n), gr.update(value=round(p2.get("mix", 0.2) * 100)), gr.Radio(value="open", visible=True), gr.Row(visible=True))
 
     def need(n):
         if not n or not sc.pdir(n).exists():
@@ -422,7 +430,15 @@ def build_new():
             return skip8 + (seen_v,)
         sig, n, res = (id(run), run.version), run.name, run.result or {}
         info_, size_, plot_, samples_, out_, info2_, plot2_, samples2_, which_ = skip8
-        if run.kind == "reading" and run.done:
+        if run.kind in ("reading", "reading2") and not run.done:
+            # what it's doing right now, under the button that started it: the download and preparation take a while
+            last = next((l for l in reversed(run.log) if l.strip() and not l.startswith("$ ")), run.status)
+            box = "<div class='ftres'><span class=wdot></span> " + html.escape(t("Working:") + " " + last.strip()[:160]) + "</div>"
+            if run.kind == "reading":
+                info_ = box
+            else:
+                info2_ = box
+        elif run.kind == "reading" and run.done:
             info_ = new_info(n)
             size_ = gr.Radio(choices=size_choices(n), value=sc.best_size(n) if sc.data(n) else sc.SIZES[0])
             plot_, samples_, which_ = loss_svg([], []), "", versions_dd(n)
@@ -443,10 +459,9 @@ def build_new():
 
     name.focus(lambda: gr.Dropdown(choices=sc.projects()), None, name, show_progress="hidden")  # models made since the page loaded
     outs = [name, newrow, work, kind1, path1, lang1, mil1, info, size, plot, samples, out, arch,
-            kind2, path2, lang2, mil2, info2, plot2, samples2, which, mix]
+            kind2, path2, lang2, mil2, info2, plot2, samples2, which, mix, pick, openrow]
     size.change(lambda s, n: (arch_html(s, n), stage2_info(n, s)), [size, name], [arch, info2], show_progress="hidden")
     name.input(opened, name, outs)
-    newb.click(lambda: (gr.Row(visible=True), ""), outputs=[newrow, newname])
     create.click(opened, newname, outs)
     newname.submit(opened, newname, outs)
     readb.click(lambda n, k, p, l, m: read(n, k, p, l, m, 1), [name, kind1, path1, lang1, mil1])
@@ -474,12 +489,7 @@ def build(conv_root, conv_choices):
             res = gr.HTML()
             more(INTRO, t("What fine-tuning is, and what it can't do"))
             # the project: open one, or start a new one
-            with gr.Row(elem_id="ftproject", equal_height=True):
-                name = gr.Dropdown(choices=ft.projects(), value=None, label=t("Project"), scale=3, elem_id="ftname")
-                newp = gr.Button("＋ " + t("New project"), size="sm", scale=0, min_width=150)
-            with gr.Row(visible=False, elem_id="ftnewrow", equal_height=True) as newrow:
-                newname = gr.Textbox(show_label=False, placeholder=t("a short name in lowercase, like newsroom-style"), max_lines=1, scale=3, container=False)
-                create = gr.Button(t("Create"), size="sm", scale=0, min_width=110)
+            pick, openrow, name, newrow, newname, create = project_picker(t("Project"), ft.projects(), t("a short name in lowercase, like newsroom-style"), "ftname")
             with gr.Column() as noproj:
                 gr.HTML("<div class='ftempty'>" + t("Open a project, or start a new one: each project has its own examples and training.") + "</div>")
             with gr.Column(visible=False) as work:
@@ -549,7 +559,7 @@ def build(conv_root, conv_choices):
         n = (n or "").strip().lower()
         if not ft.NAME_RE.match(n):
             gr.Warning(t("Use 2–31 lowercase letters, digits or dashes, like 'newsroom-style'."))
-            return (gr.skip(),) * 19
+            return (gr.skip(),) * 21
         rows = ft.load_examples(n) or ft.save_examples(n, [])
         meta = ft.pdir(n) / "training.json"
         df = plot_df(json.loads(meta.read_text())) if meta.exists() else gr.skip()
@@ -557,7 +567,7 @@ def build(conv_root, conv_choices):
         step = "1" if not rows else "3" if not ft.trained(n) and len(rows) >= 20 else "2" if len(rows) < 20 else "4"  # where you left off
         return (gr.Dropdown(choices=ft.projects(), value=n), table(rows), count_html(rows), gr.Dropdown(choices=conv_choices()), df,
                 gr.Dropdown(choices=base_choices(), value=b["id"]), gr.Row(visible=b["id"] == "custom"), b["mac" if ft.MAC else "linux"] if b["id"] == "custom" else "", base_info(b),
-                gr.Column(visible=False), gr.Column(visible=True), gr.Radio(value=step), *show_step(step), gr.Row(visible=False), "")
+                gr.Column(visible=False), gr.Column(visible=True), gr.Radio(value=step), *show_step(step), gr.Row(visible=False), "", gr.Radio(value="open", visible=True), gr.Row(visible=True))
 
     def choose(n, entry):
         """Saves the model this project teaches. A training made for another model can't be used with this one."""
@@ -716,10 +726,10 @@ def build(conv_root, conv_choices):
     def show_step(v):
         return [gr.Column(visible=str(k + 1) == str(v)) for k in range(5)]
 
-    opened = [name, grid, count, chats, plot, basepick, hfrow, hfrepo, baseinfo, noproj, work, steps, *panes, newrow, newname]
+    opened = [name, grid, count, chats, plot, basepick, hfrow, hfrepo, baseinfo, noproj, work, steps, *panes, newrow, newname, pick, openrow]
+    name.focus(lambda: gr.Dropdown(choices=ft.projects()), None, name, show_progress="hidden")
     mode.change(lambda m: (gr.Column(visible=m == "teach"), gr.Column(visible=m == "new")), mode, [teachcol, newcol], show_progress="hidden")
     name.input(open_project, name, opened)
-    newp.click(lambda: (gr.Row(visible=True), ""), outputs=[newrow, newname])
     create.click(open_project, newname, opened)
     newname.submit(open_project, newname, opened)
     steps.change(show_step, steps, panes, show_progress="hidden")

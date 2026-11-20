@@ -2715,7 +2715,7 @@ body.noside #leftcol {display: none !important}
 .ftres, .ftcount, .ftstatus {font-size: 1.2rem; letter-spacing: .04em; color: var(--ink); padding: 6px 10px; border-left: 3px solid var(--cyan); background: var(--codebg)}
 .ftres b {color: var(--cyan)}
 .ftstatus.ok {border-left-color: var(--green); color: var(--green)} .ftstatus.bad {border-left-color: var(--red); color: var(--red)} .ftstatus.run {color: var(--cyan)}
-.ftstatus .wdot {display: inline-block; width: 9px; height: 15px; margin-right: 8px; background: var(--cyan); vertical-align: -2px; animation: blink 1s steps(1) infinite}
+.ftstatus .wdot, .ftres .wdot {display: inline-block; width: 9px; height: 15px; margin-right: 8px; background: var(--cyan); vertical-align: -2px; animation: blink 1s steps(1) infinite}
 #ftlog textarea {font-size: 1.05rem !important; line-height: 1.15 !important; color: var(--codeink) !important; background: var(--codebg) !important}
 .ftans {min-height: 140px; background: var(--codebg) !important; border: 1px solid var(--line) !important; padding: 10px 12px !important}
 #ftstop, #ftdel {border: 1px solid var(--red) !important; background: transparent !important; color: var(--red) !important}
