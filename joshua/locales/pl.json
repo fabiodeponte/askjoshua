@@ -739,5 +739,7 @@
  "Add to Ollama": "Dodaj do Ollamy",
  "Your texts": "Twoje teksty",
  "Try it": "Wypróbuj",
- "{p} million parameters · {layers} layers · width {h} · {heads} attention heads · middle width {inter} · vocabulary of {vocab} pieces · it sees {ctx} pieces at a time": "{p} mln parametrów · {layers} warstw · szerokość {h} · {heads} głowic uwagi · szerokość pośrednia {inter} · słownik {vocab} kawałków · widzi {ctx} kawałków naraz"
+ "{p} million parameters · {layers} layers · width {h} · {heads} attention heads · middle width {inter} · vocabulary of {vocab} pieces · it sees {ctx} pieces at a time": "{p} mln parametrów · {layers} warstw · szerokość {h} · {heads} głowic uwagi · szerokość pośrednia {inter} · słownik {vocab} kawałków · widzi {ctx} kawałków naraz",
+ "about {n} min left": "zostało około {n} min",
+ "about {h} h {m} min left": "zostało około {h} godz. {m} min"
 }

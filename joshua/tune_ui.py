@@ -446,7 +446,7 @@ def build(conv_root, conv_choices):
         n = (n or "").strip().lower()
         if not ft.NAME_RE.match(n):
             gr.Warning(t("Use 2–31 lowercase letters, digits or dashes, like 'newsroom-style'."))
-            return (gr.skip(),) * 20
+            return (gr.skip(),) * 19
         rows = ft.load_examples(n) or ft.save_examples(n, [])
         meta = ft.pdir(n) / "training.json"
         df = plot_df(json.loads(meta.read_text())) if meta.exists() else gr.skip()
@@ -598,7 +598,12 @@ def build(conv_root, conv_choices):
             return (gr.skip(),) * 5 + (seen_v,)
         secs = int(__import__("time").time() - run.started)
         colour = "ok" if run.done and run.ok else "bad" if run.done else "run"
-        st = f"<div class='ftstatus {colour}'>{'' if run.done else '<span class=wdot></span>'}{run.kind.upper()} · {html.escape(run.name)} · {html.escape(run.status)} · {secs // 60}:{secs % 60:02d}</div>"
+        took = f"{secs // 3600}:{secs % 3600 // 60:02d}:{secs % 60:02d}" if secs >= 3600 else f"{secs // 60}:{secs % 60:02d}"
+        left = None if run.done else run.left()
+        if left is not None:
+            m = max(1, round(left / 60))
+            took += " · " + (t("about {n} min left", n=m) if m < 60 else t("about {h} h {m} min left", h=m // 60, m=m % 60))
+        st = f"<div class='ftstatus {colour}'>{'' if run.done else '<span class=wdot></span>'}{run.kind.upper()} · {html.escape(run.name)} · {html.escape(run.status)} · {took}</div>"
         df = plot_df({"train": run.train, "val": run.val}) if run.kind == "training" else gr.skip()
         b = a_ = gr.skip()
         if run.kind == "test" and run.result:

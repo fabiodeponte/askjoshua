@@ -92,6 +92,7 @@ def train(name, size):
         run.train, run.val = (p["train"], p["val"]) if p and p.get("size") == size else ([], [])
         run.result = {"samples": p.get("samples", []) if p and p.get("size") == size else []}
         _catch(run, "@@SAMPLE@@", lambda s: run.result["samples"].append(s))
+        run.total = steps(name, size)
         run.status = f"building a {size} model"
         return ft._stream(run, JOB + ["train", pdir(name), size, steps(name, size)]) == 0
     return ft._start("pretraining", name, target)

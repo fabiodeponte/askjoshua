@@ -15,7 +15,7 @@ TYPES = {".txt", ".md", ".pdf", ".epub", ".docx", ".odt", ".html", ".htm", ".rtf
 END = "<|end|>"  # marks where one document ends and the next begins
 VOCAB = 8192
 CTX = 512  # tokens the model sees at once
-BATCH = 32  # windows per step: 32 × 512 = 16,384 tokens
+BATCH = 8  # windows per step: 8 × 512 = 4,096 tokens. On a 16 GB M4, 32 used 14 GB and was no faster per token
 
 # the three sizes: width of each layer, how many layers, attention heads, width of the middle of each layer
 SIZES = {"10M": (256, 8, 4, 1024), "25M": (384, 10, 6, 1280), "50M": (512, 12, 8, 1792)}

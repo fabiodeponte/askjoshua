@@ -296,6 +296,17 @@ class Run:
         self.kind, self.name, self.log, self.train, self.val = kind, name, [], [], []
         self.status, self.done, self.ok, self.proc, self.started, self.version = "starting", False, False, None, time.time(), 0
         self.result = None
+        self.total, self.first = None, None  # how many steps the training will take; when and at which step the first was reported
+
+    def left(self):
+        """Seconds of training left: the time per step so far, times the steps still to do.
+        Counted from the first reported step, so the minutes spent loading the model don't distort it."""
+        if not (self.total and self.first and self.train):
+            return None
+        (t0, s0), step = self.first, self.train[-1][0]
+        if step <= s0:
+            return None
+        return (time.time() - t0) / (step - s0) * (self.total - step)
 
     def say(self, line):
         line = ANSI.sub("", line).rstrip()
@@ -310,7 +321,9 @@ class Run:
         m = re.search(r"Iter (\d+): Train loss ([\d.]+)", line) or re.match(r"^\s*(\d+)\s+([\d.]+)\s+[▼▲=•]?\s*\d", line)
         if m:
             self.train.append((int(m[1]), float(m[2])))
-            self.status = f"training: step {m[1]}"
+            if self.first is None:
+                self.first = (time.time(), int(m[1]))
+            self.status = f"training: step {m[1]}" + (f" of {self.total}" if self.total else "")
         m = re.search(r"Iter (\d+): Val loss ([\d.]+)", line) or re.match(r"^\s*(\d+)\s+val\s+([\d.]+)", line)
         if m:
             self.val.append((int(m[1]), float(m[2])))
@@ -382,6 +395,7 @@ def stop():
 
 def train(name, iters, lr, layers, ram):
     def target(run):
+        run.total = iters
         free_memory()
         adapters = pdir(name) / "adapters"
         shutil.rmtree(adapters, ignore_errors=True)
