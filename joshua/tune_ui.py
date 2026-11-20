@@ -318,6 +318,20 @@ def picker_state(choices):
     return gr.Radio(value="open" if has else "new", visible=has), gr.Row(visible=has), gr.Dropdown(choices=choices), gr.Row(visible=not has)
 
 
+def pick_folder(current):
+    """The Mac's own folder window, opened by Joshua (it runs on this Mac), so you don't have to type the path.
+    'activate' brings the window to the front; if you cancel, the field stays as it was."""
+    import pathlib, subprocess
+    where = f" default location (POSIX file {json.dumps(current.strip())})" if current and pathlib.Path(current.strip()).expanduser().is_dir() else ""
+    script = f"POSIX path of (choose folder with prompt {json.dumps(t('Choose the folder with the texts'))}{where})"
+    try:
+        r = subprocess.run(["osascript", "-e", "activate", "-e", script], capture_output=True, text=True, timeout=900)
+    except (OSError, subprocess.TimeoutExpired):
+        return gr.skip()
+    chosen = r.stdout.strip()
+    return chosen.rstrip("/") if r.returncode == 0 and chosen else gr.skip()
+
+
 def project_picker(label, choices, placeholder, elem=None):
     """Either open one you've made, or make a new one: one choice at a time, so it's clear which you're doing."""
     has = bool(choices)
@@ -351,6 +365,8 @@ def build_new():
             kind = gr.Radio([(t("A folder on this computer"), "folder"), (t("Wikipedia"), "wiki")], value="folder" if stage == 2 else "wiki", show_label=False, elem_classes="ftsrc")
             with gr.Row(equal_height=True, visible=stage == 2) as frow:
                 path = gr.Textbox(show_label=False, placeholder=t("the folder's path, like /Users/you/Documents/my-texts"), max_lines=1, scale=4, container=False)
+                browse = gr.Button(t("Browse…"), size="sm", scale=0, min_width=120)
+            browse.click(pick_folder, path, path, show_progress="hidden")
             with gr.Row(equal_height=True, visible=stage == 1) as wrow:
                 lang = gr.Dropdown(WIKI_LANGS, value="it", label=t("Language"), allow_custom_value=True, scale=2)
                 millions = gr.Number(150, label=t("Million words"), info=t("The 10M model wants about 150, the 25M about 350, the 50M about 750."), minimum=1, maximum=3000, precision=0, scale=2)

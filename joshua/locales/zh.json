@@ -802,5 +802,7 @@
  "Each file is read as plain text; paragraphs that appear twice are kept once.": "每个文件按纯文本读取；重复的段落只保留一次。",
  "The text goes into one plain file, a paragraph per line, so the next phases can read it in a stream: it never has to fit in memory.": "文本写入一个纯文本文件，每段一行，这样后续阶段可以流式读取：不需要全部装进内存。",
  "This is the tokenizer. It starts from the 256 possible bytes, so it can write any character, then over and over merges the pair of pieces that appears most often into a new piece ('d'+'e' → 'de', 'de'+'lla' → 'della'), until it has 8,192. Frequent words end up as one piece, rare ones as several.": "这就是分词器。它从 256 个可能的字节开始，因此能写出任何字符，然后不断把出现最频繁的一对片段合并成新片段（'d'+'e' → 'de'，'de'+'lla' → 'della'），直到有 8192 个。常用词最终是一个片段，罕见词由多个片段组成。",
- "With that vocabulary, every paragraph is cut into pieces and each piece is replaced by its number, stored in 2 bytes. One paragraph in 50 goes to a separate file the model never trains on, to check how it does on text it hasn't seen.": "用这个词表，每段文本被切成片段，每个片段换成它的编号，用 2 个字节存储。每 50 段中有 1 段放进单独的文件，模型从不在上面训练，用来检验它在没见过的文本上的表现。"
+ "With that vocabulary, every paragraph is cut into pieces and each piece is replaced by its number, stored in 2 bytes. One paragraph in 50 goes to a separate file the model never trains on, to check how it does on text it hasn't seen.": "用这个词表，每段文本被切成片段，每个片段换成它的编号，用 2 个字节存储。每 50 段中有 1 段放进单独的文件，模型从不在上面训练，用来检验它在没见过的文本上的表现。",
+ "Browse…": "浏览…",
+ "Choose the folder with the texts": "选择包含文本的文件夹"
 }
