@@ -2762,6 +2762,13 @@ body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tunetitle {font-siz
 #tune .ftchart .tr {stroke: #4a7fb5; fill: #4a7fb5} #tune .ftchart polyline.tr {fill: none}
 #tune .ftchart .va {stroke: #e8892a; fill: #e8892a} #tune .ftchart polyline.va {fill: none}
 #tune .ftchart .ol {stroke: #8a8f8c; fill: #8a8f8c} #tune .ftchart polyline.ol {fill: none; stroke-dasharray: 5 4}
+#tune .ftphases {margin-top: 8px; display: flex; flex-direction: column; gap: 6px}
+#tune .ftphase {padding: 6px 10px; border-left: 3px solid var(--line); font-size: .95rem}
+#tune .ftphase b {display: block; font-weight: 600}
+#tune .ftphase span {display: block; opacity: .8; font-size: .88rem; overflow-wrap: anywhere}
+#tune .ftphase.done {border-left-color: var(--green)} #tune .ftphase.now {border-left-color: var(--cyan)} #tune .ftphase.todo {opacity: .5}
+#tune .ftphase .wdot {display: inline-block; width: 8px; height: 13px; background: var(--cyan); vertical-align: -1px; animation: blink 1s steps(1) infinite}
+#tune .ftwhere {margin-top: 4px; padding: 8px 10px; font-size: .88rem; line-height: 1.5; background: var(--codebg); overflow-wrap: anywhere}
 #tune .ftchart-head .k3 {color: #8a8f8c; margin-left: 6px}
 #tune .ftchart-last, #tune .ftchart-empty {font-size: .85rem; opacity: .65; margin-top: 2px}
 #tune .ftchart-empty {padding: 18px 0}
@@ -3796,7 +3803,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 gr.HTML("<div class='navgap'></div>", elem_id="navgap")
                 set_btn = gr.Button("⚙  " + t("Settings"), size="sm", elem_id="setbtn")
                 feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
-        tune_panel, tune_back, tune_res = tune_ui.build(ROOT, conv_choices)
+        tune_panel, tune_back, tune_res, tune_refresh = tune_ui.build(ROOT, conv_choices)
         RD_BAR = ("<div id='rdbar'><button id='rdprev' title='" + html.escape(t("Previous paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,47.88V208.12a16,16,0,0,1-24.43,13.43L64,146.77V216a8,8,0,0,1-16,0V40a8,8,0,0,1,16,0v69.23L183.57,34.45A15.95,15.95,0,0,1,208,47.88Z'/></svg></button>"
                             "<button id='rdplay' title='" + html.escape(t("Read aloud") + " / " + t("Pause")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M240,128a15.74,15.74,0,0,1-7.6,13.51L88.32,229.65a16,16,0,0,1-16.2.3A15.86,15.86,0,0,1,64,216.13V39.87a15.86,15.86,0,0,1,8.12-13.82,16,16,0,0,1,16.2.3L232.4,114.49A15.74,15.74,0,0,1,240,128Z'/></svg></button>"
                             "<button id='rdnext' title='" + html.escape(t("Next paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,40V216a8,8,0,0,1-16,0V146.77L72.43,221.55A15.95,15.95,0,0,1,48,208.12V47.88A15.95,15.95,0,0,1,72.43,34.45L192,109.23V40a8,8,0,0,1,16,0Z'/></svg></button>"
@@ -4266,7 +4273,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     renbox.submit(rename_save, [cid, renbox], [renbox, convs])
     dele.click(delete_chat, convs, [chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat to the bin? You can restore it there for 30 days.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
-    tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden")
+    tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden").then(tune_refresh[0], outputs=tune_refresh[1], show_progress="hidden")
     tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models(True))), outputs=[tune_panel, chatcol, rightcol, model])
     reloading = gr.State(False)
     language.input(set_language, language, reloading).then(None, reloading, None, js="(r) => { if (r) setTimeout(() => location.reload(), 8000) }")

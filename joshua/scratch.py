@@ -92,6 +92,7 @@ def _catch(run, tag, on):
 
 
 def wiki(lang, millions):
+    """millions of words, or "all" for the whole of that language's Wikipedia."""
     return f"wikipedia:{lang}:{millions}"
 
 
@@ -112,6 +113,8 @@ def prepare(name, source, stage=1):
     def target(run):
         clear(name, stage)
         run.status = "reading the texts and learning their vocabulary" if stage == 1 else "reading the texts for the second stage"
+        run.result = {"phases": {}, "source": source, "stage": stage}
+        _catch(run, "@@PHASE@@", lambda p: run.result["phases"].__setitem__(p["phase"], p))  # the page shows each phase
         return ft._stream(run, JOB + ["prepare", pdir(name), source, stage]) == 0 and data(name, stage) is not None
     return ft._start("reading" if stage == 1 else "reading2", name, target)
 

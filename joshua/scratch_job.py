@@ -35,6 +35,11 @@ def say(*a):
     print(*a, flush=True)
 
 
+def phase(**kw):
+    """A progress report the page shows step by step: which phase, how far, and which files it reads and writes."""
+    say("@@PHASE@@" + json.dumps(kw))
+
+
 def names(stage):
     """The files of each stage: stage 1 is the first training, stage 2 the one that continues it on other texts."""
     s = "" if stage == 1 else "2"
@@ -66,6 +71,7 @@ def from_folder(folder):
                 seen.add(h)
                 keep.append(p)
         say(f"read {i}/{len(files)} · {f.name}")
+        phase(phase="read", i=i, n=len(files), file=f.name, folder=str(folder))
         yield keep
 
 
@@ -78,25 +84,31 @@ def need(package, module=None):
 
 
 def from_wikipedia(lang, words):
-    """Wikipedia in one language, article by article, until about `words` words. Downloaded a part at a time
-    (each a few hundred MB) from Hugging Face, which keeps them, so preparing again doesn't download again."""
+    """Wikipedia in one language, article by article, until about `words` words (None: all of it). Downloaded a part
+    at a time (each a few hundred MB) from Hugging Face into its cache folder, which keeps them, so preparing again
+    doesn't download them again."""
     need("pyarrow")
     import pyarrow.parquet as pq
     from huggingface_hub import HfApi, hf_hub_download
+    from huggingface_hub.constants import HF_HUB_CACHE
     repo, date = WIKI
-    parts = sorted(f.path for f in HfApi().list_repo_tree(repo, path_in_repo=f"{date}.{lang}", repo_type="dataset") if f.path.endswith(".parquet"))
+    parts = sorted((f for f in HfApi().list_repo_tree(repo, path_in_repo=f"{date}.{lang}", repo_type="dataset") if f.path.endswith(".parquet")), key=lambda f: f.path)
     if not parts:
         raise SystemExit(f"No Wikipedia found for the language '{lang}'.")
     got = 0
     for k, part in enumerate(parts, 1):
+        info = dict(phase="download", part=k, parts=len(parts), mb=round((getattr(part, "size", 0) or 0) / 1e6),
+                    src=f"https://huggingface.co/datasets/{repo}/tree/main/{date}.{lang}", to=str(HF_HUB_CACHE))
         say(f"downloading Wikipedia ({lang}), part {k} of {len(parts)}…")
-        path = hf_hub_download(repo, part, repo_type="dataset")
+        phase(**info)
+        path = hf_hub_download(repo, part.path, repo_type="dataset")
+        phase(**info, done=True)
         for b in pq.ParquetFile(path).iter_batches(columns=["text"], batch_size=2000):
             for text in b.column(0).to_pylist():
                 paras = [p.strip() for p in text.split("\n") if len(p.strip()) > 1]
                 got += sum(len(p.split()) for p in paras)
                 yield paras
-                if got >= words:
+                if words and got >= words:
                     return
         say(f"{got:,} words so far")
 
@@ -104,7 +116,7 @@ def from_wikipedia(lang, words):
 def documents(source):
     if source.startswith("wikipedia:"):
         _, lang, millions = source.split(":")
-        return from_wikipedia(lang, float(millions) * 1e6)
+        return from_wikipedia(lang, None if millions == "all" else float(millions) * 1e6)
     return from_folder(source)
 
 
@@ -118,6 +130,10 @@ def prepare(d, source, stage):
     f = names(stage)
     corpus = d / f"corpus{stage}.txt"
     words, docs = 0, 0
+    wiki = source.startswith("wikipedia:")
+    target = None
+    if wiki and source.split(":")[2] != "all":
+        target = int(float(source.split(":")[2]) * 1e6)
     with open(corpus, "w", encoding="utf-8") as out:
         for paras in documents(source):
             if paras:
@@ -126,6 +142,8 @@ def prepare(d, source, stage):
                 docs += 1
                 if docs % 20000 == 0:
                     say(f"{docs:,} documents · {words:,} words")
+                    phase(phase="text", docs=docs, words=words, target=target, file=str(corpus))
+    phase(phase="text", docs=docs, words=words, target=target, file=str(corpus), done=True)
     if words < 50_000:
         corpus.unlink(missing_ok=True)
         raise SystemExit(f"Only {words:,} words: a model needs at least a few hundred thousand to learn anything.")
@@ -143,23 +161,28 @@ def prepare(d, source, stage):
 
     if stage == 1:
         say("learning the vocabulary…")
+        phase(phase="vocab", file=str(d / "tokenizer.json"), words=min(words, 40_000_000))
         tok = Tokenizer(models.BPE())
         tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)  # starts from bytes: any character, any language
         tok.decoder = decoders.ByteLevel()
         tok.train_from_iterator(lines(40_000_000), trainers.BpeTrainer(  # 40 million words are plenty to choose 8,192 pieces
             vocab_size=VOCAB, special_tokens=[END], initial_alphabet=pre_tokenizers.ByteLevel.alphabet(), show_progress=False))
         tok.save(str(d / "tokenizer.json"))
+        phase(phase="vocab", file=str(d / "tokenizer.json"), words=min(words, 40_000_000), done=True)
     else:
         tok = Tokenizer.from_file(str(d / "tokenizer.json"))  # the same vocabulary: the model only knows these pieces
     end = np.array([tok.token_to_id(END)], np.uint16)
 
     say("turning the texts into numbers…")
     n_train = n_val = k = 0
+    seen_words = 0  # words turned into numbers so far, to estimate the total number of pieces
     with open(corpus, encoding="utf-8") as src, open(d / f["train"], "wb") as tr, open(d / f["val"], "wb") as va:
         batch = []
 
         def flush():
             nonlocal n_train, n_val, k
+            nonlocal seen_words
+            seen_words += sum(len(p.split()) for p in batch)
             for enc in tok.encode_batch(["\n" + p for p in batch]):
                 ids = np.array(enc.ids, np.uint16)
                 k += 1
@@ -184,10 +207,22 @@ def prepare(d, source, stage):
                 flush()
                 if n_train // 5_000_000 != before // 5_000_000:
                     say(f"{n_train:,} tokens")
+                    phase(phase="numbers", tokens=n_train + n_val, estimate=round((n_train + n_val) / max(seen_words, 1) * words), file=str(d / f["train"]))
         flush()
+    phase(phase="numbers", tokens=n_train + n_val, estimate=n_train + n_val, file=str(d / f["train"]), done=True)
     corpus.unlink()
-    label = source if source.startswith("wikipedia:") else pathlib.Path(source).name
-    info = {"source": label, "docs": docs, "words": words, "train_tokens": n_train, "val_tokens": n_val, "vocab": tok.get_vocab_size()}
+    label = source if wiki else pathlib.Path(source).name
+    where = {"data": str(d / f["train"]), "data_mb": round((d / f["train"]).stat().st_size / 1e6), "deleted": str(corpus)}
+    if wiki:
+        from huggingface_hub.constants import HF_HUB_CACHE
+        blobs = pathlib.Path(HF_HUB_CACHE) / ("datasets--" + WIKI[0].replace("/", "--")) / "blobs"
+        # newer versions of huggingface_hub keep the files in a shared store and only link to them from here
+        size = sum(p.resolve().stat().st_size for p in blobs.iterdir() if p.resolve().is_file()) if blobs.exists() else 0
+        where.update(cache=str(HF_HUB_CACHE), cache_gb=round(size / 1e9, 1))
+    else:
+        where["folder"] = str(pathlib.Path(source).expanduser())
+    phase(phase="done", **where)
+    info = {"source": label, "docs": docs, "words": words, "train_tokens": n_train, "val_tokens": n_val, "vocab": tok.get_vocab_size(), "where": where}
     (d / f["data"]).write_text(json.dumps(info))
     say(f"ready: {words:,} words → {n_train:,} tokens to learn from, {n_val:,} kept aside to check")
 
