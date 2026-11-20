@@ -2761,6 +2761,8 @@ body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tunetitle {font-siz
 #tune .ftchart polyline {fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke}
 #tune .ftchart .tr {stroke: #4a7fb5; fill: #4a7fb5} #tune .ftchart polyline.tr {fill: none}
 #tune .ftchart .va {stroke: #e8892a; fill: #e8892a} #tune .ftchart polyline.va {fill: none}
+#tune .ftchart .ol {stroke: #8a8f8c; fill: #8a8f8c} #tune .ftchart polyline.ol {fill: none; stroke-dasharray: 5 4}
+#tune .ftchart-head .k3 {color: #8a8f8c; margin-left: 6px}
 #tune .ftchart-last, #tune .ftchart-empty {font-size: .85rem; opacity: .65; margin-top: 2px}
 #tune .ftchart-empty {padding: 18px 0}
 body:not(#a):not(#b):not(#c):not(#d) #tune #ftsize input {display: none !important}

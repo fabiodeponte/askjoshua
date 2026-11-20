@@ -124,10 +124,11 @@ def count_html(rows):
     return f"<div class='ftcount'>{t('{n} EXAMPLES', n=n)} · {tip}</div>"
 
 
-def loss_svg(train, val):
-    """The loss chart, drawn here as a small SVG: training in blue, validation in orange, lower is better."""
-    pts = list(train) + list(val)
-    head = "<div class='ftchart'><div class='ftchart-head'>" + t("Loss, lower is better") + (f" <span class='k1'>■ {t('training')}</span> <span class='k2'>■ {t('validation')}</span>" if pts else "") + "</div>"
+def loss_svg(train, val, old=()):
+    """The loss chart, drawn here as a small SVG: training in blue, validation in orange, lower is better.
+    In a second stage, `old` is the loss on the first texts, in grey: rising means the model is forgetting them."""
+    pts = list(train) + list(val) + list(old)
+    head = "<div class='ftchart'><div class='ftchart-head'>" + t("Loss, lower is better") + (f" <span class='k1'>■ {t('training')}</span> <span class='k2'>■ {t('validation')}</span>" if pts else "") + (f" <span class='k3'>■ {t('first texts')}</span>" if old else "") + "</div>"
     if len(pts) < 2:
         return head + "<div class='ftchart-empty'>" + t("The chart appears when training starts.") + "</div></div>"
     W, H, L, B = 900, 230, 44, 26
@@ -139,9 +140,9 @@ def loss_svg(train, val):
     line = lambda ps, cls: (f"<polyline class='{cls}' points='" + " ".join(f"{X(a):.1f},{Y(b):.1f}" for a, b in ps) + "'/>") if len(ps) > 1 else "".join(f"<circle class='{cls}' cx='{X(a):.1f}' cy='{Y(b):.1f}' r='3'/>" for a, b in ps)
     grid = "".join(f"<line x1='{L}' x2='{W - 10}' y1='{Y(v):.1f}' y2='{Y(v):.1f}'/><text x='{L - 6}' y='{Y(v) + 4:.1f}' text-anchor='end'>{v:.1f}</text>" for v in (y1 / 1.08 * k / 4 for k in range(5)))
     ticks = "".join(f"<text x='{X(v):.1f}' y='{H - 6}' text-anchor='{('start', 'middle', 'middle', 'middle', 'end')[k]}'>{int(v)}</text>" for k, v in enumerate(x0 + (x1 - x0) * k / 4 for k in range(5)))  # the end ones inside the chart
-    last = f"{t('step')} {int(xs[-1] if not val else max(xs))} · " + t("training") + f" {train[-1][1]:.2f}" + (f" · {t('validation')} {val[-1][1]:.2f}" if val else "")
+    last = f"{t('step')} {int(xs[-1] if not val else max(xs))} · " + (t("training") + f" {train[-1][1]:.2f}" if train else "") + (f" · {t('validation')} {val[-1][1]:.2f}" if val else "") + (f" · {t('first texts')} {old[-1][1]:.2f}" if old else "")
     return (head + f"<svg viewBox='0 0 {W} {H}'><g class='grid'>{grid}</g><g class='ticks'>{ticks}</g>"
-            + line(train, "tr") + line(val, "va") + f"</svg><div class='ftchart-last'>{html.escape(last)}</div></div>")
+            + line(train, "tr") + line(val, "va") + line(old, "ol") + f"</svg><div class='ftchart-last'>{html.escape(last)}</div></div>")
 
 
 def more(text, label=None):
@@ -152,7 +153,7 @@ def more(text, label=None):
 STEPS = [("1", "Model"), ("2", "Examples"), ("3", "Train"), ("4", "Compare"), ("5", "Install")]
 
 
-NEW_INTRO = t("""A model trained from nothing knows only what is in your texts. Joshua builds it in four steps:
+NEW_INTRO = t("""A model trained from zero knows only what is in your texts. Joshua builds it in four steps:
 
 1. **Reading.** Every text file in the folder (txt, md, PDF, EPUB, Word, OpenDocument, web pages) is read; repeated paragraphs are dropped, and 1 paragraph in 50 is kept aside to check the model on text it never studies.
 2. **Vocabulary.** The model can only read numbers. Joshua learns 8,192 frequent pieces of your texts (whole words, parts of words, single letters) and gives each a number. The texts become one long list of numbers.
@@ -161,26 +162,50 @@ NEW_INTRO = t("""A model trained from nothing knows only what is in your texts. 
 
 **How much text?** A model wants about 20 pieces of text for every parameter it has: 200 million for the 10M model, a billion for the 50M one. With less, it learns your texts nearly by heart and repeats them. **What it won't do:** answer questions, follow instructions or use tools. It continues text, in the style of what it read. That's why it doesn't appear in the chat's model menu.""")
 
+STAGE2 = t("""Like a painting redone in the style of another painter: the first texts give the model its language and what it knows, the second its voice. Joshua takes the model trained in step 2 and trains it further on the new texts, with the same vocabulary and a gentler learning rate, so it bends rather than starts over.
+
+**The balance.** Too little of the new texts and it still sounds like the first ones; too much and it forgets them. So Joshua keeps a copy of the model at 8 points along the way: in step 4 you can try each one and choose. The chart has a third line, in grey: how well the model still knows the first texts. When it rises, the model is forgetting them.
+
+**Mixing.** A share of each training batch can still come from the first texts. It slows the forgetting: the model takes on the new voice while keeping more of what it knew.""")
+
+
+WIKI_LANGS = [("Italiano", "it"), ("English", "en"), ("Français", "fr"), ("Deutsch", "de"), ("Español", "es"), ("Polski", "pl"),
+              ("Português", "pt"), ("Nederlands", "nl"), ("中文", "zh")]
+
+
+def when(h):
+    return t("about {n} min", n=max(1, round(h * 60))) if h < 1 else t("about {n} h", n=round(h, 1) if h < 10 else round(h))
+
+
+def data_line(d):
+    return t("{docs} documents · {words} words · {tokens} pieces of text to learn from.", docs=f"{d.get('docs', d.get('files', 0)):,}", words=f"{d['words']:,}", tokens=f"{d['train_tokens']:,}")
+
 
 def new_info(n):
     d = sc.data(n) if n else None
     if not d:
-        return "<div class='ftempty'>" + t("Choose a folder with your texts, then press Read them.") + "</div>"
+        return "<div class='ftempty'>" + t("Choose where the texts come from, then press Read them.") + "</div>"
     best = sc.best_size(n)
     note = (" " + t("That is little text: the model will mostly learn to repeat it. More text helps more than a bigger model.")) if d["train_tokens"] < 20 * sc.params(sc.SIZES[0]) else ""
-    return ("<div class='ftres'>" + t("{files} files · {words} words · {tokens} pieces of text to learn from.", files=d["files"], words=f"{d['words']:,}", tokens=f"{d['train_tokens']:,}")
-            + " " + t("Suggested size: {size}.", size=best) + html.escape(note) + "</div>")
+    return "<div class='ftres'>" + data_line(d) + " " + t("Suggested size: {size}.", size=best) + html.escape(note) + "</div>"
+
+
+def stage2_info(n, size):
+    d = sc.data(n, 2) if n else None
+    if not d:
+        return "<div class='ftempty'>" + t("Choose the second texts, then press Read them.") + "</div>"
+    k = sc.steps(n, size, 2)
+    return "<div class='ftres'>" + data_line(d) + " " + t("The second stage takes {steps} steps, {when}.", steps=f"{k:,}", when=when(sc.hours(n, size, 2))) + "</div>"
+
+
+def source_of(kind, path, lang, millions):
+    return sc.wiki(lang or "it", millions or 150) if kind == "wiki" else str(__import__("pathlib").Path((path or "").strip()).expanduser())
 
 
 def size_choices(n):
     if not (n and sc.data(n)):
         return [(s, s) for s in sc.SIZES]
-    out = []
-    for s in sc.SIZES:
-        h = sc.hours(n, s)
-        when = t("about {n} min", n=max(1, round(h * 60))) if h < 1 else t("about {n} h", n=round(h, 1) if h < 10 else round(h))
-        out.append((f"{s} · {when}", s))
-    return out
+    return [(f"{s} · {when(sc.hours(n, s))}", s) for s in sc.SIZES]
 
 
 def arch_html(size, n=None):
@@ -194,6 +219,12 @@ def arch_html(size, n=None):
             + (" · " + t("{n} steps", n=f"{sc.steps(n, size):,}") if d else "") + "</div>")
 
 
+def versions_dd(n, value=None):
+    vs = [(t(label) if not label.startswith("second") else t("second stage, step {n}", n=label.rsplit(" ", 1)[1]), v) for label, v in sc.versions(n)] if n else []
+    vals = [v for _, v in vs]
+    return gr.Dropdown(choices=vs, value=value if value in vals else (vals[-1] if vals else None))
+
+
 def samples_html(samples):
     if not samples:
         return ""
@@ -205,7 +236,8 @@ MAC_OK = ft.MAC and __import__("platform").machine() == "arm64"  # MLX runs on t
 
 
 def build_new():
-    """The page part for a model trained from nothing (scratch.py)."""
+    """The page part for a model trained from zero (scratch.py)."""
+    import pathlib
     with gr.Column(visible=False) as col:
         gr.Markdown(t("A small language model of your own, starting from random numbers and trained only on texts you choose. It learns to continue text in their style."), elem_classes="ftlead")
         more(NEW_INTRO, t("How it works, and what it can't do"))
@@ -218,11 +250,23 @@ def build_new():
         with gr.Row(visible=False, equal_height=True) as newrow:
             newname = gr.Textbox(show_label=False, placeholder=t("a short name in lowercase, like my-novels"), max_lines=1, scale=3, container=False)
             create = gr.Button(t("Create"), size="sm", scale=0, min_width=110)
+
+        def source_picker(stage):
+            """Where a stage's texts come from: a folder on this computer, or Wikipedia in a language."""
+            kind = gr.Radio([(t("A folder on this computer"), "folder"), (t("Wikipedia"), "wiki")], value="folder" if stage == 2 else "wiki", show_label=False, elem_classes="ftsrc")
+            with gr.Row(equal_height=True, visible=stage == 2) as frow:
+                path = gr.Textbox(show_label=False, placeholder=t("the folder's path, like /Users/you/Documents/my-texts"), max_lines=1, scale=4, container=False)
+            with gr.Row(equal_height=True, visible=stage == 1) as wrow:
+                lang = gr.Dropdown(WIKI_LANGS, value="it", label=t("Language"), allow_custom_value=True, scale=2)
+                millions = gr.Number(150, label=t("Million words"), info=t("The 10M model wants about 150, the 25M about 350, the 50M about 750."), minimum=1, maximum=3000, precision=0, scale=2)
+            kind.change(lambda k: (gr.Row(visible=k == "folder"), gr.Row(visible=k == "wiki")), kind, [frow, wrow], show_progress="hidden")
+            return kind, path, lang, millions
+
         with gr.Column(visible=False) as work:
             with gr.Column(elem_classes="ftpane"):
-                gr.Markdown("**1 · " + t("Your texts") + "** " + t("A folder on this computer: every text inside it, and in its subfolders, is read."))
-                with gr.Row(equal_height=True):
-                    folder = gr.Textbox(show_label=False, placeholder=t("the folder's path, like /Users/you/Documents/my-texts"), max_lines=1, scale=4, container=False)
+                gr.Markdown("**1 · " + t("The first texts") + "** " + t("What the model learns its language and its knowledge from: a folder of your texts, every file inside it and its subfolders, or Wikipedia, downloaded a part at a time."))
+                kind1, path1, lang1, mil1 = source_picker(1)
+                with gr.Row():
                     readb = gr.Button(t("Read them"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
                 info = gr.HTML(new_info(None))
             with gr.Column(elem_classes="ftpane"):
@@ -235,29 +279,54 @@ def build_new():
                 plot = gr.HTML(loss_svg([], []))
                 samples = gr.HTML("")
             with gr.Column(elem_classes="ftpane"):
-                gr.Markdown("**3 · " + t("Try it") + "** " + t("Write the beginning of a sentence: the model carries on."))
+                gr.Markdown("**3 · " + t("A second stage, on other texts") + "** " + t("Optional. The model trained in step 2 goes on learning from other texts, keeping what it knows: the style of an author, say, on top of a language."))
+                more(STAGE2, t("How it works"))
+                kind2, path2, lang2, mil2 = source_picker(2)
+                with gr.Row():
+                    read2b = gr.Button(t("Read them"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
+                info2 = gr.HTML(stage2_info(None, sc.SIZES[0]))
+                mix = gr.Slider(0, 50, value=20, step=5, label=t("Share of each batch still from the first texts (%)"), info=t("More keeps more of what it knew; less takes on the new texts faster."))
+                with gr.Row():
+                    train2b = gr.Button("▶ " + t("Start the second stage"), size="sm", scale=0, min_width=210, elem_classes="ftmain")
+                    stop2b = gr.Button("■ " + t("Stop"), size="sm", scale=0, min_width=100)
+                plot2 = gr.HTML(loss_svg([], []))
+                samples2 = gr.HTML("")
+            with gr.Column(elem_classes="ftpane"):
+                gr.Markdown("**4 · " + t("Try it") + "** " + t("Choose a version and write the beginning of a sentence: the model carries on."))
+                which = gr.Dropdown(choices=[], value=None, label=t("Version"))
                 with gr.Row(equal_height=True):
                     prompt = gr.Textbox(show_label=False, placeholder=t("The beginning of a sentence"), scale=4, container=False)
                     contb = gr.Button(t("Continue"), size="sm", scale=0, min_width=120, elem_classes="ftmain")
                 out = gr.Markdown("", elem_classes="ftans", container=True)
             with gr.Column(elem_classes="ftpane"):
-                gr.Markdown("**4 · " + t("Add to Ollama") + "** " + t("It becomes `joshua-new-<name>`, for other programs or the terminal."))
+                gr.Markdown("**5 · " + t("Add to Ollama") + "** " + t("The version chosen in step 4 becomes `joshua-new-<name>`, for other programs or the terminal."))
                 with gr.Row():
                     instb = gr.Button("⬇ " + t("Add to Ollama"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
                     delb = gr.Button(t("Delete this model"), size="sm", scale=0, min_width=170, elem_id="ftdel")
         seen = gr.State(None)
 
+    def saved_source(n, stage):
+        f = sc.pdir(n) / f"source{stage}.json"
+        if f.exists():
+            return json.loads(f.read_text())
+        old = sc.pdir(n) / "folder.txt"  # models made before Wikipedia: the folder they were read from
+        return {"kind": "folder", "path": old.read_text()} if stage == 1 and old.exists() else {"kind": "wiki" if stage == 1 else "folder"}
+
     def opened(n):
         n = (n or "").strip().lower()
         if not ft.NAME_RE.match(n):
             gr.Warning(t("Use 2–31 lowercase letters, digits or dashes, like 'newsroom-style'."))
-            return (gr.skip(),) * 10
+            return (gr.skip(),) * 22
         sc.pdir(n).mkdir(exist_ok=True)
-        f = sc.pdir(n) / "folder.txt"
-        p = sc.progress(n) or {}
+        p, p2 = sc.progress(n) or {}, sc.progress(n, 2) or {}
         chosen = p.get("size") or (sc.best_size(n) if sc.data(n) else sc.SIZES[0])
-        return (gr.Dropdown(choices=sc.projects(), value=n), gr.Row(visible=False), gr.Column(visible=True), f.read_text() if f.exists() else "",
-                new_info(n), gr.Radio(choices=size_choices(n), value=chosen), loss_svg(p.get("train", []), p.get("val", [])), samples_html(p.get("samples", [])), "", arch_html(chosen, n))
+        s1, s2 = saved_source(n, 1), saved_source(n, 2)
+        pick = lambda s: (s["kind"], gr.update(value=s.get("path", "")), gr.update(value=s.get("lang", "it")), gr.update(value=s.get("millions", 150)))
+        return (gr.Dropdown(choices=sc.projects(), value=n), gr.Row(visible=False), gr.Column(visible=True),
+                *pick(s1), new_info(n), gr.Radio(choices=size_choices(n), value=chosen), loss_svg(p.get("train", []), p.get("val", [])),
+                samples_html(p.get("samples", [])), "", arch_html(chosen, n),
+                *pick(s2), stage2_info(n, chosen), loss_svg(p2.get("train", []), p2.get("val", []), p2.get("old", [])), samples_html(p2.get("samples", [])),
+                versions_dd(n), gr.update(value=round(p2.get("mix", 0.2) * 100)))
 
     def need(n):
         if not n or not sc.pdir(n).exists():
@@ -265,18 +334,20 @@ def build_new():
             return False
         return True
 
-    def read(n, path):
+    def read(n, kind, path, lang, millions, stage):
         if not need(n):
             return
-        p = __import__("pathlib").Path(path.strip()).expanduser()
-        if not path.strip() or not p.is_dir():
+        if kind == "folder" and not (path or "").strip() or kind == "folder" and not pathlib.Path(path.strip()).expanduser().is_dir():
             gr.Warning(t("That folder doesn't exist: copy its path from Finder (right-click it, hold ⌥ Option, Copy as Pathname)."))
             return
-        if sc.trained(n):
+        if stage == 2 and not sc.data(n):
+            gr.Warning(t("First read the first texts (step 1): the second ones use their vocabulary."))
+            return
+        if stage == 1 and sc.trained(n):
             gr.Info(t("Reading new texts starts the model over: the old one is deleted."))
-        (sc.pdir(n) / "folder.txt").write_text(str(p))
+        (sc.pdir(n) / f"source{stage}.json").write_text(json.dumps({"kind": kind, "path": path or "", "lang": lang or "it", "millions": int(millions or 150)}))
         try:
-            sc.prepare(n, str(p))
+            sc.prepare(n, source_of(kind, path, lang, int(millions or 150)), stage)
         except RuntimeError as e:
             gr.Warning(str(e))
 
@@ -295,25 +366,41 @@ def build_new():
         except RuntimeError as e:
             gr.Warning(str(e))
 
-    def cont(n, text):
+    def start2(n, s, m):
         if not need(n):
             return
         if not sc.trained(n):
-            gr.Warning(t("Train the model first (step 2)."))
+            gr.Warning(t("Train the model on the first texts first (step 2)."))
             return
+        if not sc.data(n, 2):
+            gr.Warning(t("First read the second texts."))
+            return
+        p = sc.progress(n) or {}
         try:
-            sc.try_out(n, text.strip() or "\n")
+            sc.train(n, p.get("size", s), 2, round(m) / 100)
+            gr.Info(t("Second stage started. A copy of the model is kept at 8 points along the way, to try in step 4."))
         except RuntimeError as e:
             gr.Warning(str(e))
 
-    def inst(n):
+    def cont(n, text, v):
         if not need(n):
             return
         if not sc.trained(n):
             gr.Warning(t("Train the model first (step 2)."))
             return
         try:
-            sc.install(n)
+            sc.try_out(n, text.strip() or "\n", v or "model")
+        except RuntimeError as e:
+            gr.Warning(str(e))
+
+    def inst(n, v):
+        if not need(n):
+            return
+        if not sc.trained(n):
+            gr.Warning(t("Train the model first (step 2)."))
+            return
+        try:
+            sc.install(n, v or "model")
         except RuntimeError as e:
             gr.Warning(str(e))
 
@@ -326,37 +413,53 @@ def build_new():
         sc.delete(n)
         return gr.Dropdown(choices=sc.projects(), value=None), gr.Column(visible=False)
 
-    def tick(seen_v):
-        run = ft.RUN
-        if run is None or run.kind not in ("reading", "pretraining", "continue") or (id(run), run.version) == seen_v:
-            return (gr.skip(),) * 5 + (seen_v,)
-        sig = (id(run), run.version)
-        if run.kind == "reading":
-            if not run.done:
-                return (gr.skip(),) * 5 + (sig,)
-            n = run.name
-            return new_info(n), gr.Radio(choices=size_choices(n), value=sc.best_size(n) if sc.data(n) else sc.SIZES[0]), loss_svg([], []), "", gr.skip(), sig
-        if run.kind == "pretraining":
-            chart = loss_svg(run.train, run.val) if run.train else gr.skip()
-            return gr.skip(), gr.skip(), chart, samples_html((run.result or {}).get("samples", [])), gr.skip(), sig
-        text = (run.result or {}).get("text")
-        return gr.skip(), gr.skip(), gr.skip(), gr.skip(), (html.escape(text) if text else gr.skip()), sig
+    KINDS = ("reading", "reading2", "pretraining", "pretraining2", "continue")
 
-    outs = [name, newrow, work, folder, info, size, plot, samples, out, arch]
-    size.change(arch_html, [size, name], arch, show_progress="hidden")
+    def tick(seen_v, s):
+        run = ft.RUN
+        skip8 = (gr.skip(),) * 9
+        if run is None or run.kind not in KINDS or (id(run), run.version) == seen_v:
+            return skip8 + (seen_v,)
+        sig, n, res = (id(run), run.version), run.name, run.result or {}
+        info_, size_, plot_, samples_, out_, info2_, plot2_, samples2_, which_ = skip8
+        if run.kind == "reading" and run.done:
+            info_ = new_info(n)
+            size_ = gr.Radio(choices=size_choices(n), value=sc.best_size(n) if sc.data(n) else sc.SIZES[0])
+            plot_, samples_, which_ = loss_svg([], []), "", versions_dd(n)
+            info2_, plot2_, samples2_ = stage2_info(n, s), loss_svg([], []), ""
+        elif run.kind == "reading2" and run.done:
+            info2_, plot2_, samples2_, which_ = stage2_info(n, (sc.progress(n) or {}).get("size", s)), loss_svg([], []), "", versions_dd(n)
+        elif run.kind == "pretraining":
+            plot_ = loss_svg(run.train, run.val) if run.train else gr.skip()
+            samples_ = samples_html(res.get("samples", []))
+            which_ = versions_dd(n) if run.done or res.get("samples") else gr.skip()
+        elif run.kind == "pretraining2":
+            plot2_ = loss_svg(run.train, run.val, res.get("old", [])) if run.train or res.get("old") else gr.skip()
+            samples2_ = samples_html(res.get("samples", []))
+            which_ = versions_dd(n)
+        elif run.kind == "continue" and res.get("text"):
+            out_ = html.escape(res["text"])
+        return info_, size_, plot_, samples_, out_, info2_, plot2_, samples2_, which_, sig
+
+    name.focus(lambda: gr.Dropdown(choices=sc.projects()), None, name, show_progress="hidden")  # models made since the page loaded
+    outs = [name, newrow, work, kind1, path1, lang1, mil1, info, size, plot, samples, out, arch,
+            kind2, path2, lang2, mil2, info2, plot2, samples2, which, mix]
+    size.change(lambda s, n: (arch_html(s, n), stage2_info(n, s)), [size, name], [arch, info2], show_progress="hidden")
     name.input(opened, name, outs)
     newb.click(lambda: (gr.Row(visible=True), ""), outputs=[newrow, newname])
     create.click(opened, newname, outs)
     newname.submit(opened, newname, outs)
-    readb.click(read, [name, folder])
-    folder.submit(read, [name, folder])
+    readb.click(lambda n, k, p, l, m: read(n, k, p, l, m, 1), [name, kind1, path1, lang1, mil1])
+    read2b.click(lambda n, k, p, l, m: read(n, k, p, l, m, 2), [name, kind2, path2, lang2, mil2])
     trainb.click(start, [name, size])
+    train2b.click(start2, [name, size, mix])
     stopb.click(lambda: ft.stop())
-    contb.click(cont, [name, prompt])
-    prompt.submit(cont, [name, prompt])
-    instb.click(inst, name)
+    stop2b.click(lambda: ft.stop())
+    contb.click(cont, [name, prompt, which])
+    prompt.submit(cont, [name, prompt, which])
+    instb.click(inst, [name, which])
     delb.click(delete, name, [name, work], js="(n) => (n && confirm(" + json.dumps(t("Delete this model and its training? A copy added to Ollama stays."), ensure_ascii=False) + ")) ? n : null")
-    gr.Timer(1).tick(tick, seen, [info, size, plot, samples, out, seen], show_progress="hidden")
+    gr.Timer(1).tick(tick, [seen, size], [info, size, plot, samples, out, info2, plot2, samples2, which, seen], show_progress="hidden")
     return col
 
 
@@ -365,7 +468,7 @@ def build(conv_root, conv_choices):
         with gr.Row():
             gr.HTML("<div id='tunetitle'>" + t("FINE-TUNING") + "</div>")
             back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="tuneback", elem_classes="backbtn")
-        mode = gr.Radio([(t("Teach an existing model"), "teach"), (t("Train a new model from nothing"), "new")], value="teach", show_label=False, elem_id="ftmode")
+        mode = gr.Radio([(t("Teach an existing model"), "teach"), (t("Train a new model from zero"), "new")], value="teach", show_label=False, elem_id="ftmode")
         with gr.Column() as teachcol:
             gr.Markdown(t("Teach a model your style from examples, here on your computer. The result is a new model in Joshua's menu."), elem_classes="ftlead")
             res = gr.HTML()
