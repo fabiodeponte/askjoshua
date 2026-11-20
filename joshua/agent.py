@@ -530,9 +530,31 @@ MEM.mkdir(exist_ok=True)
 MEM_LOCK = threading.Lock()
 
 
+# topics a model may invent for facts about the user themself: they all belong in the profile, which Joshua always reads
+PERSONAL = {"location", "place", "city", "home", "personal", "user", "about", "about-me", "me", "myself", "identity", "bio",
+            "background", "info", "general", "life", "family", "work", "job", "career", "preferences", "preference", "likes"}
+
+
 def _mem(topic):
     slug = re.sub(r"[^a-z0-9-]+", "-", (topic or "profile").lower()).strip("-") or "profile"
-    return MEM / f"{slug}.md"
+    return MEM / f"{'profile' if slug in PERSONAL else slug}.md"
+
+
+def _merge_personal():
+    """Notes saved under such topics before this rule (e.g. location.md) move into the profile, once."""
+    prof = MEM / "profile.md"
+    for p in list(MEM.glob("*.md")):
+        if p.stem in PERSONAL:
+            old = prof.read_text(encoding="utf-8") if prof.exists() else ""
+            new = [l for l in p.read_text(encoding="utf-8").splitlines() if l.strip() and l.strip().lower() not in old.lower()]
+            prof.write_text(old + "".join(l + "\n" for l in new), encoding="utf-8")
+            p.unlink()
+
+
+try:
+    _merge_personal()
+except OSError:
+    pass
 
 
 def memory_topics():
@@ -540,7 +562,7 @@ def memory_topics():
 
 
 def remember(fact: str, topic: str = "profile") -> str:
-    """Save a lasting fact about the user to long-term memory, so you know it in future chats. Use topic 'profile' for who the user is and how they like answers, or a short topic name (e.g. 'btc-model') for a specific project or subject."""
+    """Save a lasting fact about the user to long-term memory, so you know it in future chats. Use topic 'profile' for anything about the user themself: who they are, where they live, their work, how they like answers. Use a short topic name (e.g. 'btc-model') only for a specific project or subject."""
     fact = " ".join(fact.split())
     with MEM_LOCK:
         p = _mem(topic)
@@ -576,8 +598,18 @@ def memory_prompt():
     if not text and not others:
         return ""
     out = "\n\nWhat you remember about the user from earlier chats. These are facts about the USER, not about you: when they ask about themself, answer in the second person (in Italian with \"tu\"). Use them only when relevant, don't cite them as sources, and don't mention them unprompted:\n" + (text or "(nothing yet)")
-    if others:
-        out += f"\nOther memory topics you can open with read_memory: {', '.join(others)}."
+    room = 4000 - len(text)  # the other topics come in whole while they're short; past that, only their names
+    shown, named = [], []
+    for name in others:
+        body = _mem(name).read_text(encoding="utf-8").strip()
+        if 0 < len(body) <= room:
+            shown.append(f"\n[{name}]\n{body}")
+            room -= len(body)
+        else:
+            named.append(name)
+    out += "".join(shown)
+    if named:
+        out += f"\nOther memory topics you can open with read_memory: {', '.join(named)}."
     return out + "\nIf the user asks you to remember or forget something, use the remember or forget tool."
 
 

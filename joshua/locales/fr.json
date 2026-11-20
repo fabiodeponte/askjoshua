@@ -741,5 +741,6 @@
  "Try it": "Essayez-le",
  "{p} million parameters · {layers} layers · width {h} · {heads} attention heads · middle width {inter} · vocabulary of {vocab} pieces · it sees {ctx} pieces at a time": "{p} millions de paramètres · {layers} couches · largeur {h} · {heads} têtes d'attention · largeur intermédiaire {inter} · vocabulaire de {vocab} morceaux · il voit {ctx} morceaux à la fois",
  "about {n} min left": "encore environ {n} min",
- "about {h} h {m} min left": "encore environ {h} h {m} min"
+ "about {h} h {m} min left": "encore environ {h} h {m} min",
+ "{n} notes": "{n} notes"
 }

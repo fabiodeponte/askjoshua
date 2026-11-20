@@ -741,5 +741,6 @@
  "Try it": "试一试",
  "{p} million parameters · {layers} layers · width {h} · {heads} attention heads · middle width {inter} · vocabulary of {vocab} pieces · it sees {ctx} pieces at a time": "{p} 百万参数 · {layers} 层 · 宽度 {h} · {heads} 个注意力头 · 中间宽度 {inter} · 词表 {vocab} 个片段 · 一次看 {ctx} 个片段",
  "about {n} min left": "约剩 {n} 分钟",
- "about {h} h {m} min left": "约剩 {h} 小时 {m} 分钟"
+ "about {h} h {m} min left": "约剩 {h} 小时 {m} 分钟",
+ "{n} notes": "{n} 条笔记"
 }

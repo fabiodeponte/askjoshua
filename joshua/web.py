@@ -1940,7 +1940,12 @@ def mem_view(topic=None):
     topics = agent.memory_topics() or ["profile"]
     topic = topic if topic in topics else ("profile" if "profile" in topics else topics[0])
     path = agent._mem(topic)
-    return gr.Dropdown(choices=topics, value=topic), path.read_text() if path.exists() else ""
+
+    def label(name):  # "profile · 3 notes", so topics other than the one shown can be seen
+        p = agent._mem(name)
+        n = sum(1 for l in p.read_text(encoding="utf-8").splitlines() if l.strip()) if p.exists() else 0
+        return f"{name} · " + t("{n} notes", n=n)
+    return gr.Dropdown(choices=[(label(x), x) for x in topics], value=topic), path.read_text() if path.exists() else ""
 
 
 def notes_count():
