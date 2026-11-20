@@ -2766,6 +2766,7 @@ body[data-screen^="modern"]:not(#a):not(#b):not(#c):not(#d) #tunetitle {font-siz
 #tune .ftphase {padding: 6px 10px; border-left: 3px solid var(--line); font-size: .95rem}
 #tune .ftphase b {display: block; font-weight: 600}
 #tune .ftphase span {display: block; opacity: .8; font-size: .88rem; overflow-wrap: anywhere}
+#tune .ftphase i {display: block; font-style: normal; opacity: .6; font-size: .84rem; margin-top: 2px; line-height: 1.45}
 #tune .ftphase.done {border-left-color: var(--green)} #tune .ftphase.now {border-left-color: var(--cyan)} #tune .ftphase.todo {opacity: .5}
 #tune .ftphase .wdot {display: inline-block; width: 8px; height: 13px; background: var(--cyan); vertical-align: -1px; animation: blink 1s steps(1) infinite}
 #tune .ftwhere {margin-top: 4px; padding: 8px 10px; font-size: .88rem; line-height: 1.5; background: var(--codebg); overflow-wrap: anywhere}

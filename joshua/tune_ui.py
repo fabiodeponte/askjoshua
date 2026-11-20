@@ -207,6 +207,15 @@ def where_html(w):
     return "<div class='ftwhere'>" + "<br>".join(html.escape(x) for x in out) + "</div>"
 
 
+PHASE_WHY = {  # what each phase does, in a line, shown under it
+    "download": "Wikipedia comes already cleaned into plain text, one row per article, in files of a few hundred MB.",
+    "read": "Each file is read as plain text; paragraphs that appear twice are kept once.",
+    "text": "The text goes into one plain file, a paragraph per line, so the next phases can read it in a stream: it never has to fit in memory.",
+    "vocab": "This is the tokenizer. It starts from the 256 possible bytes, so it can write any character, then over and over merges the pair of pieces that appears most often into a new piece ('d'+'e' → 'de', 'de'+'lla' → 'della'), until it has 8,192. Frequent words end up as one piece, rare ones as several.",
+    "numbers": "With that vocabulary, every paragraph is cut into pieces and each piece is replaced by its number, stored in 2 bytes. One paragraph in 50 goes to a separate file the model never trains on, to check how it does on text it hasn't seen.",
+}
+
+
 def phases_html(res):
     """Each phase of reading the texts, with how far it got and which files it reads and writes."""
     ph, stage = res.get("phases", {}), res.get("stage", 1)
@@ -236,7 +245,9 @@ def phases_html(res):
         else:
             label = t("Turning the text into numbers")
             detail = t("{tokens} of about {estimate} pieces · saved in {file}", tokens=f"{p['tokens']:,}", estimate=f"{p['estimate']:,}", file=home(p["file"])) if p else ""
-        rows.append(f"<div class='ftphase {state}'><b>{mark} {html.escape(label)}</b>" + (f"<span>{html.escape(detail)}</span>" if detail else "") + "</div>")
+        why = PHASE_WHY.get(k)
+        rows.append(f"<div class='ftphase {state}'><b>{mark} {html.escape(label)}</b>" + (f"<span>{html.escape(detail)}</span>" if detail else "")
+                    + (f"<i>{html.escape(t(why))}</i>" if why else "") + "</div>")
     return "<div class='ftphases'>" + "".join(rows) + "</div>"  # where the files went is in the summary above, once done
 
 
