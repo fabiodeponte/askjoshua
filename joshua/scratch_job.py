@@ -63,9 +63,7 @@ def from_folder(folder):
     sys.path.insert(0, str(HERE))
     import reader
     reader.MAX_CHARS = 10**12  # the Reader stops long books early; here we want every word
-    files = sorted(p for p in pathlib.Path(folder).expanduser().rglob("*") if p.suffix.lower() in TYPES and p.is_file() and not p.name.startswith("."))
-    if not files:
-        raise SystemExit(f"No texts found in {folder} (it reads {', '.join(sorted(TYPES))}).")
+    files = folder_files(folder)
     seen = set()
     for i, f in enumerate(files, 1):
         try:
@@ -92,26 +90,27 @@ def need(package, module=None):
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", package], check=True)
 
 
-def from_wikipedia(lang, words, qa=None):
+def from_wikipedia(lang, words, qa=None, files=None):
     """Wikipedia in one language, article by article, until about `words` words (None: all of it). Downloaded a part
     at a time (each a few hundred MB) from Hugging Face into its cache folder, which keeps them, so preparing again
-    doesn't download them again."""
+    doesn't download them again. With `files` (what step 1 downloaded) it reads only those, without the network."""
     need("pyarrow")
     import pyarrow.parquet as pq
     from huggingface_hub import HfApi, hf_hub_download
     from huggingface_hub.constants import HF_HUB_CACHE
     repo, date = WIKI
-    parts = sorted((f for f in HfApi().list_repo_tree(repo, path_in_repo=f"{date}.{lang}", repo_type="dataset") if f.path.endswith(".parquet")), key=lambda f: f.path)
-    if not parts:
-        raise SystemExit(f"No Wikipedia found for the language '{lang}'.")
+    parts = files or wiki_parts(lang)
     got = 0
     for k, part in enumerate(parts, 1):
-        info = dict(phase="download", part=k, parts=len(parts), mb=round((getattr(part, "size", 0) or 0) / 1e6),
-                    src=f"https://huggingface.co/datasets/{repo}/tree/main/{date}.{lang}", to=str(HF_HUB_CACHE))
-        say(f"downloading Wikipedia ({lang}), part {k} of {len(parts)}…")
-        phase(**info)
-        path = hf_hub_download(repo, part.path, repo_type="dataset")
-        phase(**info, done=True)
+        if files:
+            path = part
+        else:
+            info = dict(phase="download", part=k, parts=len(parts), mb=round((getattr(part, "size", 0) or 0) / 1e6),
+                        src=f"https://huggingface.co/datasets/{repo}/tree/main/{date}.{lang}", to=str(HF_HUB_CACHE))
+            say(f"downloading Wikipedia ({lang}), part {k} of {len(parts)}…")
+            phase(**info)
+            path = hf_hub_download(repo, part.path, repo_type="dataset")
+            phase(**info, done=True)
         for b in pq.ParquetFile(path).iter_batches(columns=["title", "text"], batch_size=2000):
             for title, text in zip(b.column(0).to_pylist(), b.column(1).to_pylist()):
                 paras = [p.strip() for p in text.split("\n") if len(p.strip()) > 1]
@@ -125,6 +124,59 @@ def from_wikipedia(lang, words, qa=None):
                 if (qa and got >= qa) or (not qa and words and got >= words):
                     return
         say(f"{got:,} {'questions' if qa else 'words'} so far")
+
+
+def wiki_parts(lang):
+    from huggingface_hub import HfApi
+    repo, date = WIKI
+    parts = sorted((f for f in HfApi().list_repo_tree(repo, path_in_repo=f"{date}.{lang}", repo_type="dataset") if f.path.endswith(".parquet")), key=lambda f: f.path)
+    if not parts:
+        raise SystemExit(f"No Wikipedia found for the language '{lang}'.")
+    return parts
+
+
+def folder_files(folder):
+    files = sorted(p for p in pathlib.Path(folder).expanduser().rglob("*") if p.suffix.lower() in TYPES and p.is_file() and not p.name.startswith("."))
+    if not files:
+        raise SystemExit(f"No texts found in {folder} (it reads {', '.join(sorted(TYPES))}).")
+    return files
+
+
+def download(d, source):
+    """Step 1: gets the texts, and lists what it got in download.json, so tokenizing (step 2) works only on files
+    already on this computer. From Wikipedia: the parts it needs, until about the words asked for, each counted as it
+    arrives. From a folder: nothing to download, only the list of files it will read."""
+    if source.startswith("wikipedia:"):
+        need("pyarrow")
+        import pyarrow.parquet as pq
+        from huggingface_hub import hf_hub_download
+        from huggingface_hub.constants import HF_HUB_CACHE
+        _, lang, millions = source.split(":")
+        target = None if millions == "all" else int(float(millions) * 1e6)
+        repo, date = WIKI
+        src = f"https://huggingface.co/datasets/{repo}/tree/main/{date}.{lang}"
+        parts = wiki_parts(lang)
+        files, words, mb = [], 0, 0
+        for k, part in enumerate(parts, 1):
+            size = round((getattr(part, "size", 0) or 0) / 1e6)
+            info = dict(phase="download", part=k, parts=len(parts), mb=size, total_mb=mb, words=words, target=target, src=src, to=str(HF_HUB_CACHE))
+            say(f"downloading Wikipedia ({lang}), part {k} of {len(parts)}…")
+            phase(**info)
+            path = hf_hub_download(repo, part.path, repo_type="dataset")
+            for b in pq.ParquetFile(path).iter_batches(columns=["text"], batch_size=5000):
+                words += sum(len(x.split()) for x in b.column(0).to_pylist())
+            files.append(path)
+            mb += size
+            phase(**{**info, "words": words, "total_mb": mb})
+            if target and words >= target:
+                break
+        got = {"kind": "wiki", "lang": lang, "files": files, "parts": len(files), "of": len(parts), "mb": mb, "words": words, "target": target, "src": src, "to": str(HF_HUB_CACHE)}
+    else:
+        files = folder_files(source)
+        got = {"kind": "folder", "files": [str(f) for f in files], "n": len(files), "mb": round(sum(f.stat().st_size for f in files) / 1e6, 1), "folder": str(pathlib.Path(source).expanduser())}
+        phase(phase="found", **{k: v for k, v in got.items() if k != "files"})
+    (d / "download.json").write_text(json.dumps({"source": source, **got}))
+    phase(phase="downloaded", done=True, **{k: v for k, v in got.items() if k != "files"})
 
 
 def question_answer(title, paras, words=120):
@@ -157,10 +209,10 @@ def question_answer(title, paras, words=120):
     return [f"{QUESTION} {q}", f"{ANSWER} {' '.join(out)}"]
 
 
-def documents(source):
+def documents(source, files=None):
     if source.startswith("wikipedia:"):
         _, lang, millions = source.split(":")
-        return from_wikipedia(lang, None if millions == "all" else float(millions) * 1e6)
+        return from_wikipedia(lang, None if millions == "all" else float(millions) * 1e6, files=files)
     if source.startswith("wikiqa:"):  # questions and answers made from Wikipedia: wikiqa:LANG:HOW_MANY
         _, lang, n = source.split(":")
         return from_wikipedia(lang, None, qa=int(n))
@@ -181,8 +233,10 @@ def prepare(d, source, stage):
     target = None
     if source.startswith("wikipedia:") and source.split(":")[2] != "all":
         target = int(float(source.split(":")[2]) * 1e6)
+    got = json.loads((d / "download.json").read_text()) if stage == 1 and (d / "download.json").exists() else {}
+    files = got.get("files") if got.get("source") == source and got.get("kind") == "wiki" else None  # what step 1 downloaded
     with open(corpus, "w", encoding="utf-8") as out:
-        for paras in documents(source):
+        for paras in documents(source, files):
             if paras:
                 out.write("".join(" ".join(p.split()) + "\n" for p in paras) + "\n")
                 words += sum(len(p.split()) for p in paras)
@@ -422,7 +476,9 @@ def try_it(d, prompt, which="model", question=False):
 
 if __name__ == "__main__":
     cmd, d = sys.argv[1], pathlib.Path(sys.argv[2])
-    if cmd == "prepare":
+    if cmd == "download":
+        download(d, sys.argv[3])
+    elif cmd == "prepare":
         prepare(d, sys.argv[3], int(sys.argv[4]) if len(sys.argv) > 4 else 1)
     elif cmd == "train":
         train(d, sys.argv[3], int(sys.argv[4]), int(sys.argv[5]) if len(sys.argv) > 5 else 1, float(sys.argv[6]) if len(sys.argv) > 6 else 0.0,

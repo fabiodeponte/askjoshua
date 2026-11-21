@@ -3782,7 +3782,7 @@ def css_text(text):
 
 CSS = CSS.replace("@@WHAT_HELP@@", css_text(t("Hello. What would you like to do today?"))).replace("@@ASK_HINT@@", css_text(t("Everything you write here is stored only on this computer."))).replace("@@MODEL@@", css_text(t("Model:")))
 CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage", "#teampage", "#readpage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
-CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn", "#teambtn", "#readbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
+CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn", "#teambtn", "#readbtn", "#newmodelbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
 CSS += "\n#modelspage .mz0, #setpage .mz0 {background: color-mix(in srgb, var(--ink) 4%, var(--bg)) !important}"
 JS_TEXT = lambda text: json.dumps(text, ensure_ascii=False).replace("'", "\\'")  # a text inside the js="..." handlers below
 
@@ -3814,12 +3814,13 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 rd_pos = gr.Textbox("", elem_id="rdpos", show_label=False, container=False)  # hidden: where the browser reports your place in the book, from any page
                 models_btn = gr.Button("🧩  " + t("Models"), size="sm", elem_id="modelsbtn")
                 mem_btn_open = gr.Button("🧠  " + t("Background"), size="sm", elem_id="membtn")  # what Joshua knows about you
-                tune = gr.Button("🧪  " + t("Fine-tuning"), size="sm", elem_id="tunebtn")
+                tune = gr.Button("🧪  " + t("Fine-tune a model"), size="sm", elem_id="tunebtn")
+                newmodel = gr.Button("🧬  " + t("Train a new model"), size="sm", elem_id="newmodelbtn")
                 bin_btn = gr.Button("🗑  " + t("Bin"), size="sm", elem_id="binbtn")
                 gr.HTML("<div class='navgap'></div>", elem_id="navgap")
                 set_btn = gr.Button("⚙  " + t("Settings"), size="sm", elem_id="setbtn")
                 feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
-        tune_panel, tune_back, tune_res, tune_refresh = tune_ui.build(ROOT, conv_choices)
+        tune_panel, tune_back, tune_res, tune_refresh, tune_mode, tune_title = tune_ui.build(ROOT, conv_choices)
         RD_BAR = ("<div id='rdbar'><button id='rdprev' title='" + html.escape(t("Previous paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,47.88V208.12a16,16,0,0,1-24.43,13.43L64,146.77V216a8,8,0,0,1-16,0V40a8,8,0,0,1,16,0v69.23L183.57,34.45A15.95,15.95,0,0,1,208,47.88Z'/></svg></button>"
                             "<button id='rdplay' title='" + html.escape(t("Read aloud") + " / " + t("Pause")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M240,128a15.74,15.74,0,0,1-7.6,13.51L88.32,229.65a16,16,0,0,1-16.2.3A15.86,15.86,0,0,1,64,216.13V39.87a15.86,15.86,0,0,1,8.12-13.82,16,16,0,0,1,16.2.3L232.4,114.49A15.74,15.74,0,0,1,240,128Z'/></svg></button>"
                             "<button id='rdnext' title='" + html.escape(t("Next paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,40V216a8,8,0,0,1-16,0V146.77L72.43,221.55A15.95,15.95,0,0,1,48,208.12V47.88A15.95,15.95,0,0,1,72.43,34.45L192,109.23V40a8,8,0,0,1,16,0Z'/></svg></button>"
@@ -4289,7 +4290,10 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     renbox.submit(rename_save, [cid, renbox], [renbox, convs])
     dele.click(delete_chat, convs, [chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters], js="(c) => (c && confirm(" + JS_TEXT(t("Move this chat to the bin? You can restore it there for 30 days.")) + ")) ? c : null")
     demo.load(lambda: (gr.Radio(choices=conv_choices()), gr.Dropdown(choices=models(True), value=default_model())), outputs=[convs, model])
-    tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>"), outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden").then(tune_refresh[0], outputs=tune_refresh[1], show_progress="hidden")
+    newmodel.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "new", "<div id='tunetitle'>" + t("NEW MODEL") + "</div>"),
+                   outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_mode, tune_title]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tune_refresh[0], outputs=tune_refresh[1], show_progress="hidden")
+    tune.click(lambda: (gr.Column(visible=True), gr.Column(visible=False), gr.Column(visible=False), gr.Column(visible=False), "<div class='ftres'>" + t("Checking what your computer can do…") + "</div>", "teach", "<div id='tunetitle'>" + t("FINE-TUNING") + "</div>"),
+               outputs=[tune_panel, chatcol, rightcol, sched_panel, tune_res, tune_mode, tune_title]).then(lambda: gr.Column(visible=False), outputs=models_panel).then(tune_ui.res_html, outputs=tune_res, show_progress="hidden").then(tune_refresh[0], outputs=tune_refresh[1], show_progress="hidden")
     tune_back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True), gr.Dropdown(choices=models(True))), outputs=[tune_panel, chatcol, rightcol, model])
     reloading = gr.State(False)
     language.input(set_language, language, reloading).then(None, reloading, None, js="(r) => { if (r) setTimeout(() => location.reload(), 8000) }")
@@ -4623,7 +4627,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         document.addEventListener('click', (e) => {
           if (!document.body.classList.contains('narrow') || !document.body.classList.contains('mside')) return;
           if (e.target.closest('.cmore')) return;
-          if (e.target.closest('#convs label, #newchat, #panels button, #membtn, #setbtn, #binbtn, #modelsbtn, #tunebtn')) setTimeout(() => document.body.classList.remove('mside'), 150);
+          if (e.target.closest('#convs label, #newchat, #panels button, #membtn, #setbtn, #binbtn, #modelsbtn, #tunebtn, #newmodelbtn')) setTimeout(() => document.body.classList.remove('mside'), 150);
         }, true); }""")
     demo.load(None, None, None, js="() => { try { if (localStorage.getItem('joshua-noside')) document.body.classList.add('noside') } catch (e) {} }")
 

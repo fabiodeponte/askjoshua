@@ -125,6 +125,23 @@ def clear(name, stage):
         shutil.rmtree(d / "model", ignore_errors=True)
 
 
+def downloaded(name):
+    """What step 1 got: download.json, or None."""
+    return _json(name, "download.json")
+
+
+def download(name, source):
+    """Step 1: new texts mean a new model, so everything built on the old ones goes, then they're downloaded."""
+    def target(run):
+        clear(name, 1)
+        (pdir(name) / "download.json").unlink(missing_ok=True)
+        run.status = "getting the texts"
+        run.result = {"phases": {}, "source": source, "stage": 1}
+        _catch(run, "@@PHASE@@", lambda p: run.result["phases"].__setitem__(p["phase"], p))
+        return ft._stream(run, JOB + ["download", pdir(name), source]) == 0 and downloaded(name) is not None
+    return ft._start("downloading", name, target)
+
+
 def prepare(name, source, stage=1):
     def target(run):
         clear(name, stage)
