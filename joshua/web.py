@@ -3112,6 +3112,7 @@ table.mmenu .mspace {display: inline-block; width: 38px}
 button.mact {font: inherit; font-size: .85rem; padding: 2px 12px; border-radius: 6px; border: 1px solid var(--brand); color: var(--brand); background: transparent; cursor: pointer; white-space: nowrap}
 button.mact:hover {background: var(--brand); color: var(--bg, #fff)}
 button.mact:disabled {opacity: .6; cursor: wait}
+input.mren {font: inherit; font-size: .85rem; padding: 2px 6px; width: 11em; border: 1px solid var(--brand); border-radius: 6px; margin-right: 4px; background: var(--bg, #fff); color: inherit}
 table.mrank td.mnote, table.mrank .mdim {color: var(--dim); font-size: .85rem}
 .mbar {display: inline-block; width: 90px; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--line) 60%, transparent); vertical-align: middle; margin-right: 6px; overflow: hidden}
 .mbar i {display: block; height: 100%; background: var(--brand)}
@@ -4348,13 +4349,20 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         slot.innerHTML = "<span class='mbar dl' title='" + d.dataset.label + "'><i style='width:" + d.dataset.pct + "%'></i></span> " + d.dataset.pct + '%'; d.remove(); }))
         .observe(document.body, {childList: true, subtree: true}) }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // Download / Add in the Models tables
-        const b = e.target.closest('button.mact'); if (!b) return;
-        if (b.dataset.act.startsWith('ren:')) {  // a new name for a model made by you
+        const b = e.target.closest('button.mact'); if (!b || !b.dataset.act) return;
+        if (b.dataset.act.startsWith('ren:')) {  // a new name for a model made by you, typed in its row (the Mac app has no prompt())
             const old = b.dataset.act.slice(4), now = old.replace(/:latest$/, '').replace(/^joshua-/, '');
-            const name = prompt(""" + JS_TEXT(t("New name for {model}:")) + """.replace('{model}', now), now);
-            if (!name || !name.trim() || name.trim() === now) return;
-            window.joshuaAct = 'ren:' + old + '|' + name.trim(); b.disabled = true; b.textContent = '…';
-            const g = document.querySelector('#mactgo'); (g.tagName === 'BUTTON' ? g : g.querySelector('button')).click(); return; }
+            const slot = b.closest('.mslot'), keep = slot.innerHTML;
+            slot.innerHTML = "<input class='mren' spellcheck='false'><button class='mact'>OK</button>";
+            const box = slot.querySelector('input'); box.value = now; box.title = """ + JS_TEXT(t("New name for {model}:")) + """.replace('{model}', now);
+            box.focus(); box.select();
+            const go = () => { const name = box.value.trim();
+                if (!name || name === now) { slot.innerHTML = keep; return; }
+                window.joshuaAct = 'ren:' + old + '|' + name; slot.innerHTML = '…';
+                const g = document.querySelector('#mactgo'); (g.tagName === 'BUTTON' ? g : g.querySelector('button')).click(); };
+            slot.querySelector('button').addEventListener('click', (ev) => { ev.stopPropagation(); go(); });
+            box.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') go(); if (ev.key === 'Escape') slot.innerHTML = keep; });
+            return; }
         if (b.dataset.act.startsWith('rm:') && !confirm(""" + JS_TEXT(t("Remove {model} from this computer? You can download it again later.")) + """.replace('{model}', b.dataset.act.slice(3)))) return;
         window.joshuaAct = b.dataset.act; b.disabled = true; b.textContent = '…';
         const g = document.querySelector('#mactgo'); (g.tagName === 'BUTTON' ? g : g.querySelector('button')).click(); }) }""")
