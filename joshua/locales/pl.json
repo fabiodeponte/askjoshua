@@ -891,5 +891,10 @@
  "part {k} of {n}, {mb} MB · {words} words so far": "część {k} z {n}, {mb} MB · dotąd {words} słów",
  "Fine-tune a model": "Dostrój model",
  "Train a new model": "Wytrenuj nowy model",
- "NEW MODEL": "NOWY MODEL"
+ "NEW MODEL": "NOWY MODEL",
+ "Already in Joshua": "Już w Joshui",
+ "New name": "Nowa nazwa",
+ "Choose the model to rename.": "Wybierz model, któremu chcesz zmienić nazwę.",
+ "Wait for the running step to finish.": "Poczekaj, aż trwający krok się zakończy.",
+ "{old} is now called {new}: you'll find it with this name in the model menu.": "{old} nazywa się teraz {new}: znajdziesz go pod tą nazwą w menu modeli."
 }

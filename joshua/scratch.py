@@ -206,6 +206,25 @@ def in_joshua():
     return json.loads(f.read_text()) if f.exists() else {}
 
 
+def rename(old, new):
+    """A model added to Joshua gets a new name: Ollama copies it under the new one and drops the old (the weights are
+    shared, so nothing is copied for real), and in_joshua.json follows."""
+    import ollama
+    new = (new or "").strip()
+    if not NAME_OK.match(new):
+        raise RuntimeError("Use letters, digits, dots, dashes or underscores for the name, like Wikipedia-Italian.")
+    listed = in_joshua()
+    if old not in listed:
+        raise RuntimeError(f"{old} isn't one of the models added from here.")
+    taken = {m.model.removesuffix(":latest") for m in ollama.list().models}
+    if new in taken or new in listed:
+        raise RuntimeError(f"There is already a model called {new}.")
+    ollama.copy(old, new)
+    ollama.delete(old)
+    listed[new] = listed.pop(old)
+    (ROOT / "in_joshua.json").write_text(json.dumps(listed, indent=1))
+
+
 def install(name, which="model", as_name=None):
     as_name = (as_name or f"joshua-new-{name}").strip()
     if not NAME_OK.match(as_name):

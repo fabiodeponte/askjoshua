@@ -891,5 +891,10 @@
  "part {k} of {n}, {mb} MB · {words} words so far": "第 {k} 部分，共 {n} 部分，{mb} MB · 目前 {words} 个词",
  "Fine-tune a model": "微调模型",
  "Train a new model": "训练新模型",
- "NEW MODEL": "新模型"
+ "NEW MODEL": "新模型",
+ "Already in Joshua": "已在 Joshua 中",
+ "New name": "新名称",
+ "Choose the model to rename.": "请选择要重命名的模型。",
+ "Wait for the running step to finish.": "请等待正在运行的步骤完成。",
+ "{old} is now called {new}: you'll find it with this name in the model menu.": "{old} 现在叫 {new}：你可以在模型菜单中用这个名称找到它。"
 }
