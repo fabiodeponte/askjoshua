@@ -39,11 +39,24 @@ def leaf_block(el):
     return not any(is_block(d) for d in el.find_all(True))
 
 
+def examples(soup, lang):
+    """Examples written for each language (examples.json, keyed by data-ex): a code box can't be translated piece by
+    piece, so the whole element is swapped. The English page keeps what the file has."""
+    table = json.loads((HERE / "examples.json").read_text(encoding="utf-8")) if (HERE / "examples.json").exists() else {}
+    for el in soup.select("[data-ex]"):
+        new = table.get(el["data-ex"], {}).get(lang)
+        if new is not None and lang != "en":
+            el.clear()
+            for node in list(BeautifulSoup(new, "html.parser").contents):
+                el.append(node)
+        del el["data-ex"]
+
+
 def units(soup):
     """The elements whose contents are translated as one piece, in page order."""
     found = []
     for text in soup.find_all(string=True):
-        if isinstance(text, Comment) or not has_words(text) or any(p.name in SKIP for p in text.parents):
+        if isinstance(text, Comment) or not has_words(text) or any(p.name in SKIP or p.get("data-ex") is not None for p in text.parents):
             continue
         el, top_inline = text.parent, None
         while el is not None and el.name in INLINE:
@@ -154,6 +167,7 @@ def build(out):
         tr = lambda s: (table.get(norm(s)) or norm(s)).replace("{VERSION}", version)
         for page in PAGES:
             soup = load(page)
+            examples(soup, lang)
             if lang != "en":
                 if soup.title:
                     soup.title.string = tr(soup.title.string)

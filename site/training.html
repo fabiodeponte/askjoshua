@@ -253,17 +253,17 @@ html { overflow-x: clip }  /* no sideways wobble on phones; tables keep their ow
           <li><strong>Learning the vocabulary.</strong> Joshua starts from the 256 possible bytes, so any character of any language can be written, then repeatedly joins the pair of pieces that appears most often into a new piece. This is <em>byte-pair encoding</em> (BPE), the method of GPT-2 and of most models since. It stops at 8,192 pieces, learned from the first 40 million words, which are plenty to choose them.</li>
           <li><strong>Turning the texts into numbers.</strong> Every paragraph is cut with that vocabulary and written as numbers. One paragraph in 50 is put aside, never studied, to check the model on text it hasn't seen.</li>
         </ol>
-        <p>Common words become a single piece, rarer ones are built from parts. These are real cuts from Mattapedia's vocabulary (the space belongs to the piece that follows it):</p>
-        <div class="screen"><div class="bar"><i></i><i></i><span>mattapedia · tokenizer.json</span></div><pre>L'automobile è un veicolo a motore.
-<b>L</b> | <b>'</b> | <b>auto</b> | <b>mo</b> | <b>bile</b> | <b> è</b> | <b> un</b> | <b> vei</b> | <b>colo</b> | <b> a</b> | <b> motore</b> | <b>.</b>
-<span class="d">44  7  2528  389  653  357  301  6235  574  277  4503  14</span>
+        <p data-ex="tok-intro">Common words become a single piece, rarer ones are built from parts. These are real cuts from a vocabulary of 8,192 pieces learned the same way from the first part of the English Wikipedia (the space belongs to the piece that follows it):</p>
+        <div class="screen" data-ex="tok"><div class="bar"><i></i><i></i><span>8,192 pieces · English Wikipedia</span></div><pre>The car is a motor vehicle.
+<b>The</b> | <b> car</b> | <b> is</b> | <b> a</b> | <b> motor</b> | <b> vehicle</b> | <b>.</b>
+<span class="d">456  1063  336  259  5776  5508  14</span>
 
-La Costituzione repubblicana.
-<b>La</b> | <b> Costituzione</b> | <b> repubbli</b> | <b>cana</b> | <b>.</b>
-<span class="d">568  7240  5940  2715  14</span>
+The Constitution of the Republic.
+<b>The</b> | <b> Constitution</b> | <b> of</b> | <b> the</b> | <b> Republic</b> | <b>.</b>
+<span class="d">456  5638  278  263  2498  14</span>
 
-precipitevolissimevolmente
-<b>pre</b> | <b>cipi</b> | <b>te</b> | <b>voli</b> | <b>ssi</b> | <b>me</b> | <b>volmente</b></pre></div>
+antidisestablishmentarianism
+<b>ant</b> | <b>id</b> | <b>is</b> | <b>estab</b> | <b>lish</b> | <b>ment</b> | <b>arian</b> | <b>ism</b></pre></div>
         <p>For Mattapedia, 150 million words became 268 million tokens to learn from, and 5.5 million kept aside. Each token is stored in two bytes, since 8,192 fits in the 65,536 values two bytes can hold: the whole of it is a 536 MB file, <code>train.bin</code>.</p>
       </section>
 
@@ -330,9 +330,9 @@ precipitevolissimevolmente
           <li>Every so often the model writes a sample, so you can watch it go from random pieces to words, to sentences, to something that reads like Wikipedia.</li>
         </ul>
         <p>Mattapedia went from a loss of 5.06 at step 1,000 to 3.54 at the end. Its last sample, at step 51,222, is the shape of a Wikipedia list, with invented names and dates:</p>
-        <div class="screen"><div class="bar"><i></i><i></i><span>sample · step 51,222</span></div><pre>Famiglia A.M. (20 gennaio 1795 - 18 settembre 1814 deceduto)
-Pierfranci Ralda Righi (19 ottobre 1814 - 18 marzo 1826 deceduto)
-Sigismondo Ferretti (18 dicembre 1826 - 21 novembre</pre></div>
+        <div class="screen" data-ex="s1"><div class="bar"><i></i><i></i><span>sample · step 51,222 · translated from Italian</span></div><pre>A.M. family (20 January 1795 - 18 September 1814, died)
+Pierfranci Ralda Righi (19 October 1814 - 18 March 1826, died)
+Sigismondo Ferretti (18 December 1826 - 21 November</pre></div>
       </section>
 
       <section id="qa">
@@ -343,13 +343,13 @@ Sigismondo Ferretti (18 dicembre 1826 - 21 novembre</pre></div>
           <li>The answer is the first paragraph, up to about 120 words. Disambiguation pages and lists are skipped.</li>
           <li>Every pair is laid out the same way, after the end marker:</li>
         </ul>
-        <div class="screen"><div class="bar"><i></i><i></i><span>one training example</span></div><pre>&lt;|end|&gt;
-Domanda: Che cos'è l'automobile?
-Risposta: L'automobile è un veicolo a motore …</pre></div>
+        <div class="screen" data-ex="qa"><div class="bar"><i></i><i></i><span>one training example · translated from Italian</span></div><pre>&lt;|end|&gt;
+Question: What is the car?
+Answer: The car is a motor vehicle …</pre></div>
         <p>Training starts from the pre-trained model, with a learning rate three times smaller, so it bends rather than starts over. A share of each batch still comes from Wikipedia (25% for Mattapedia), so it doesn't forget it. 50,000 questions, about 2 million words, took 2,852 steps, about 12 minutes. The loss on questions it never saw went from 2.90 to 2.61; on Wikipedia it rose from 3.54 to 3.64, a little forgetting. A sample from the end:</p>
-        <div class="screen"><div class="bar"><i></i><i></i><span>sample · step 2,852</span></div><pre>Domanda: Che cos'è Brusea?
-Risposta: Brusea (in latino Bruxalis) è un personaggio immaginario dell'universo
-fantascientifico di Guerre stellari, ideato da J. K. Rowling.</pre></div>
+        <div class="screen" data-ex="s2"><div class="bar"><i></i><i></i><span>sample · step 2,852 · translated from Italian</span></div><pre>Question: What is Brusea?
+Answer: Brusea (in Latin Bruxalis) is a fictional character of the Star Wars
+science-fiction universe, created by J. K. Rowling.</pre></div>
         <p>The format is learned: restate the subject, then define it. The facts are invented; Star Wars was not created by J. K. Rowling.</p>
       </section>
 
@@ -385,10 +385,10 @@ PARAMETER temperature 0.8</pre></div>
       <section id="expect">
         <h2>What to expect</h2>
         <p>A model of 10 million parameters learns the form of a language very well: grammar, the shape of a definition, the tone of a speech. It cannot hold facts: for that it would need hundreds of times more parameters, and of text. Asked what the American Civil War was, Wikipedia-Italian, step 4's model, answered:</p>
-        <div class="screen"><div class="bar"><i></i><i></i><span>Wikipedia-Italian</span></div><pre>Domanda: Cos'è la guerra di secessione?
-Risposta: La guerra di secessione è un trattato internazionale condotto il 5 maggio
-1917 fra la Repubblica francese, il governo e la Repubblica francese, che ebbe
-luogo il 28 maggio 1917.</pre></div>
+        <div class="screen" data-ex="wi"><div class="bar"><i></i><i></i><span>Wikipedia-Italian · translated from Italian</span></div><pre>Question: What is the War of Secession?
+Answer: The War of Secession is an international treaty concluded on 5 May 1917
+between the French Republic, the government and the French Republic, which
+took place on 28 May 1917.</pre></div>
         <p>Fluent, confident and wrong: the clearest way to see that a language model learns how things are said before it learns what is true. The big models make the same kind of mistake, only more rarely and more convincingly.</p>
       </section>
     </div>
