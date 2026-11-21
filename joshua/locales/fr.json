@@ -827,5 +827,6 @@
  "Choose a version, then write the beginning of a sentence for it to continue, or ask it a question.": "Choisissez une version, puis écrivez le début d'une phrase à continuer, ou posez-lui une question.",
  "Add to Joshua": "Ajouter à Joshua",
  "The version chosen in step 4 goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "La version choisie à l'étape 4 entre dans le menu des modèles de Joshua sous ce nom, et dans Ollama pour d'autres programmes. Dans le chat, elle ne reçoit que vos mots : pas de recherche web, pas d'outils, pas de mémoire.",
- "its name in the menu, like Wikipedia-Italian": "son nom dans le menu, par exemple Wikipedia-Italian"
+ "its name in the menu, like Wikipedia-Italian": "son nom dans le menu, par exemple Wikipedia-Italian",
+ "Stage {s}": "Étape {s}"
 }

@@ -270,7 +270,7 @@ def live_html(run):
 
 def stage2_info(n, size, stage=2):
     d = sc.data(n, stage) if n else None
-    head = "<div class='ftres'>" + html.escape(t("Continuing from this version makes stage {s}.", s=stage)) + "</div>"
+    head = "<div class='ftres'><b>" + html.escape(t("Stage {s}", s=stage)) + "</b> · " + html.escape(t("Continuing from this version makes stage {s}.", s=stage)) + "</div>"
     if not d:
         return head + "<div class='ftempty'>" + t("Choose the texts for this stage, then press Read them.") + "</div>"
     k = sc.steps(n, size, stage)
@@ -612,13 +612,18 @@ def build_new():
     train2b.click(start2, [name, size, mix, base])
 
     def base_changed(n, b, s):
-        """The stage that continuing from this version makes: its texts, its chart and its samples."""
+        """The stage that continuing from this version makes: its texts (what was chosen for it, or nothing yet),
+        its chart and its samples, so nothing from another stage is left on screen."""
         if not n:
-            return (gr.skip(),) * 4
+            return (gr.skip(),) * 10
         st = sc.stage_after(b)
         p2 = sc.progress(n, st) or {}
-        return stage2_info(n, (sc.progress(n) or {}).get("size", s), st), loss_svg(p2.get("train", []), p2.get("val", []), p2.get("old", [])), samples_html(p2.get("samples", [])), gr.update(value=round(p2.get("mix", 0.2) * 100))
-    base.input(base_changed, [name, base, size], [info2, plot2, samples2, mix], show_progress="hidden")
+        src = saved_source(n, st) if (sc.pdir(n) / f"source{st}.json").exists() else {"kind": "folder"}
+        return (stage2_info(n, (sc.progress(n) or {}).get("size", s), st), loss_svg(p2.get("train", []), p2.get("val", []), p2.get("old", [])),
+                samples_html(p2.get("samples", [])), gr.update(value=round(p2.get("mix", 0.2) * 100)),
+                src["kind"], gr.update(value=src.get("path", "")), gr.update(value=src.get("lang", "it")), gr.update(value=src.get("millions", 150)),
+                gr.update(value=bool(src.get("whole"))), gr.update(value=src.get("qcount", 50000)))
+    base.input(base_changed, [name, base, size], [info2, plot2, samples2, mix, kind2, path2, lang2, mil2, whole2, q2], show_progress="hidden")
     stopb.click(lambda: ft.stop())
     stop2b.click(lambda: ft.stop())
     contb.click(cont, [name, prompt, which, askmode])
