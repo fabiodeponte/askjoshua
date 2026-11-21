@@ -206,6 +206,21 @@ def in_joshua():
     return json.loads(f.read_text()) if f.exists() else {}
 
 
+def move(old, new):
+    """Ollama's names ignore capitals: Mattapedia and MATTAPEDIA are the same model, so copying one onto the other and
+    deleting the old would delete it. When only the capitals change, it goes through a temporary name."""
+    import ollama
+    if old.removesuffix(":latest").lower() == new.removesuffix(":latest").lower():
+        tmp = new + "-renaming"
+        ollama.copy(old, tmp)
+        ollama.delete(old)
+        ollama.copy(tmp, new)
+        ollama.delete(tmp)
+    else:
+        ollama.copy(old, new)
+        ollama.delete(old)
+
+
 def rename(old, new):
     """A model added to Joshua gets a new name: Ollama copies it under the new one and drops the old (the weights are
     shared, so nothing is copied for real), and in_joshua.json follows."""
@@ -216,11 +231,10 @@ def rename(old, new):
     listed = in_joshua()
     if old not in listed:
         raise RuntimeError(f"{old} isn't one of the models added from here.")
-    taken = {m.model.removesuffix(":latest") for m in ollama.list().models}
-    if new in taken or new in listed:
+    taken = {m.model.removesuffix(":latest").lower() for m in ollama.list().models} | {k.lower() for k in listed}
+    if new.lower() in taken - {old.lower()}:
         raise RuntimeError(f"There is already a model called {new}.")
-    ollama.copy(old, new)
-    ollama.delete(old)
+    move(old, new)
     listed[new] = listed.pop(old)
     (ROOT / "in_joshua.json").write_text(json.dumps(listed, indent=1))
 

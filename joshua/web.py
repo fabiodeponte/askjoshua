@@ -86,10 +86,9 @@ def rename_model(old, new):
         new = new if new.startswith("joshua-") else "joshua-" + new
         if not scratch.NAME_OK.match(new):
             raise RuntimeError(t("Use letters, digits, dots, dashes or underscores for the name, like Wikipedia-Italian."))
-        if new in {m.model.removesuffix(":latest") for m in ollama.list().models}:
+        if new.lower() in {m.model.removesuffix(":latest").lower() for m in ollama.list().models} - {old.removesuffix(":latest").lower()}:
             raise RuntimeError(t("There is already a model called {name}.", name=new))
-        ollama.copy(old, new)
-        ollama.delete(old)
+        scratch.move(old, new)  # through a temporary name when only the capitals change
     order = model_order()
     if old in order:
         order[order.index(old)] = new + ":latest"
