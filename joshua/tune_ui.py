@@ -420,7 +420,7 @@ def build_new():
                 plot2 = gr.HTML(loss_svg([], []))
                 samples2 = gr.HTML("")
             with gr.Column(elem_classes="ftpane"):
-                gr.Markdown("**4 · " + t("Try it") + "** " + t("Choose a version and write the beginning of a sentence: the model carries on."))
+                gr.Markdown("**4 · " + t("Try it") + "** " + t("Choose a version, then write the beginning of a sentence for it to continue, or ask it a question."))
                 which = gr.Dropdown(choices=[], value=None, label=t("Version"))
                 askmode = gr.Radio([(t("Continue a text"), "text"), (t("Ask a question"), "question")], value="text", show_label=False, elem_classes="ftsrc",
                                    info=t("A question works once the model has had a stage of questions and answers."))

@@ -823,5 +823,6 @@
  "Start this stage": "开始此阶段",
  "Continue a text": "续写文本",
  "Ask a question": "提问",
- "More stages, on other texts": "更多阶段：其他文本"
+ "More stages, on other texts": "更多阶段：其他文本",
+ "Choose a version, then write the beginning of a sentence for it to continue, or ask it a question.": "选择一个版本，然后写下一句话的开头让它续写，或者向它提问。"
 }
