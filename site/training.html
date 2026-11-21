@@ -1,0 +1,410 @@
+<title>Training a model from zero · Joshua</title>
+<link rel="icon" href="img/logo.svg" type="image/svg+xml">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="How Joshua trains a small language model from zero: download, tokenization, sizing, the Llama structure, questions and answers, fine-tuning and conversion for Ollama.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column of manifesto text, broken by full-width "screens" (terminal panels) that show the real thing. */
+:root {
+  --paper: #dfdbc3; --paper-hi: #e9e5cf; --panel: #d6d1b6; --ink: #3b2322; --dim: #75604f; --rust: #9c3b1c; --line: rgba(90, 60, 40, .38);
+  --screen: #e7e3cc; --screen-ink: #3b2322; --code: #9c3b1c; --ok: #3d7a4a; --glow: none; --brand: #3f8a49;
+  --display: "VT323", "Courier New", monospace; --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; --mono: "IBM Plex Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #000308; --paper-hi: #06101c; --panel: #050a14; --ink: #a6e6ff; --dim: #5d8ea6; --rust: #ffb347; --line: rgba(143, 233, 255, .35);
+  --screen: #02060d; --screen-ink: #a6e6ff; --code: #59f08a; --ok: #59f08a; --glow: 0 0 6px rgba(80, 200, 255, .45); --brand: #7fb86a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #000308; --paper-hi: #06101c; --panel: #050a14; --ink: #a6e6ff; --dim: #5d8ea6; --rust: #ffb347; --line: rgba(143, 233, 255, .35);
+  --screen: #02060d; --screen-ink: #a6e6ff; --code: #59f08a; --ok: #59f08a; --glow: 0 0 6px rgba(80, 200, 255, .45); --brand: #7fb86a; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: radial-gradient(ellipse at 50% 0%, var(--paper-hi) 0%, var(--paper) 70%) fixed; background-color: var(--paper); color: var(--ink);
+  font: 18px/1.6 var(--body); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 88px; padding-block: 28px 64px }
+.col { max-width: 680px }
+a { color: var(--rust) }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--rust); outline-offset: 3px }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; text-wrap: balance; margin: 0; letter-spacing: .04em; text-shadow: var(--glow) }
+h2 { font-size: clamp(2.4rem, 5vw, 3.4rem); line-height: 1; color: var(--rust); text-transform: uppercase }
+h3 { font-size: 1.75rem; line-height: 1.1; text-transform: uppercase }
+p { margin: 0 }
+.stack { display: flex; flex-direction: column; gap: 18px }
+.label { font: 600 .78rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim) }
+code, .mono { font-family: var(--mono); font-size: .88em }
+:not(pre) > code { color: var(--rust); background: var(--panel); border: 1px solid var(--line); padding: 1px 6px; border-radius: 3px }
+
+/* top bar */
+nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap }
+.brand { font: 5.4rem/1 var(--display); letter-spacing: .1em; color: var(--ink); text-decoration: none; text-shadow: var(--glow) }
+.brand::after { content: ""; display: inline-block; width: .55em; height: .95em; margin-left: 6px; vertical-align: -.13em; background: repeating-linear-gradient(to bottom, var(--brand) 0 2px, color-mix(in srgb, var(--brand) 55%, #b8f0a0) 2px 3px); box-shadow: 0 0 6px color-mix(in srgb, var(--brand) 45%, transparent); animation: slowblink 2.6s ease-in-out infinite }  /* a block cursor in two greens, like an old screen */
+nav ul { list-style: none; display: flex; gap: 16px; margin: 0; padding: 0; flex-wrap: wrap; font: 1.35rem var(--display); letter-spacing: .06em; text-transform: uppercase }
+nav ul { gap: 4px 10px; font-size: 1.25rem; margin-left: -22px; clip-path: inset(-10px -10px -10px 22px) }  /* a | before every item; the ones that begin a line fall in the hidden strip on the left */
+nav li::before { content: "|"; display: inline-block; width: 12px; margin-right: 10px; text-align: center; color: var(--dim); opacity: .5 }
+nav { flex-direction: column; align-items: flex-start; gap: 10px }  
+nav .langs { margin: 0 }
+nav { margin-bottom: -56px }
+nav a { color: var(--dim); text-decoration: none } nav a:hover { color: var(--rust) }
+@keyframes blink { 50% { opacity: 0 } }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 48px; align-items: center }
+.hero h1 { font-size: clamp(3.4rem, 8.5vw, 6.4rem); line-height: .9; text-transform: uppercase; color: var(--ink) }
+.hero h1 em { font-style: normal; color: var(--rust) }
+.lede { font-size: 1.2rem; max-width: 34ch }
+.install { display: flex; align-items: stretch; border: 1px solid var(--rust); border-radius: 4px; background: var(--screen); overflow: hidden; max-width: 100% }
+.install code { flex: 1; min-width: 0; padding: 12px 14px; background: none; border: 0; color: var(--code); overflow-x: auto; white-space: nowrap; font-size: .82rem }
+.install button { border: 0; border-left: 1px solid var(--rust); background: transparent; color: var(--rust); font: 1.3rem var(--display); letter-spacing: .08em; padding: 0 16px; cursor: pointer; text-transform: uppercase }
+.install button:hover { background: color-mix(in srgb, var(--rust) 12%, transparent) }
+.fine { font: .8rem/1.5 var(--mono); color: var(--dim) }
+
+/* terminal "screens" */
+.screen { background: var(--screen); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--glow), inset 0 0 30px rgba(0, 0, 0, .08); overflow: hidden; min-width: 0 }
+.screen .bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font: .72rem var(--mono); color: var(--dim); letter-spacing: .1em; text-transform: uppercase }
+.screen .bar i { width: 14px; height: 4px; background: currentColor; display: inline-block; opacity: .7 }
+.screen .bar i:nth-child(1) { color: var(--ok) } .screen .bar i:nth-child(2) { color: var(--rust) }
+.screen pre { margin: 0; padding: 16px 18px; font: .82rem/1.55 var(--mono); color: var(--screen-ink); overflow-x: auto; white-space: pre }
+.screen pre b { color: var(--rust); font-weight: 600 } .screen pre .ok { color: var(--ok) } .screen pre .d { color: var(--dim) }
+.cursor { display: inline-block; width: .6em; height: 1.05em; background: var(--rust); vertical-align: -2px; animation: blink 1s steps(1) infinite }
+
+/* manifesto */
+.manifesto { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px }
+.manifesto .side h2 { font-size: clamp(2.4rem, 4vw, 2.9rem) }
+.manifesto .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start }
+.theses { display: flex; flex-direction: column; gap: 34px; max-width: 680px }
+.thesis h3 { color: var(--ink); margin-bottom: 8px }
+.thesis h3 span { color: var(--rust) }
+.limits { border-top: 1px dashed var(--line); padding-top: 22px; color: var(--dim) }
+.limits strong { color: var(--ink) }
+
+/* abilities */
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line) }
+.grid > div { background: var(--paper); padding: 20px 20px 22px; display: flex; flex-direction: column; gap: 6px }
+.grid h3 { font-size: 1.45rem; color: var(--rust) }
+.grid p { font-size: .95rem; color: var(--ink) }
+
+/* tiers */
+.tiers { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 460px }
+.tiers th, .tiers td { text-align: left; padding: 12px 14px; border-bottom: 1px dashed var(--line); vertical-align: top; font-size: .95rem }
+.tiers th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.tiers td:first-child { font: 1.7rem/1 var(--display); color: var(--rust); white-space: nowrap }
+.scroll { overflow-x: auto; min-width: 0 }
+
+/* steps (a real sequence) */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; counter-reset: s }
+.steps li { counter-increment: s; border-top: 3px solid var(--rust); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: .93rem }
+.steps li::before { content: counter(s); font: 2.6rem/1 var(--display); color: var(--rust) }
+.steps strong { font: 1.45rem/1 var(--display); letter-spacing: .04em; text-transform: uppercase }
+.callout { border-left: 3px solid var(--rust); padding: 4px 0 4px 18px; font-size: 1.1rem }
+
+/* loop diagram */
+.loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; position: relative }
+.loop div { border: 1px solid var(--line); background: var(--screen); padding: 14px; border-radius: 4px; display: flex; flex-direction: column; gap: 4px; position: relative }
+.loop div:not(:last-child)::after { content: "→"; position: absolute; right: -14px; top: 50%; transform: translate(50%, -50%); color: var(--rust); font: 1.6rem var(--display) }
+.loop b { font: 1.4rem/1 var(--display); color: var(--rust); letter-spacing: .04em; font-weight: 400 }
+.loop span { font-size: .88rem }
+.back { font: .82rem var(--mono); color: var(--dim); border-top: 1px dashed var(--line); padding-top: 10px }
+
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 40px }
+footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font: .85rem var(--mono); color: var(--dim) }
+
+@media (max-width: 860px) {
+  .hero, .manifesto, .two { grid-template-columns: minmax(0, 1fr) }
+  .manifesto .side { position: static }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .loop { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .loop div:nth-child(2)::after { display: none }
+  .wrap { gap: 64px }
+  nav { margin-bottom: -32px }
+}
+@media (max-width: 520px) {
+  .grid, .steps, .loop { grid-template-columns: minmax(0, 1fr) }
+  .loop div::after { display: none }
+  nav ul { gap: 14px }
+}
+@keyframes slowblink { 0%, 100% { opacity: 1 } 50% { opacity: .15 } }
+@media (prefers-reduced-motion: reduce) { .cursor { animation: slowblink 2.6s ease-in-out infinite } }  /* a slow fade is not movement: it stays on even when the system asks for less motion */
+
+/* data map */
+.data { width: 100%; border-collapse: collapse; min-width: 720px; font-size: .93rem }
+.data th, .data td { text-align: left; padding: 12px 14px; border-bottom: 1px dashed var(--line); vertical-align: top }
+.data thead th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.data tbody th { font: 1.4rem/1.05 var(--display); color: var(--rust); font-weight: 400; letter-spacing: .03em; width: 17% }
+.data code { font-size: .8rem; word-break: break-all }
+.data .no { color: var(--ok) } .data .yes { color: var(--rust) }
+.trust { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px }
+.trust > div { border-top: 3px solid var(--rust); padding-top: 12px; display: flex; flex-direction: column; gap: 8px }
+.trust > div:first-child { border-top-color: var(--ok) }
+.trust h3 { font-size: 1.6rem }
+.howto { margin: 0; padding: 0; list-style: none; counter-reset: h; display: flex; flex-direction: column; gap: 10px }
+.howto li { counter-increment: h; display: grid; grid-template-columns: 2em minmax(0, 1fr) }
+.howto li::before { content: counter(h); color: var(--rust); font: 1.6rem/1.1 var(--display) }
+@media (max-width: 860px) { .trust { grid-template-columns: minmax(0, 1fr) } }
+
+/* api page */
+.doc { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; align-items: start }
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); display: flex; flex-direction: column; gap: 6px; font: 1.25rem var(--display); letter-spacing: .04em; text-transform: uppercase }
+.toc a { color: var(--dim); text-decoration: none } .toc a:hover { color: var(--rust) }
+.docmain { display: flex; flex-direction: column; gap: 64px; min-width: 0 }
+.docmain section { display: flex; flex-direction: column; gap: 16px; min-width: 0 }
+.docmain p, .docmain li { max-width: 70ch }
+.docmain ol, .docmain ul { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 8px }
+.screen { position: relative }
+.copy { position: absolute; top: 4px; right: 6px; border: 1px solid var(--line); background: var(--screen); color: var(--dim); font: .72rem var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 3px; cursor: pointer }
+.copy:hover { color: var(--rust); border-color: var(--rust) }
+.ref { width: 100%; border-collapse: collapse; min-width: 520px; font-size: .93rem }
+.ref th, .ref td { text-align: left; padding: 10px 12px; border-bottom: 1px dashed var(--line); vertical-align: top }
+.ref thead th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
+.ref td:first-child { font-family: var(--mono); font-size: .85rem; color: var(--rust); white-space: nowrap }
+.note { border-left: 3px solid var(--rust); padding: 4px 0 4px 16px }
+h1.page { font-size: clamp(3rem, 7vw, 5rem); line-height: .95; text-transform: uppercase; color: var(--ink) }
+h1.page em { font-style: normal; color: var(--rust) }
+@media (max-width: 860px) { .doc { grid-template-columns: minmax(0, 1fr) } .toc { position: static; flex-direction: row; flex-wrap: wrap; gap: 14px } }
+
+/* small phones: long words in big headings must not push the page wider than the screen */
+@media (max-width: 380px) { h1 { font-size: 2.1rem !important } h1, h2, h3 { overflow-wrap: anywhere; hyphens: auto } }
+html { overflow-x: clip }  /* no sideways wobble on phones; tables keep their own scroll box */
+
+/* phones: the menu is one row you can swipe, in smaller type */
+@media (max-width: 640px) {
+  nav { flex-wrap: nowrap; flex-direction: column; align-items: flex-start; gap: 10px }
+  .brand { font-size: 3.4rem }
+  nav ul { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; gap: 18px; font-size: 1.05rem; padding-bottom: 6px; -webkit-overflow-scrolling: touch; scrollbar-width: none }
+  nav ul::-webkit-scrollbar { display: none }
+  nav ul { margin-left: 0; clip-path: none; gap: 10px }
+  nav li:first-child::before { display: none }
+  nav li { flex: none }
+}
+.brand { display: inline-block; white-space: nowrap; color: var(--brand); text-shadow: none }
+.brand .logo { width: 1.9em; height: 1.9em; vertical-align: -.26em; margin: -.35em -.62em 0 -.29em }
+</style>
+<div class="wrap">
+  <nav>
+    <a class="brand" href="./" aria-label="Joshua"><img src="img/logo.svg" alt="J" class="logo">OSHUA</a>
+    <ul>
+      <li><a href="./#why">Why local</a></li>
+      <li><a href="./#data">Your data</a></li>
+      <li><a href="features.html">Features</a></li>
+      <li><a href="install.html">Install</a></li>
+      <li><a href="api.html">API</a></li>
+      <li><a href="training.html" aria-current="page">From zero</a></li>
+      <li><a href="manifesto.html">Manifesto</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="https://github.com/fabiodeponte/askjoshua">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <header class="stack">
+    <span class="label">How it works · Training a model from zero</span>
+    <h1 class="page">A language model<br><em>built from zero</em></h1>
+    <p class="lede" style="max-width:62ch">Joshua can build a small language model on your own computer, starting from random numbers: no existing model, no cloud. It is the same recipe as the big ones, at a size a laptop can handle. This page goes through every step, with the real numbers of Mattapedia, a 10-million-parameter model trained on Italian Wikipedia, taught to answer questions and then to speak like the speeches of the Italian President Sergio Mattarella.</p>
+  </header>
+
+  <div class="doc">
+    <aside class="toc" aria-label="On this page">
+      <a href="#steps">The six steps</a>
+      <a href="#download">Download</a>
+      <a href="#tokens">Tokenization</a>
+      <a href="#sizing">Sizing</a>
+      <a href="#llama">The Llama structure</a>
+      <a href="#pretraining">Pre-training</a>
+      <a href="#qa">Questions and answers</a>
+      <a href="#register">A register of its own</a>
+      <a href="#ollama">Into Ollama</a>
+      <a href="#expect">What to expect</a>
+    </aside>
+
+    <div class="docmain">
+      <section id="steps">
+        <h2>The six steps</h2>
+        <p>In Joshua, open <strong>🧬 Train a new model</strong> in the menu on the left. The page has six steps, done in order; the fourth and fifth are optional.</p>
+        <div class="scroll">
+          <table class="ref">
+            <thead><tr><th>Step</th><th>What happens</th><th>Mattapedia</th></tr></thead>
+            <tbody>
+              <tr><td>1 · Download</td><td>The texts arrive on your computer: Wikipedia, or a folder of your own.</td><td>150 million words of Italian Wikipedia</td></tr>
+              <tr><td>2 · Tokenization</td><td>The texts become a vocabulary of pieces, and every paragraph a list of numbers.</td><td>150 million words → 268 million tokens</td></tr>
+              <tr><td>3 · Pre-training</td><td>The model learns to continue text, starting from random numbers.</td><td>51,222 steps, about 4 hours</td></tr>
+              <tr><td>4 · Questions and answers</td><td>Optional. It learns to answer a question instead of only continuing.</td><td>50,000 questions, 2,852 steps, 12 minutes</td></tr>
+              <tr><td>5 · Fine-tuning</td><td>Optional. It takes on the voice of a folder of texts.</td><td>944 speeches, 1,150 steps</td></tr>
+              <tr><td>6 · Try it and add it</td><td>Each saved version can be tried, then added to Joshua and Ollama.</td><td>21 MB in Ollama</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">Everything runs on the computer, with Apple's <a href="https://github.com/ml-explore/mlx">MLX</a> library on the Mac's graphics chip. The times on this page were measured on a MacBook Air M4 with 16 GB of memory.</p>
+      </section>
+
+      <section id="download">
+        <h2>Download</h2>
+        <p>A model learns everything it knows from the texts it reads, so the first step is getting them. Joshua offers two sources.</p>
+        <ul>
+          <li><strong>Wikipedia.</strong> The <a href="https://huggingface.co/datasets/wikimedia/wikipedia">wikimedia/wikipedia</a> collection on Hugging Face has every Wikipedia as plain text, one row per article, in files of a few hundred megabytes each (in the Parquet format). Joshua downloads them one at a time and counts the words as they arrive, stopping when it has as many as you asked for. The whole Italian Wikipedia is about 470 million words, 1.8 GB.</li>
+          <li><strong>A folder.</strong> Every text file inside it and its subfolders: .txt, .md, .pdf, .epub, .docx, .odt, .html and .rtf. Nothing is downloaded; they are read where they are.</li>
+        </ul>
+        <p>The Wikipedia files go into Hugging Face's own download folder, <code>~/.cache/huggingface/hub</code>, where they stay: doing the step again is instant. Nothing is read yet: the step only lists what it got, in <code>download.json</code>.</p>
+      </section>
+
+      <section id="tokens">
+        <h2>Tokenization</h2>
+        <p>A model doesn't read letters or words: it reads numbers. Tokenization decides how text is cut into pieces, called tokens, and gives each piece a number. It happens in three phases.</p>
+        <ol>
+          <li><strong>Extracting the text.</strong> Every article or file becomes plain paragraphs in one temporary file (from a folder, repeated paragraphs are dropped), and a special marker, <code>&lt;|end|&gt;</code>, separates one document from the next.</li>
+          <li><strong>Learning the vocabulary.</strong> Joshua starts from the 256 possible bytes, so any character of any language can be written, then repeatedly joins the pair of pieces that appears most often into a new piece. This is <em>byte-pair encoding</em> (BPE), the method of GPT-2 and of most models since. It stops at 8,192 pieces, learned from the first 40 million words, which are plenty to choose them.</li>
+          <li><strong>Turning the texts into numbers.</strong> Every paragraph is cut with that vocabulary and written as numbers. One paragraph in 50 is put aside, never studied, to check the model on text it hasn't seen.</li>
+        </ol>
+        <p>Common words become a single piece, rarer ones are built from parts. These are real cuts from Mattapedia's vocabulary (the space belongs to the piece that follows it):</p>
+        <div class="screen"><div class="bar"><i></i><i></i><span>mattapedia · tokenizer.json</span></div><pre>L'automobile è un veicolo a motore.
+<b>L</b> | <b>'</b> | <b>auto</b> | <b>mo</b> | <b>bile</b> | <b> è</b> | <b> un</b> | <b> vei</b> | <b>colo</b> | <b> a</b> | <b> motore</b> | <b>.</b>
+<span class="d">44  7  2528  389  653  357  301  6235  574  277  4503  14</span>
+
+La Costituzione repubblicana.
+<b>La</b> | <b> Costituzione</b> | <b> repubbli</b> | <b>cana</b> | <b>.</b>
+<span class="d">568  7240  5940  2715  14</span>
+
+precipitevolissimevolmente
+<b>pre</b> | <b>cipi</b> | <b>te</b> | <b>voli</b> | <b>ssi</b> | <b>me</b> | <b>volmente</b></pre></div>
+        <p>For Mattapedia, 150 million words became 268 million tokens to learn from, and 5.5 million kept aside. Each token is stored in two bytes, since 8,192 fits in the 65,536 values two bytes can hold: the whole of it is a 536 MB file, <code>train.bin</code>.</p>
+      </section>
+
+      <section id="sizing">
+        <h2>Sizing</h2>
+        <p>Three numbers have to fit together: the size of the model, the size of the vocabulary and the amount of text.</p>
+        <h3>The model</h3>
+        <p>A model's size is its number of parameters: the numbers adjusted during training. Joshua offers three sizes.</p>
+        <div class="scroll">
+          <table class="ref">
+            <thead><tr><th>Size</th><th>Width</th><th>Layers</th><th>Heads</th><th>Middle width</th><th>Parameters</th></tr></thead>
+            <tbody>
+              <tr><td>10M</td><td>256</td><td>8</td><td>4</td><td>1,024</td><td>10.5 million</td></tr>
+              <tr><td>25M</td><td>384</td><td>10</td><td>6</td><td>1,280</td><td>23.8 million</td></tr>
+              <tr><td>50M</td><td>512</td><td>12</td><td>8</td><td>1,792</td><td>49.8 million</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>For comparison, the smallest models people chat with have a few billion parameters: a hundred to a thousand times more.</p>
+        <h3>The vocabulary</h3>
+        <p>Each piece of the vocabulary gets its own list of numbers, as long as the model is wide. With 8,192 pieces and a width of 256, that is 2.1 million parameters, a fifth of the 10M model. Llama 3's vocabulary of 128,000 pieces would take 33 million on its own, three times the whole model. A small model needs a small vocabulary: words get cut into more pieces, but the parameters go into understanding instead.</p>
+        <h3>The text</h3>
+        <p>A rule of thumb from DeepMind's research on training (the "Chinchilla" paper, 2022): about <strong>20 tokens for every parameter</strong>. Fewer, and the model is starved; more, and a bigger model would do better with the same computing time. Joshua also stops at 4 passes over your texts, after which a model starts learning them by heart.</p>
+        <div class="scroll">
+          <table class="ref">
+            <thead><tr><th>Size</th><th>Tokens</th><th>About (words)</th><th>Steps</th><th>Speed (tokens a second)</th><th>Time</th></tr></thead>
+            <tbody>
+              <tr><td>10M</td><td>210 million</td><td>115 million</td><td>51,222</td><td>19,500</td><td>3–4 hours</td></tr>
+              <tr><td>25M</td><td>476 million</td><td>260 million</td><td>116,200</td><td>9,300</td><td>14 hours</td></tr>
+              <tr><td>50M</td><td>996 million</td><td>550 million</td><td>243,263</td><td>2,500</td><td>4–5 days</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A step is one round of learning: 8 windows of 512 tokens, 4,096 tokens in all. The words are an estimate: with this vocabulary, Italian takes about 1.8 tokens a word.</p>
+      </section>
+
+      <section id="llama">
+        <h2>The Llama structure</h2>
+        <p>The model has the same structure as Meta's Llama models, and as most open models today: a <em>decoder-only transformer</em>, which reads tokens in order and predicts the next one. Each token can look only at the ones before it. That is what lets it write: predict a token, add it, predict the next.</p>
+        <ol>
+          <li><strong>Embedding.</strong> Each token becomes a list of 256 numbers (the width), taken from a table with one row per piece of the vocabulary. At first these are random; training moves them, until pieces used in similar ways end up with similar numbers.</li>
+          <li><strong>Layers.</strong> The lists go through 8 identical layers, each of two parts, each with a shortcut that adds its result to what came in (a residual connection).
+            <ul>
+              <li><strong>Attention</strong>: each token looks back at the previous ones and takes in what it needs from them. It does so with 4 heads at once, each free to look for something different, say grammar in one and the subject in another. Where a token is in the sentence is given by rotating its numbers by an angle that grows with the position (RoPE).</li>
+              <li><strong>Feed-forward</strong>: each token on its own goes through a wider layer of 1,024 numbers (the middle width) and back to 256, with a gate that decides what passes (SwiGLU). Much of what the model knows is stored here.</li>
+            </ul>
+            Before each part, the numbers are brought to a common scale (RMSNorm).</li>
+          <li><strong>Output.</strong> The last list is compared with every row of the embedding table, the same table as at the start, giving a score to each of the 8,192 pieces: the most likely next token scores highest.</li>
+        </ol>
+        <p>The model sees 512 tokens at once, about 280 words. The whole configuration is a short file, the same one Hugging Face's Llama models use:</p>
+        <div class="screen"><div class="bar"><i></i><i></i><span>model/config.json · 10M</span></div><pre>{"architectures": ["LlamaForCausalLM"], "model_type": "llama",
+ "hidden_size": 256, "num_hidden_layers": 8, "num_attention_heads": 4,
+ "intermediate_size": 1024, "vocab_size": 8192, "max_position_embeddings": 512,
+ "rope_theta": 10000.0, "rms_norm_eps": 1e-05, "hidden_act": "silu",
+ "tie_word_embeddings": true}</pre></div>
+      </section>
+
+      <section id="pretraining">
+        <h2>Pre-training</h2>
+        <p>Training is one exercise repeated tens of thousands of times: take 8 windows of 512 tokens from random places in the texts, have the model guess every next token, measure how wrong it was, and nudge every parameter in the direction that would have made it a little less wrong.</p>
+        <ul>
+          <li><strong>How wrong</strong> is the <em>loss</em> (cross-entropy): 9.0 means guessing at random among 8,192 pieces; lower is better. Joshua draws it as a chart, measured on the texts it studies and on the paragraphs kept aside. When the two lines part, the model is learning by heart.</li>
+          <li><strong>The nudge</strong> is done by the AdamW optimizer. Its size, the learning rate, grows over the first 500 steps to 0.001 (0.0008 for 25M, 0.0006 for 50M), then shrinks along a curve to a tenth of that by the end.</li>
+          <li>Every so often the model writes a sample, so you can watch it go from random pieces to words, to sentences, to something that reads like Wikipedia.</li>
+        </ul>
+        <p>Mattapedia went from a loss of 5.06 at step 1,000 to 3.54 at the end. Its last sample, at step 51,222, is the shape of a Wikipedia list, with invented names and dates:</p>
+        <div class="screen"><div class="bar"><i></i><i></i><span>sample · step 51,222</span></div><pre>Famiglia A.M. (20 gennaio 1795 - 18 settembre 1814 deceduto)
+Pierfranci Ralda Righi (19 ottobre 1814 - 18 marzo 1826 deceduto)
+Sigismondo Ferretti (18 dicembre 1826 - 21 novembre</pre></div>
+      </section>
+
+      <section id="qa">
+        <h2>Questions and answers</h2>
+        <p>A pre-trained model only continues text. Ask it "What is a car?" and it may go on with another question, as if it were reading a list. Chat models are taught to answer with a second round of training on questions paired with answers. Joshua makes them from Wikipedia itself: the first paragraph of an article is a definition, so it is a ready answer.</p>
+        <ul>
+          <li>The question is made from the title: "Chi era …?" for people of the past (dates in brackets and "è stato"), "Chi è …?" for living ones, and otherwise one of "Che cos'è …?", "Cos'è …?", "Che cosa è …?", "Mi spieghi che cos'è …?", with the subject as the article names it ("l'automobile", not "Automobile").</li>
+          <li>The answer is the first paragraph, up to about 120 words. Disambiguation pages and lists are skipped.</li>
+          <li>Every pair is laid out the same way, after the end marker:</li>
+        </ul>
+        <div class="screen"><div class="bar"><i></i><i></i><span>one training example</span></div><pre>&lt;|end|&gt;
+Domanda: Che cos'è l'automobile?
+Risposta: L'automobile è un veicolo a motore …</pre></div>
+        <p>Training starts from the pre-trained model, with a learning rate three times smaller, so it bends rather than starts over. A share of each batch still comes from Wikipedia (25% for Mattapedia), so it doesn't forget it. 50,000 questions, about 2 million words, took 2,852 steps, about 12 minutes. The loss on questions it never saw went from 2.90 to 2.61; on Wikipedia it rose from 3.54 to 3.64, a little forgetting. A sample from the end:</p>
+        <div class="screen"><div class="bar"><i></i><i></i><span>sample · step 2,852</span></div><pre>Domanda: Che cos'è Brusea?
+Risposta: Brusea (in latino Bruxalis) è un personaggio immaginario dell'universo
+fantascientifico di Guerre stellari, ideato da J. K. Rowling.</pre></div>
+        <p>The format is learned: restate the subject, then define it. The facts are invented; Star Wars was not created by J. K. Rowling.</p>
+      </section>
+
+      <section id="register">
+        <h2>A register of its own</h2>
+        <p>The last training is on a folder of texts with a recognisable voice: an author, a newspaper, an institution. For Mattapedia, the 944 speeches of the Italian President Sergio Mattarella from 2015 to 2026, about a million words, collected in <a href="https://www.kaggle.com/datasets/fabiodeponte/mattarella-speeches-2025-2026">a public dataset on Kaggle</a>. It works like a painting redone in another painter's style: the earlier steps give the model its language and what it knows; this one gives it a voice.</p>
+        <ul>
+          <li>It starts from the last copy of step 4, with the same vocabulary and the same smaller learning rate, for 3 passes over the new texts.</li>
+          <li>A share of each batch (20% for Mattapedia) still comes from the questions and answers, so it keeps answering.</li>
+          <li>Too little training and it still sounds like before; too much and it forgets what it knew. This is called <em>catastrophic forgetting</em>. So Joshua keeps 8 copies along the way, and a third line on the chart shows how well the model still knows the previous step's texts.</li>
+        </ul>
+        <p>For Mattapedia, the loss on speeches it never saw went from 3.43 to 3.16, while the one on questions and answers rose from 2.61 to 2.84: it took on the new voice, at some cost to the old skill.</p>
+      </section>
+
+      <section id="ollama">
+        <h2>Into Ollama</h2>
+        <p>The trained model is saved in Hugging Face's layout: its weights (<code>model.safetensors</code>), <code>config.json</code> and <code>tokenizer.json</code>. Ollama, which runs the models in Joshua, wants a single file in the GGUF format. Adding a version to Joshua takes two steps.</p>
+        <ol>
+          <li><strong>Conversion.</strong> llama.cpp's converter (<code>convert_hf_to_gguf.py</code>) packs the weights, the vocabulary and the settings into one file, at 16-bit precision: 21 MB for the 10M model. The converter recognises known vocabularies by a fingerprint, and ours is new; since it cuts text like GPT-2's, Joshua tells it to treat it as such.</li>
+          <li><strong>A Modelfile.</strong> Ollama needs a few settings: the template that wraps what you type, the token that ends an answer, how many tokens it sees at once, and how freely it picks the next one (the temperature). A model that went through step 4 gets the question-and-answer frame, so you type only the question.</li>
+        </ol>
+        <div class="screen"><div class="bar"><i></i><i></i><span>Modelfile</span></div><pre>FROM ./mattapedia.gguf
+TEMPLATE """&lt;|end|&gt;
+Domanda: {{ .Prompt }}
+Risposta:"""
+PARAMETER num_ctx 512
+PARAMETER stop "&lt;|end|&gt;"
+PARAMETER temperature 0.8</pre></div>
+        <p>Then <code>ollama create</code> adds it, and it appears in Joshua's model menu. In the chat it gets only your words: no web search, no tools and no memory. It also works from a terminal, and in any program that uses Ollama:</p>
+        <div class="screen"><div class="bar"><i></i><i></i><span>terminal</span></div><button class="copy" type="button">Copy</button><pre>ollama run Mattapedia "Che cos'è la Costituzione?"</pre></div>
+      </section>
+
+      <section id="expect">
+        <h2>What to expect</h2>
+        <p>A model of 10 million parameters learns the form of a language very well: grammar, the shape of a definition, the tone of a speech. It cannot hold facts: for that it would need hundreds of times more parameters, and of text. Asked what the American Civil War was, Wikipedia-Italian, step 4's model, answered:</p>
+        <div class="screen"><div class="bar"><i></i><i></i><span>Wikipedia-Italian</span></div><pre>Domanda: Cos'è la guerra di secessione?
+Risposta: La guerra di secessione è un trattato internazionale condotto il 5 maggio
+1917 fra la Repubblica francese, il governo e la Repubblica francese, che ebbe
+luogo il 28 maggio 1917.</pre></div>
+        <p>Fluent, confident and wrong: the clearest way to see that a language model learns how things are said before it learns what is true. The big models make the same kind of mistake, only more rarely and more convincingly.</p>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <span>Ask Joshua · <a href="./">back to the home page</a></span>
+    <span>Joshua 2026.11.21.3.121 · Own your hardware. Own your data. Own your intelligence.</span>
+  </footer>
+</div>
+
+<script>
+document.querySelectorAll(".copy").forEach((b) => b.addEventListener("click", async () => {
+  const pre = b.parentElement.querySelector("pre");
+  try { await navigator.clipboard.writeText(pre.textContent); b.textContent = "Copied"; }
+  catch (e) { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selected"; }
+  setTimeout(() => (b.textContent = "Copy"), 1600);
+}));
+</script>

@@ -11,7 +11,7 @@ import html, json, re, sys, pathlib
 from bs4 import BeautifulSoup, NavigableString, Comment
 
 HERE = pathlib.Path(__file__).parent
-PAGES = ["index", "features", "install", "api", "manifesto", "about", "feedback"]
+PAGES = ["index", "features", "install", "api", "training", "manifesto", "about", "feedback"]
 LANGS = {"en": "English", "it": "Italiano", "fr": "Français", "de": "Deutsch", "pl": "Polski", "zh": "中文"}
 INLINE = {"a", "b", "strong", "em", "i", "code", "span", "br", "small", "kbd", "sup", "sub", "mark", "abbr"}
 SKIP = {"pre", "script", "style", "code", "svg", "title"}
