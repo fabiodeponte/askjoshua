@@ -844,5 +844,6 @@
  "Stage 1 · The texts": "Étape 1 · Les textes",
  "Stage 1 · Train": "Étape 1 · Entraînement",
  "Stage 2, 3… · More training, on other texts": "Étapes 2, 3… · Encore de l'entraînement, sur d'autres textes",
- "The version chosen in Try it goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "La version choisie dans Essayez-le entre dans le menu des modèles de Joshua sous ce nom, et dans Ollama pour d'autres programmes. Dans le chat, elle ne reçoit que vos mots : pas de recherche web, pas d'outils, pas de mémoire."
+ "The version chosen in Try it goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "La version choisie dans Essayez-le entre dans le menu des modèles de Joshua sous ce nom, et dans Ollama pour d'autres programmes. Dans le chat, elle ne reçoit que vos mots : pas de recherche web, pas d'outils, pas de mémoire.",
+ "Stage {s} already exists ({what}): this would replace it, and every stage after it. If that's what you want, click again. To add a new stage instead, choose its last version in Start from.": "L'étape {s} existe déjà ({what}) : cela la remplacerait, ainsi que toutes les étapes suivantes. Si c'est ce que vous voulez, cliquez à nouveau. Pour ajouter plutôt une nouvelle étape, choisissez sa dernière version dans Partir de."
 }

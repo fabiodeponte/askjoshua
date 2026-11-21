@@ -844,5 +844,6 @@
  "Stage 1 · The texts": "Stadio 1 · I testi",
  "Stage 1 · Train": "Stadio 1 · Addestramento",
  "Stage 2, 3… · More training, on other texts": "Stadi 2, 3… · Altro addestramento, su altri testi",
- "The version chosen in Try it goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "La versione scelta in Provalo entra nel menu dei modelli di Joshua con questo nome, e in Ollama per altri programmi. Nella chat riceve solo le tue parole: niente ricerca sul web, niente strumenti, niente memoria."
+ "The version chosen in Try it goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "La versione scelta in Provalo entra nel menu dei modelli di Joshua con questo nome, e in Ollama per altri programmi. Nella chat riceve solo le tue parole: niente ricerca sul web, niente strumenti, niente memoria.",
+ "Stage {s} already exists ({what}): this would replace it, and every stage after it. If that's what you want, click again. To add a new stage instead, choose its last version in Start from.": "Lo stadio {s} esiste già ({what}): così lo sostituiresti, insieme a tutti gli stadi successivi. Se è quello che vuoi, clicca di nuovo. Per aggiungere invece un nuovo stadio, scegli la sua ultima versione in Parti da."
 }

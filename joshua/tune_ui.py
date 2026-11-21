@@ -611,7 +611,9 @@ def build_new():
             plot2_ = loss_svg(run.train, run.val, res.get("old", [])) if run.train or res.get("old") else gr.skip()
             samples2_ = samples_html(res.get("samples", []))
             which_ = versions_dd(n)
-            base_ = gr.Dropdown(choices=version_choices(n))  # new copies to build on; the choice stays
+            # new copies to build on; while it trains the choice stays, when it finishes Start from moves to its last copy,
+            # so the pane shows the next stage instead of offering to redo this one
+            base_ = versions_dd(n) if run.done and run.ok else gr.Dropdown(choices=version_choices(n))
             live2_ = live_html(run)
         elif run.kind == "continue" and res.get("text"):
             out_ = html.escape(res["text"])
@@ -625,9 +627,34 @@ def build_new():
     create.click(opened, newname, outs)
     newname.submit(opened, newname, outs)
     readb.click(lambda n, k, p, l, m, w: read(n, k, p, l, m, w, 1), [name, kind1, path1, lang1, mil1, whole1])
-    read2b.click(lambda n, k, p, l, m, w, q, b: read(n, k, p, l, m, w, sc.stage_after(b), q), [name, kind2, path2, lang2, mil2, whole2, q2, base])
+    armed = gr.State(None)
+
+    def replaces(n, b, what, armed_v):
+        """Reading or training a stage that already exists replaces it and every stage after it: that takes a second click.
+        Returns (go ahead?, new armed value)."""
+        st = sc.stage_after(b)
+        pr = (sc.progress(n, st) or {}) if n else {}
+        exists = n and (sc.pdir(n) / f"stage{st}").exists() and (what == "read" or pr.get("step", 0) >= pr.get("steps", 1))  # carrying on a stopped stage is fine
+        if not exists or armed_v == (n, st, what):
+            return True, None
+        gr.Warning(t("Stage {s} already exists ({what}): this would replace it, and every stage after it. If that's what you want, click again. To add a new stage instead, choose its last version in Start from.", s=st, what=stage_texts(n, st) or "?"))
+        return False, (n, st, what)
+
+    def read2(n, k, p, l, m, w, q, b, armed_v):
+        ok, armed_v = replaces(n, b, "read", armed_v)
+        if ok:
+            read(n, k, p, l, m, w, sc.stage_after(b), q)
+        return armed_v
+
+    def train2(n, s, m, b, armed_v):
+        ok, armed_v = replaces(n, b, "train", armed_v)
+        if ok:
+            start2(n, s, m, b)
+        return armed_v
+
+    read2b.click(read2, [name, kind2, path2, lang2, mil2, whole2, q2, base, armed], armed)
     trainb.click(start, [name, size])
-    train2b.click(start2, [name, size, mix, base])
+    train2b.click(train2, [name, size, mix, base, armed], armed)
 
     def base_changed(n, b, s):
         """The stage that continuing from this version makes: its texts (what was chosen for it, or nothing yet),
@@ -641,7 +668,7 @@ def build_new():
                 samples_html(p2.get("samples", [])), gr.update(value=round(p2.get("mix", 0.2) * 100)),
                 src["kind"], gr.update(value=src.get("path", "")), gr.update(value=src.get("lang", "it")), gr.update(value=src.get("millions", 150)),
                 gr.update(value=bool(src.get("whole"))), gr.update(value=src.get("qcount", 50000)))
-    base.input(base_changed, [name, base, size], [info2, plot2, samples2, mix, kind2, path2, lang2, mil2, whole2, q2], show_progress="hidden")
+    base.change(base_changed, [name, base, size], [info2, plot2, samples2, mix, kind2, path2, lang2, mil2, whole2, q2], show_progress="hidden")
     stopb.click(lambda: ft.stop())
     stop2b.click(lambda: ft.stop())
     contb.click(cont, [name, prompt, which, askmode])

@@ -844,5 +844,6 @@
  "Stage 1 · The texts": "阶段 1 · 文本",
  "Stage 1 · Train": "阶段 1 · 训练",
  "Stage 2, 3… · More training, on other texts": "阶段 2、3… · 在其他文本上继续训练",
- "The version chosen in Try it goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "“试一试”中选择的版本会以此名称加入 Joshua 的模型菜单，并加入 Ollama 供其他程序使用。在聊天中它只收到你的话：没有网络搜索、没有工具、没有记忆。"
+ "The version chosen in Try it goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "“试一试”中选择的版本会以此名称加入 Joshua 的模型菜单，并加入 Ollama 供其他程序使用。在聊天中它只收到你的话：没有网络搜索、没有工具、没有记忆。",
+ "Stage {s} already exists ({what}): this would replace it, and every stage after it. If that's what you want, click again. To add a new stage instead, choose its last version in Start from.": "阶段 {s} 已存在（{what}）：这会替换它以及之后的所有阶段。如果确实要这样做，请再点击一次。若要新增一个阶段，请在“起始版本”中选择它的最后一个版本。"
 }
