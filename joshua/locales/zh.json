@@ -828,5 +828,21 @@
  "Add to Joshua": "添加到 Joshua",
  "The version chosen in step 4 goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "第 4 步选择的版本会以此名称加入 Joshua 的模型菜单，并加入 Ollama 供其他程序使用。在聊天中它只收到你的话：没有网络搜索、没有工具、没有记忆。",
  "its name in the menu, like Wikipedia-Italian": "它在菜单中的名称，例如 Wikipedia-Italian",
- "Stage {s}": "第 {s} 阶段"
+ "Stage {s}": "第 {s} 阶段",
+ "Like a painting redone in the style of another painter: the first texts give the model its language and what it knows, the second its voice. Joshua takes the version chosen in Start from and trains it further on the new texts, with the same vocabulary and a gentler learning rate, so it bends rather than starts over.\n\n**The balance.** Too little of the new texts and it still sounds like the first ones; too much and it forgets them. So Joshua keeps a copy of the model at 8 points along the way: in Try it you can try each one and choose. The chart has a third line, in grey: how well the model still knows the texts of the stage it started from. When it rises, the model is forgetting them.\n\n**Mixing.** A share of each training batch can still come from the texts of the stage it started from. It slows the forgetting: the model takes on the new voice while keeping more of what it knew.": "就像用另一位画家的风格重画一幅画：第一批文本给模型语言和知识，第二批给它声音。Joshua 拿“起始版本”中选择的版本，在新文本上继续训练，词表不变、学习速度更温和，让它弯曲而不是从头开始。\n\n**平衡。** 新文本学得太少，它听起来仍像第一批；太多，它就忘了第一批。所以 Joshua 在过程中的 8 个点各保存一份模型副本：在“试一试”中你可以逐一试用并选择。图表有第三条灰色的线：模型对起点所在阶段的文本还掌握得多好。它上升时，说明模型正在遗忘。\n\n**混合。** 每批训练数据中可以有一部分仍来自起点所在阶段的文本。这能减缓遗忘：模型学到新的声音，同时保留更多原有知识。",
+ "stage {s}": "阶段 {s}",
+ "step {n}": "第 {n} 步",
+ "First read the texts of stage 1: the others use their vocabulary.": "请先读取阶段 1 的文本：其他阶段使用它们的词表。",
+ "First read the texts of stage 1.": "请先读取阶段 1 的文本。",
+ "Train stage 1 first.": "请先训练阶段 1。",
+ "Stage {s} started. A copy of the model is kept at 8 points along the way: you can try each one in Try it.": "阶段 {s} 已开始。过程中会在 8 个点各保存一份模型副本：可以在“试一试”中逐一试用。",
+ "previous texts": "之前的文本",
+ "It starts from {v}.": "起点：{v}。",
+ "Stage {s} already exists ({what}). Reading new texts or training again replaces it, and every stage after it.": "阶段 {s} 已存在（{what}）。读取新文本或重新训练会替换它以及之后的所有阶段。",
+ "questions and answers": "问答",
+ "Share of each batch still from the texts of the stage it starts from (%)": "每批中仍来自起点阶段文本的比例（%）",
+ "Stage 1 · The texts": "阶段 1 · 文本",
+ "Stage 1 · Train": "阶段 1 · 训练",
+ "Stage 2, 3… · More training, on other texts": "阶段 2、3… · 在其他文本上继续训练",
+ "The version chosen in Try it goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "“试一试”中选择的版本会以此名称加入 Joshua 的模型菜单，并加入 Ollama 供其他程序使用。在聊天中它只收到你的话：没有网络搜索、没有工具、没有记忆。"
 }

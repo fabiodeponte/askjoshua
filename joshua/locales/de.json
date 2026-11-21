@@ -828,5 +828,21 @@
  "Add to Joshua": "Zu Joshua hinzufügen",
  "The version chosen in step 4 goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "Die in Schritt 4 gewählte Version kommt unter diesem Namen in Joshuas Modellmenü und in Ollama für andere Programme. Im Chat bekommt sie nur deine Worte: keine Websuche, keine Werkzeuge, kein Gedächtnis.",
  "its name in the menu, like Wikipedia-Italian": "sein Name im Menü, etwa Wikipedia-Italian",
- "Stage {s}": "Stufe {s}"
+ "Stage {s}": "Stufe {s}",
+ "Like a painting redone in the style of another painter: the first texts give the model its language and what it knows, the second its voice. Joshua takes the version chosen in Start from and trains it further on the new texts, with the same vocabulary and a gentler learning rate, so it bends rather than starts over.\n\n**The balance.** Too little of the new texts and it still sounds like the first ones; too much and it forgets them. So Joshua keeps a copy of the model at 8 points along the way: in Try it you can try each one and choose. The chart has a third line, in grey: how well the model still knows the texts of the stage it started from. When it rises, the model is forgetting them.\n\n**Mixing.** A share of each training batch can still come from the texts of the stage it started from. It slows the forgetting: the model takes on the new voice while keeping more of what it knew.": "Wie ein Gemälde, im Stil eines anderen Malers neu gemalt: Die ersten Texte geben dem Modell seine Sprache und sein Wissen, die zweiten seine Stimme. Joshua nimmt die unter „Ausgehen von“ gewählte Version und trainiert es auf den neuen Texten weiter, mit demselben Wortschatz und einer sanfteren Lernrate, damit es sich biegt, statt neu anzufangen.\n\n**Das Gleichgewicht.** Zu wenig von den neuen Texten, und es klingt noch wie die ersten; zu viel, und es vergisst sie. Deshalb behält Joshua an 8 Punkten des Wegs eine Kopie des Modells: Unter „Ausprobieren“ kannst du jede ausprobieren und wählen. Die Grafik hat eine dritte, graue Linie: wie gut das Modell die Texte der Stufe, von der es ausging, noch kennt. Steigt sie, vergisst es sie.\n\n**Mischen.** Ein Teil jedes Trainingsstapels kann weiter aus den Texten der Stufe kommen, von der es ausging. Das bremst das Vergessen: Das Modell übernimmt die neue Stimme und behält mehr von dem, was es wusste.",
+ "stage {s}": "Stufe {s}",
+ "step {n}": "Schritt {n}",
+ "First read the texts of stage 1: the others use their vocabulary.": "Lies zuerst die Texte von Stufe 1: Die anderen nutzen ihren Wortschatz.",
+ "First read the texts of stage 1.": "Lies zuerst die Texte von Stufe 1.",
+ "Train stage 1 first.": "Trainiere zuerst Stufe 1.",
+ "Stage {s} started. A copy of the model is kept at 8 points along the way: you can try each one in Try it.": "Stufe {s} gestartet. An 8 Punkten des Wegs wird eine Kopie des Modells behalten: Unter „Ausprobieren“ kannst du jede testen.",
+ "previous texts": "vorherige Texte",
+ "It starts from {v}.": "Sie geht von {v} aus.",
+ "Stage {s} already exists ({what}). Reading new texts or training again replaces it, and every stage after it.": "Stufe {s} gibt es schon ({what}). Neue Texte lesen oder erneut trainieren ersetzt sie und alle Stufen danach.",
+ "questions and answers": "Fragen und Antworten",
+ "Share of each batch still from the texts of the stage it starts from (%)": "Anteil jedes Stapels weiter aus den Texten der Ausgangsstufe (%)",
+ "Stage 1 · The texts": "Stufe 1 · Die Texte",
+ "Stage 1 · Train": "Stufe 1 · Training",
+ "Stage 2, 3… · More training, on other texts": "Stufen 2, 3… · Weiteres Training, auf anderen Texten",
+ "The version chosen in Try it goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "Die unter „Ausprobieren“ gewählte Version kommt unter diesem Namen in Joshuas Modellmenü und in Ollama für andere Programme. Im Chat bekommt sie nur deine Worte: keine Websuche, keine Werkzeuge, kein Gedächtnis."
 }

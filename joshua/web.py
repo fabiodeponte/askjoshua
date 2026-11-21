@@ -2746,6 +2746,7 @@ body.noside #leftcol {display: none !important}
 /* the fine-tuning page: one step at a time */
 #tune .ftlead {opacity: .75; margin: -4px 0 4px}
 #tune .ftempty {opacity: .6; padding: 22px 2px}
+.ftwarn {font-size: 1.2rem; padding: 6px 10px; margin-top: 4px; border-left: 3px solid #c0392b; background: var(--codebg); color: var(--ink)}
 #tune #ftproject, #tune #ftnewrow, #tune .ftadd {gap: 8px !important; align-items: end !important}
 #tune .ftpane {padding: 10px 2px 4px}
 #tune details.ftmore {margin-top: 14px}

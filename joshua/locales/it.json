@@ -828,5 +828,21 @@
  "Add to Joshua": "Aggiungi a Joshua",
  "The version chosen in step 4 goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "La versione scelta al passo 4 entra nel menu dei modelli di Joshua con questo nome, e in Ollama per altri programmi. Nella chat riceve solo le tue parole: niente ricerca sul web, niente strumenti, niente memoria.",
  "its name in the menu, like Wikipedia-Italian": "il suo nome nel menu, per esempio Wikipedia-Italian",
- "Stage {s}": "Stadio {s}"
+ "Stage {s}": "Stadio {s}",
+ "Like a painting redone in the style of another painter: the first texts give the model its language and what it knows, the second its voice. Joshua takes the version chosen in Start from and trains it further on the new texts, with the same vocabulary and a gentler learning rate, so it bends rather than starts over.\n\n**The balance.** Too little of the new texts and it still sounds like the first ones; too much and it forgets them. So Joshua keeps a copy of the model at 8 points along the way: in Try it you can try each one and choose. The chart has a third line, in grey: how well the model still knows the texts of the stage it started from. When it rises, the model is forgetting them.\n\n**Mixing.** A share of each training batch can still come from the texts of the stage it started from. It slows the forgetting: the model takes on the new voice while keeping more of what it knew.": "Come un quadro rifatto nello stile di un altro pittore: i primi testi danno al modello la lingua e ciò che sa, i secondi la voce. Joshua prende la versione scelta in Parti da e continua ad addestrarla sui nuovi testi, con lo stesso vocabolario e un ritmo di apprendimento più dolce, così si piega invece di ricominciare da capo.\n\n**L'equilibrio.** Troppo poco dei nuovi testi e suona ancora come i primi; troppo e li dimentica. Per questo Joshua tiene una copia del modello in 8 punti lungo il percorso: in Provalo puoi provarle una per una e scegliere. Il grafico ha una terza linea, grigia: quanto bene il modello conosce ancora i testi dello stadio da cui è partito. Quando sale, li sta dimenticando.\n\n**Mescolare.** Una parte di ogni gruppo di addestramento può venire ancora dai testi dello stadio da cui è partito. Rallenta l'oblio: il modello prende la nuova voce conservando di più ciò che sapeva.",
+ "stage {s}": "stadio {s}",
+ "step {n}": "passo {n}",
+ "First read the texts of stage 1: the others use their vocabulary.": "Prima leggi i testi dello stadio 1: gli altri usano il loro vocabolario.",
+ "First read the texts of stage 1.": "Prima leggi i testi dello stadio 1.",
+ "Train stage 1 first.": "Prima addestra lo stadio 1.",
+ "Stage {s} started. A copy of the model is kept at 8 points along the way: you can try each one in Try it.": "Stadio {s} avviato. Una copia del modello viene tenuta in 8 punti lungo il percorso: puoi provarle una per una in Provalo.",
+ "previous texts": "testi precedenti",
+ "It starts from {v}.": "Parte da {v}.",
+ "Stage {s} already exists ({what}). Reading new texts or training again replaces it, and every stage after it.": "Lo stadio {s} esiste già ({what}). Leggere nuovi testi o addestrare di nuovo lo sostituisce, insieme a tutti gli stadi successivi.",
+ "questions and answers": "domande e risposte",
+ "Share of each batch still from the texts of the stage it starts from (%)": "Quota di ogni gruppo ancora dai testi dello stadio di partenza (%)",
+ "Stage 1 · The texts": "Stadio 1 · I testi",
+ "Stage 1 · Train": "Stadio 1 · Addestramento",
+ "Stage 2, 3… · More training, on other texts": "Stadi 2, 3… · Altro addestramento, su altri testi",
+ "The version chosen in Try it goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "La versione scelta in Provalo entra nel menu dei modelli di Joshua con questo nome, e in Ollama per altri programmi. Nella chat riceve solo le tue parole: niente ricerca sul web, niente strumenti, niente memoria."
 }
