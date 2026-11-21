@@ -429,9 +429,10 @@ def build_new():
                     contb = gr.Button(t("Continue"), size="sm", scale=0, min_width=120, elem_classes="ftmain")
                 out = gr.Markdown("", elem_classes="ftans", container=True)
             with gr.Column(elem_classes="ftpane"):
-                gr.Markdown("**5 · " + t("Add to Ollama") + "** " + t("The version chosen in step 4 becomes `joshua-new-<name>`, for other programs or the terminal."))
-                with gr.Row():
-                    instb = gr.Button("⬇ " + t("Add to Ollama"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
+                gr.Markdown("**5 · " + t("Add to Joshua") + "** " + t("The version chosen in step 4 goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory."))
+                with gr.Row(equal_height=True):
+                    asname = gr.Textbox(show_label=False, placeholder=t("its name in the menu, like Wikipedia-Italian"), max_lines=1, scale=3, container=False)
+                    instb = gr.Button("⬇ " + t("Add to Joshua"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
                     delb = gr.Button(t("Delete this model"), size="sm", scale=0, min_width=170, elem_id="ftdel")
         seen = gr.State(None)
 
@@ -533,14 +534,14 @@ def build_new():
         except RuntimeError as e:
             gr.Warning(str(e))
 
-    def inst(n, v):
+    def inst(n, v, as_name):
         if not need(n):
             return
         if not sc.trained(n):
             gr.Warning(t("Train the model first (step 2)."))
             return
         try:
-            sc.install(n, v or "model")
+            sc.install(n, v or "model", (as_name or "").strip() or n)
         except RuntimeError as e:
             gr.Warning(str(e))
 
@@ -623,7 +624,7 @@ def build_new():
     contb.click(cont, [name, prompt, which, askmode])
     prompt.submit(cont, [name, prompt, which, askmode])
     askmode.change(lambda m: gr.Textbox(placeholder=t("A question, like: Che cos'è l'automobile?") if m == "question" else t("The beginning of a sentence")), askmode, prompt, show_progress="hidden")
-    instb.click(inst, [name, which])
+    instb.click(inst, [name, which, asname])
     delb.click(delete, name, [name, work], js="(n) => (n && confirm(" + json.dumps(t("Delete this model and its training? A copy added to Ollama stays."), ensure_ascii=False) + ")) ? n : null")
     gr.Timer(1).tick(tick, [seen, size], [info, size, plot, samples, out, info2, plot2, samples2, which, live1, live2, base, seen], show_progress="hidden")
     return col

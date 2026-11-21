@@ -2,7 +2,7 @@
 a second stage on other texts (the style of an author, say) -> into Ollama.
 The heavy work runs in scratch_job.py, a separate process, one step at a time, through finetune's runner:
 the page shows its status, console and chart the same way. Each model lives in newmodels/<name>/."""
-import json, math, pathlib, shutil, sys
+import json, math, pathlib, re, shutil, sys
 
 import finetune as ft
 import scratch_job as job
@@ -179,7 +179,21 @@ c.main()
 """
 
 
-def install(name, which="model"):
+NAME_OK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")  # what Ollama accepts as a model name
+
+
+def in_joshua():
+    """The models made here and added to Joshua: name -> which model and version, and whether it answers questions.
+    Joshua's chat lists them even though they can't use tools, and talks to them plainly (see web.worker)."""
+    f = ROOT / "in_joshua.json"
+    return json.loads(f.read_text()) if f.exists() else {}
+
+
+def install(name, which="model", as_name=None):
+    as_name = (as_name or f"joshua-new-{name}").strip()
+    if not NAME_OK.match(as_name):
+        raise RuntimeError("Use letters, digits, dots, dashes or underscores for the name, like Wikipedia-Italian.")
+
     def target(run):
         d = pdir(name)
         gguf = d / f"{name}.gguf"
@@ -194,10 +208,13 @@ def install(name, which="model"):
         frame = f"{job.END}\n{job.QUESTION} {{{{ .Prompt }}}}\n{job.ANSWER}" if answers else "{{ .Prompt }}"
         (d / "Modelfile").write_text(f'FROM ./{gguf.name}\nTEMPLATE """{frame}"""\nPARAMETER num_ctx {job.CTX}\n'
                                      f'PARAMETER stop "{job.END}"\nPARAMETER temperature 0.8\n')
-        code = ft._stream(run, [ft.ollama_bin(), "create", f"joshua-new-{name}", "-f", "Modelfile"], cwd=d)
+        code = ft._stream(run, [ft.ollama_bin(), "create", as_name, "-f", "Modelfile"], cwd=d)
         gguf.unlink(missing_ok=True)
         if code == 0:
-            run.say(f"Done. In a terminal: ollama run joshua-new-{name} \"The beginning of a sentence\"")
+            listed = in_joshua()
+            listed[as_name] = {"model": name, "version": which, "answers": answers}
+            (ROOT / "in_joshua.json").write_text(json.dumps(listed, indent=1))
+            run.say(f"Done: {as_name} is in Joshua's model menu. In a terminal: ollama run {as_name} " + ('"Che cos\'è l\'automobile?"' if answers else '"The beginning of a sentence"'))
         return code == 0
     return ft._start("install", name, target)
 

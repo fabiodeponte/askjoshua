@@ -824,5 +824,8 @@
  "Continue a text": "Kontynuuj tekst",
  "Ask a question": "Zadaj pytanie",
  "More stages, on other texts": "Kolejne etapy, na innych tekstach",
- "Choose a version, then write the beginning of a sentence for it to continue, or ask it a question.": "Wybierz wersję, a potem napisz początek zdania do dokończenia albo zadaj jej pytanie."
+ "Choose a version, then write the beginning of a sentence for it to continue, or ask it a question.": "Wybierz wersję, a potem napisz początek zdania do dokończenia albo zadaj jej pytanie.",
+ "Add to Joshua": "Dodaj do Joshuy",
+ "The version chosen in step 4 goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "Wersja wybrana w kroku 4 trafia do menu modeli Joshuy pod tą nazwą oraz do Ollamy dla innych programów. W czacie dostaje tylko twoje słowa: bez wyszukiwania w sieci, bez narzędzi, bez pamięci.",
+ "its name in the menu, like Wikipedia-Italian": "jego nazwa w menu, np. Wikipedia-Italian"
 }

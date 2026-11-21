@@ -6,7 +6,7 @@ import copy, hashlib, html, inspect, json, os, pathlib, platform, re, secrets, s
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, reader, remote, teams, tune_ui
+import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, reader, remote, scratch, teams, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -77,7 +77,8 @@ def models(add=False):
     except Exception:
         listed = []
     CLOUD.update(m.model for m in listed if getattr(m, "remote_host", None) or m.model.split(":")[-1].endswith("cloud"))
-    names = [n for n in (m.model for m in listed) if "tools" in caps(n)]
+    plain = scratch.in_joshua()  # models trained here from zero: no tools, but you can still talk to them
+    names = [n for n in (m.model for m in listed) if "tools" in caps(n) or n.removesuffix(":latest") in plain]
     label = lambda n: "☁ " + n.removesuffix(":latest").removesuffix(":cloud").removesuffix("-cloud") if is_cloud(n) else "★ " + n.removeprefix("joshua-").removesuffix(":latest") if n.startswith("joshua-") else n.removesuffix(":latest")
     pair = FAST in names and (MODEL in names or MODEL + ":latest" in names)  # both halves of Joshua's model are here
     choices = [(label(n), n) for n in names if not (pair and n in (FAST, MODEL, MODEL + ":latest"))]
@@ -1555,7 +1556,8 @@ def notes_model(model):
     local model you have (the quickest), else the cloud model itself. (Before, it was always the fast model named in
     config.json, and when that model wasn't installed, no note was ever written.)"""
     try:
-        local = {m.model: m.size or 0 for m in ollama.list().models if not is_cloud(m.model)}
+        plain = scratch.in_joshua()  # the tiny models trained here can't write notes: they'd always be the smallest
+        local = {m.model: m.size or 0 for m in ollama.list().models if not is_cloud(m.model) and m.model.removesuffix(":latest") not in plain}
     except Exception:
         local = {}
     for name in (FAST, MODEL):
@@ -1595,11 +1597,23 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     role = conv.pop("agent", None) or {}  # a monitor's run: what to search for, and what its sites and feeds said
     checking = goal and conv.get("opts", {}).get("desk") == "journalism" and factcheck.asked(user_text)  # the fact checker
     in_team = teams.get(conv.get("team"))
+    plain = model.removesuffix(":latest") in scratch.in_joshua()
     try:
+        if plain:  # a small model trained here from zero: no tools, no web, no memory; it just gets your words
+            reply = {"role": "assistant", "content": ""}
+            shown.append(reply)
+            for chunk in ollama.generate(model, prompt=user_text or msgs[-1]["content"], stream=True, options={"num_predict": 300}):
+                reply["content"] += chunk.response
+                job.publish(shown)
+                if job.stop.is_set():
+                    break
+            reply["content"] = reply["content"].strip() or "…"
+            msgs.append({"role": "assistant", "content": reply["content"]})
+            rounds, swarm, in_team = 0, 0, None
         if in_team:  # a team chat: the lead answers, and the members work when the lead asks them
             run_team(job, conv, model, thinking, base, rounds, language)
             rounds = 0
-        if not in_team and not offline and user_text and "web_search" not in off:
+        if not plain and not in_team and not offline and user_text and "web_search" not in off:
             box = {"role": "assistant", "content": "", "metadata": {"title": "🔎 " + t("Looking online…"), "status": "done"}}
 
             def show():  # the box appears only once Joshua has decided to search
@@ -1690,7 +1704,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
         job.publish(shown)
     if conv.get("auto_title") and load(cid).get("auto_title") and user_text and not job.stop.is_set():  # the first answer is in: give the chat a title that sums it up
         answer = (last_answer(shown) or {}).get("content", "")
-        title = make_title(model, user_text, answer if isinstance(answer, str) else "", language) if answer else ""
+        title = make_title(FAST if plain else model, user_text, answer if isinstance(answer, str) else "", language) if answer else ""  # a tiny model can't write titles
         if title and in_team:  # a team's chats keep its icon in front
             title = (in_team.get("icon") or "👥") + " " + title
         if title:

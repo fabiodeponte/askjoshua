@@ -824,5 +824,8 @@
  "Continue a text": "续写文本",
  "Ask a question": "提问",
  "More stages, on other texts": "更多阶段：其他文本",
- "Choose a version, then write the beginning of a sentence for it to continue, or ask it a question.": "选择一个版本，然后写下一句话的开头让它续写，或者向它提问。"
+ "Choose a version, then write the beginning of a sentence for it to continue, or ask it a question.": "选择一个版本，然后写下一句话的开头让它续写，或者向它提问。",
+ "Add to Joshua": "添加到 Joshua",
+ "The version chosen in step 4 goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no web search, no tools, no memory.": "第 4 步选择的版本会以此名称加入 Joshua 的模型菜单，并加入 Ollama 供其他程序使用。在聊天中它只收到你的话：没有网络搜索、没有工具、没有记忆。",
+ "its name in the menu, like Wikipedia-Italian": "它在菜单中的名称，例如 Wikipedia-Italian"
 }
