@@ -896,5 +896,9 @@
  "New name": "新名称",
  "Choose the model to rename.": "请选择要重命名的模型。",
  "Wait for the running step to finish.": "请等待正在运行的步骤完成。",
- "{old} is now called {new}: you'll find it with this name in the model menu.": "{old} 现在叫 {new}：你可以在模型菜单中用这个名称找到它。"
+ "{old} is now called {new}: you'll find it with this name in the model menu.": "{old} 现在叫 {new}：你可以在模型菜单中用这个名称找到它。",
+ "There is already a model called {name}.": "已有一个名为 {name} 的模型。",
+ "Couldn't rename {model}: {error}": "无法重命名 {model}：{error}",
+ "New name for {model}:": "{model} 的新名称：",
+ "Use letters, digits, dots, dashes or underscores for the name, like Wikipedia-Italian.": "名称请使用字母、数字、点、连字符或下划线，例如 Wikipedia-Italian。"
 }

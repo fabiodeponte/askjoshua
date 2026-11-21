@@ -896,5 +896,9 @@
  "New name": "Nowa nazwa",
  "Choose the model to rename.": "Wybierz model, któremu chcesz zmienić nazwę.",
  "Wait for the running step to finish.": "Poczekaj, aż trwający krok się zakończy.",
- "{old} is now called {new}: you'll find it with this name in the model menu.": "{old} nazywa się teraz {new}: znajdziesz go pod tą nazwą w menu modeli."
+ "{old} is now called {new}: you'll find it with this name in the model menu.": "{old} nazywa się teraz {new}: znajdziesz go pod tą nazwą w menu modeli.",
+ "There is already a model called {name}.": "Istnieje już model o nazwie {name}.",
+ "Couldn't rename {model}: {error}": "Nie udało się zmienić nazwy {model}: {error}",
+ "New name for {model}:": "Nowa nazwa dla {model}:",
+ "Use letters, digits, dots, dashes or underscores for the name, like Wikipedia-Italian.": "W nazwie używaj liter, cyfr, kropek, myślników lub podkreśleń, na przykład Wikipedia-Italian."
 }

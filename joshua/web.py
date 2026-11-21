@@ -71,6 +71,33 @@ PAIR = "auto:qwen3-vl"  # one menu entry: the deep-thinking switch picks qwen3-v
 ADD = "+add"  # last entry of the model menu: opens the panels where you add cloud or local models
 
 
+def made_here(n, plain=None):
+    """A model made by you, marked ★: taught on the Fine-tune page (joshua-…) or trained from zero and added to Joshua."""
+    return n.startswith("joshua-") or n.removesuffix(":latest") in (scratch.in_joshua() if plain is None else plain)
+
+
+def rename_model(old, new):
+    """A new name for a model made by you. Ollama copies it under the new name (the weights are shared) and drops the
+    old; the menu keeps its place. A model taught on the Fine-tune page keeps its joshua- prefix, which is its ★."""
+    new, base = (new or "").strip(), old.removesuffix(":latest")
+    if base in scratch.in_joshua():
+        scratch.rename(base, new)
+    else:
+        new = new if new.startswith("joshua-") else "joshua-" + new
+        if not scratch.NAME_OK.match(new):
+            raise RuntimeError(t("Use letters, digits, dots, dashes or underscores for the name, like Wikipedia-Italian."))
+        if new in {m.model.removesuffix(":latest") for m in ollama.list().models}:
+            raise RuntimeError(t("There is already a model called {name}.", name=new))
+        ollama.copy(old, new)
+        ollama.delete(old)
+    order = model_order()
+    if old in order:
+        order[order.index(old)] = new + ":latest"
+        model_order(order)
+    CAPS.pop(old, None)
+    return new
+
+
 def models(add=False):
     try:
         listed = ollama.list().models
@@ -79,7 +106,7 @@ def models(add=False):
     CLOUD.update(m.model for m in listed if getattr(m, "remote_host", None) or m.model.split(":")[-1].endswith("cloud"))
     plain = scratch.in_joshua()  # models trained here from zero: no tools, but you can still talk to them
     names = [n for n in (m.model for m in listed) if "tools" in caps(n) or n.removesuffix(":latest") in plain]
-    label = lambda n: "☁ " + n.removesuffix(":latest").removesuffix(":cloud").removesuffix("-cloud") if is_cloud(n) else "★ " + n.removeprefix("joshua-").removesuffix(":latest") if n.startswith("joshua-") else n.removesuffix(":latest")
+    label = lambda n: "☁ " + n.removesuffix(":latest").removesuffix(":cloud").removesuffix("-cloud") if is_cloud(n) else "★ " + n.removeprefix("joshua-").removesuffix(":latest") if made_here(n, plain) else n.removesuffix(":latest")
     pair = FAST in names and (MODEL in names or MODEL + ":latest" in names)  # both halves of Joshua's model are here
     choices = [(label(n), n) for n in names if not (pair and n in (FAST, MODEL, MODEL + ":latest"))]
     if pair:
@@ -429,6 +456,8 @@ def menu_html():
         if used and kind == t("on this computer"):
             kind += f" · {used / 1e9:.1f} GB"
         btns = (act_button("up", v, "↑") if i else "<span class='mspace'></span>") + (act_button("down", v, "↓") if i < len(items) - 1 else "<span class='mspace'></span>")
+        if v not in (PAIR, apple.NAME) and made_here(v):
+            btns += act_button("ren", v, t("Rename"))
         if v not in (PAIR, apple.NAME):
             btns += act_button("unmenu", v, t("Remove") if not is_cloud(v) or providers.is_api(v) else t("Remove from the menu"))
         first = " <span class='mdefault'>" + t("default") + "</span>" if i == 0 else ""
@@ -456,6 +485,13 @@ def row_action(act):
     elif kind in ("up", "down"):
         move_model(tag, -1 if kind == "up" else 1)
         yield gr.Dropdown(choices=models(True)), gr.skip(), gr.skip(), gr.skip()
+    elif kind == "ren":
+        old, _, new = tag.partition("|")
+        try:
+            new = rename_model(old, new)
+            yield gr.Dropdown(choices=models(True)), "<div class='cloudstat'>" + t("{old} is now called {new}: you'll find it with this name in the model menu.", old=html.escape(old.removesuffix(":latest").removeprefix("joshua-")), new=html.escape(new.removeprefix("joshua-"))) + "</div>", gr.skip(), gr.skip()
+        except Exception as e:
+            yield gr.skip(), "<div class='cloudstat'>" + t("Couldn't rename {model}: {error}", model=html.escape(old), error=html.escape(str(e))) + "</div>", gr.skip(), gr.skip()
     elif kind == "unmenu" and providers.is_api(tag):
         providers.remove_model(tag)
         yield gr.Dropdown(choices=models(True)), gr.skip(), gr.skip(), gr.skip()
@@ -4313,6 +4349,12 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         .observe(document.body, {childList: true, subtree: true}) }""")
     demo.load(None, None, None, js="""() => { document.addEventListener('click', (e) => {  // Download / Add in the Models tables
         const b = e.target.closest('button.mact'); if (!b) return;
+        if (b.dataset.act.startsWith('ren:')) {  // a new name for a model made by you
+            const old = b.dataset.act.slice(4), now = old.replace(/:latest$/, '').replace(/^joshua-/, '');
+            const name = prompt(""" + JS_TEXT(t("New name for {model}:")) + """.replace('{model}', now), now);
+            if (!name || !name.trim() || name.trim() === now) return;
+            window.joshuaAct = 'ren:' + old + '|' + name.trim(); b.disabled = true; b.textContent = '…';
+            const g = document.querySelector('#mactgo'); (g.tagName === 'BUTTON' ? g : g.querySelector('button')).click(); return; }
         if (b.dataset.act.startsWith('rm:') && !confirm(""" + JS_TEXT(t("Remove {model} from this computer? You can download it again later.")) + """.replace('{model}', b.dataset.act.slice(3)))) return;
         window.joshuaAct = b.dataset.act; b.disabled = true; b.textContent = '…';
         const g = document.querySelector('#mactgo'); (g.tagName === 'BUTTON' ? g : g.querySelector('button')).click(); }) }""")

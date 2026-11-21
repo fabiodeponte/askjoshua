@@ -516,10 +516,6 @@ def build_new():
                     asname = gr.Textbox(show_label=False, placeholder=t("its name in the menu, like Wikipedia-Italian"), max_lines=1, scale=3, container=False)
                     instb = gr.Button("⬇ " + t("Add to Joshua"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
                     delb = gr.Button(t("Delete this model"), size="sm", scale=0, min_width=170, elem_id="ftdel")
-                with gr.Row(equal_height=True):
-                    added = gr.Dropdown(choices=[], value=None, label=t("Already in Joshua"), scale=2)
-                    newas = gr.Textbox(label=t("New name"), max_lines=1, scale=2)
-                    renb = gr.Button(t("Rename"), size="sm", scale=0, min_width=120)
         seen = gr.State(None)
         armed = gr.State(None)
 
@@ -673,26 +669,6 @@ def build_new():
         except RuntimeError as e:
             gr.Warning(str(e))
 
-    def added_dd(n, value=None):
-        """The versions of this model already added to Joshua, by their name in the menu."""
-        mine = [k for k, v in sc.in_joshua().items() if v.get("model") == n] if n else []
-        return gr.Dropdown(choices=mine, value=value if value in mine else (mine[0] if mine else None))
-
-    def rename(n, old, new):
-        if not old:
-            gr.Warning(t("Choose the model to rename."))
-            return gr.skip(), gr.skip()
-        if ft.busy():
-            gr.Warning(t("Wait for the running step to finish."))
-            return gr.skip(), gr.skip()
-        try:
-            sc.rename(old, new)
-        except Exception as e:
-            gr.Warning(str(e))
-            return gr.skip(), gr.skip()
-        gr.Info(t("{old} is now called {new}: you'll find it with this name in the model menu.", old=old, new=new.strip()))
-        return added_dd(n, new.strip()), ""
-
     def delete(n):
         if not n or not sc.pdir(n).exists():
             return gr.skip(), gr.skip()
@@ -806,9 +782,6 @@ def build_new():
     prompt.submit(cont, [name, prompt, which, askmode])
     askmode.change(lambda m: gr.Textbox(placeholder=t("A question, like: Che cos'è l'automobile?") if m == "question" else t("The beginning of a sentence")), askmode, prompt, show_progress="hidden")
     instb.click(inst, [name, which, asname])
-    added.focus(lambda n, v: added_dd(n, v), [name, added], added, show_progress="hidden")  # models added since the page opened
-    renb.click(rename, [name, added, newas], [added, newas])
-    name.change(lambda n: added_dd(n), name, added, show_progress="hidden")
     delb.click(delete, name, [name, work], js="(n) => (n && confirm(" + json.dumps(t("Delete this model and its training? A copy added to Ollama stays."), ensure_ascii=False) + ")) ? n : null")
     gr.Timer(1).tick(tick, [seen, size], [dl, info, size, plot, samples, out, info3, plot3, samples3, info4, plot4, samples4, which, live1, live3, live4, seen], show_progress="hidden")
     return col
