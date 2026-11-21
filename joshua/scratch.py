@@ -40,12 +40,23 @@ def trained(name):
 
 
 def versions(name):
-    """The versions you can try: the first training, then each copy kept along the second stage."""
+    """The versions you can try or build on: the first training, then each copy kept along every later stage."""
     d = pdir(name)
     out = [("after the first texts", "model")] if trained(name) else []
-    for p in sorted((d / "stage2").glob("step-*")) if (d / "stage2").exists() else []:
-        out.append((f"second stage, step {int(p.name[5:])}", f"stage2/{p.name}"))
+    for st in sorted((p for p in d.glob("stage*") if p.is_dir() and p.name[5:].isdigit()), key=lambda p: int(p.name[5:])):
+        for p in sorted(st.glob("step-*")):
+            out.append((f"stage {st.name[5:]}, step {int(p.name[5:])}", f"{st.name}/{p.name}"))
     return out
+
+
+def stage_after(version):
+    """Continuing from a version makes the next stage: from the first training, stage 2; from stage 2, stage 3."""
+    return job.stage_of(version or "model") + 1
+
+
+def last_stage(name):
+    """The highest stage that has texts read for it (1 if none)."""
+    return max([st for st in range(2, 10) if data(name, st)] or [1])
 
 
 def params(size, vocab=job.VOCAB):
@@ -58,7 +69,7 @@ def steps(name, size, stage=1):
     but no more than 4 passes over your texts, after which it starts learning them by heart.
     The second stage only has to bend a trained model: 3 passes over the new texts, at most as long as the first."""
     d = data(name, stage)
-    if stage == 2:
+    if stage > 1:
         return max(80, min(math.ceil(3 * d["train_tokens"] / (job.BATCH * job.CTX)), steps(name, size)))
     target = min(20 * params(size), 4 * d["train_tokens"])
     return max(200, math.ceil(target / (job.BATCH * job.CTX)))
@@ -96,14 +107,19 @@ def wiki(lang, millions):
     return f"wikipedia:{lang}:{millions}"
 
 
+def wikiqa(lang, n):
+    """n questions and answers made from Wikipedia articles: "Che cos'è X?" and the article's first paragraph."""
+    return f"wikiqa:{lang}:{n}"
+
+
 def clear(name, stage):
     """Reading new texts for a stage makes what was built on the old ones meaningless. New first texts mean
     a new vocabulary, so everything goes; new second texts only replace the second stage."""
     d = pdir(name)
-    for st in (1, 2) if stage == 1 else (2,):
+    for st in range(stage, 10) if stage > 1 else range(1, 10):
         for f in ("train", "val", "data", "progress"):
             (d / job.names(st)[f]).unlink(missing_ok=True)
-    shutil.rmtree(d / "stage2", ignore_errors=True)
+        shutil.rmtree(d / f"stage{st}", ignore_errors=True)
     if stage == 1:
         (d / "tokenizer.json").unlink(missing_ok=True)
         shutil.rmtree(d / "model", ignore_errors=True)
@@ -119,30 +135,30 @@ def prepare(name, source, stage=1):
     return ft._start("reading" if stage == 1 else "reading2", name, target)
 
 
-def train(name, size, stage=1, mix=0.0):
+def train(name, size, stage=1, mix=0.0, base="model"):
     def target(run):
         ft.free_memory()
         n = steps(name, size, stage)
         p = progress(name, stage)
-        same = p and p.get("size") == size and (stage == 1 or p.get("mix") == mix) and p.get("step", 0) < n
+        same = p and p.get("size") == size and (stage == 1 or (p.get("mix") == mix and p.get("base", "model") == base)) and p.get("step", 0) < n
         run.train, run.val = (p["train"], p["val"]) if same else ([], [])
         run.result = {"samples": p.get("samples", []) if same else [], "old": p.get("old", []) if same else [], "stage": stage}
         _catch(run, "@@SAMPLE@@", lambda s: run.result["samples"].append(s))
-        if stage == 2:
+        if stage > 1:
             _catch(run, "@@OLD@@", lambda o: run.result["old"].append(o))
         run.total = n
-        run.status = f"building a {size} model" if stage == 1 else "continuing on the second texts"
-        return ft._stream(run, JOB + ["train", pdir(name), size, n, stage, mix]) == 0
+        run.status = f"building a {size} model" if stage == 1 else f"stage {stage}: continuing from {base}"
+        return ft._stream(run, JOB + ["train", pdir(name), size, n, stage, mix, base]) == 0
     return ft._start("pretraining" if stage == 1 else "pretraining2", name, target)
 
 
-def try_out(name, prompt, which="model"):
+def try_out(name, prompt, which="model", question=False):
     def target(run):
         ft.free_memory()
         run.status = "writing"
         run.result = {}
         _catch(run, "@@TRY@@", lambda t: run.result.update(text=t))
-        return ft._stream(run, JOB + ["try", pdir(name), prompt, which]) == 0 and "text" in run.result
+        return ft._stream(run, JOB + ["try", pdir(name), prompt, which] + (["question"] if question else [])) == 0 and "text" in run.result
     return ft._start("continue", name, target)
 
 
@@ -171,8 +187,12 @@ def install(name, which="model"):
         if ft._stream(run, [ft.PY, "-c", CONVERT, ft.LLAMA, d / which, "--outfile", gguf, "--outtype", "f16"]) != 0:
             return False
         run.status = "2/2 adding it to Ollama"
-        # no chat template: the model continues whatever text it is given
-        (d / "Modelfile").write_text(f'FROM ./{gguf.name}\nTEMPLATE """{{{{ .Prompt }}}}"""\nPARAMETER num_ctx {job.CTX}\n'
+        # a version that went through a questions-and-answers stage gets the same frame in Ollama, so you only type
+        # the question there too; otherwise there's no template: the model continues whatever text it is given
+        upto = job.stage_of(which)
+        answers = any(str((data(name, st) or {}).get("source", "")).startswith("wikiqa:") for st in range(2, upto + 1))
+        frame = f"{job.END}\n{job.QUESTION} {{{{ .Prompt }}}}\n{job.ANSWER}" if answers else "{{ .Prompt }}"
+        (d / "Modelfile").write_text(f'FROM ./{gguf.name}\nTEMPLATE """{frame}"""\nPARAMETER num_ctx {job.CTX}\n'
                                      f'PARAMETER stop "{job.END}"\nPARAMETER temperature 0.8\n')
         code = ft._stream(run, [ft.ollama_bin(), "create", f"joshua-new-{name}", "-f", "Modelfile"], cwd=d)
         gguf.unlink(missing_ok=True)

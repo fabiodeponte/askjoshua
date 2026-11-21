@@ -41,10 +41,19 @@ def phase(**kw):
 
 
 def names(stage):
-    """The files of each stage: stage 1 is the first training, stage 2 the one that continues it on other texts."""
-    s = "" if stage == 1 else "2"
+    """The files of each stage: stage 1 is the first training; stage 2, 3… each continue a version of the one before
+    on other texts (Wikipedia, then questions and answers, then an author's style, say)."""
+    s = "" if stage == 1 else str(stage)
     return {"train": f"train{s}.bin", "val": f"val{s}.bin", "data": f"data{s}.json", "progress": f"progress{s}.json",
-            "model": "model" if stage == 1 else "stage2/model"}
+            "model": "model" if stage == 1 else f"stage{stage}/model"}
+
+
+def stage_of(version):
+    """'model' -> 1, 'stage3/step-000200' -> 3"""
+    return 1 if version == "model" else int(version.split("/")[0][5:])
+
+
+QUESTION, ANSWER = "Domanda:", "Risposta:"  # how a question and its answer are laid out, in training and when asking
 
 
 # ---------- 1. the texts ----------
@@ -83,7 +92,7 @@ def need(package, module=None):
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", package], check=True)
 
 
-def from_wikipedia(lang, words):
+def from_wikipedia(lang, words, qa=None):
     """Wikipedia in one language, article by article, until about `words` words (None: all of it). Downloaded a part
     at a time (each a few hundred MB) from Hugging Face into its cache folder, which keeps them, so preparing again
     doesn't download them again."""
@@ -103,20 +112,58 @@ def from_wikipedia(lang, words):
         phase(**info)
         path = hf_hub_download(repo, part.path, repo_type="dataset")
         phase(**info, done=True)
-        for b in pq.ParquetFile(path).iter_batches(columns=["text"], batch_size=2000):
-            for text in b.column(0).to_pylist():
+        for b in pq.ParquetFile(path).iter_batches(columns=["title", "text"], batch_size=2000):
+            for title, text in zip(b.column(0).to_pylist(), b.column(1).to_pylist()):
                 paras = [p.strip() for p in text.split("\n") if len(p.strip()) > 1]
-                got += sum(len(p.split()) for p in paras)
+                if qa:
+                    pair = question_answer(title, paras)
+                    if not pair:
+                        continue
+                    paras = pair
+                got += sum(len(p.split()) for p in paras) if not qa else 1
                 yield paras
-                if words and got >= words:
+                if (qa and got >= qa) or (not qa and words and got >= words):
                     return
-        say(f"{got:,} words so far")
+        say(f"{got:,} {'questions' if qa else 'words'} so far")
+
+
+def question_answer(title, paras, words=120):
+    """A Wikipedia article as a question and its answer: 'Che cos'è <title>?' and the article's first paragraph,
+    which on Wikipedia is a definition. People get 'Chi era' or 'Chi è', guessed from the years in brackets."""
+    import random, re
+    if not paras or "disambigua" in title.lower() or title.startswith(("Lista", "Elenco", "Anni ", "Nati ", "Morti ")):
+        return None
+    lead = paras[0]
+    if len(lead.split()) < 12:
+        return None
+    out, n = [], 0
+    for sentence in re.split(r"(?<=[.!?])\s+", lead):
+        if n + len(sentence.split()) > words and out:
+            break
+        out.append(sentence)
+        n += len(sentence.split())
+    name = re.sub(r"\s*\([^)]*\)$", "", title).strip()  # "Mercurio (astronomia)" -> "Mercurio"
+    years = re.search(r"\(([^)]*\b\d{3,4}\b[^)]*)\)", lead[:250])
+    if years and re.search(r"\bè stat[oa]\b", lead[:400]):
+        q = f"Chi era {name}?"
+    elif years and re.search(r"\b\d{4}\)", lead[:250]) and re.search(r"\bè (un|una|uno)\b", lead[:400]):
+        q = f"Chi è {name}?"
+    else:
+        # the subject as the article itself names it: "L'automobile è un veicolo…" -> "l'automobile", not "Automobile"
+        m = re.match(r"^(.{1,60}?)\s+(?:\(|è\b|sono\b)", lead)
+        if m and name.lower() in m[1].lower() and re.match(r"(?i)(l'|un'|il |lo |la |i |gli |le |un |uno |una )", m[1]):
+            name = m[1][0].lower() + m[1][1:]
+        q = random.choice([f"Che cos'è {name}?", f"Cos'è {name}?", f"Che cosa è {name}?", f"Mi spieghi che cos'è {name}?"])
+    return [f"{QUESTION} {q}", f"{ANSWER} {' '.join(out)}"]
 
 
 def documents(source):
     if source.startswith("wikipedia:"):
         _, lang, millions = source.split(":")
         return from_wikipedia(lang, None if millions == "all" else float(millions) * 1e6)
+    if source.startswith("wikiqa:"):  # questions and answers made from Wikipedia: wikiqa:LANG:HOW_MANY
+        _, lang, n = source.split(":")
+        return from_wikipedia(lang, None, qa=int(n))
     return from_folder(source)
 
 
@@ -130,9 +177,9 @@ def prepare(d, source, stage):
     f = names(stage)
     corpus = d / f"corpus{stage}.txt"
     words, docs = 0, 0
-    wiki = source.startswith("wikipedia:")
+    wiki = source.startswith(("wikipedia:", "wikiqa:"))
     target = None
-    if wiki and source.split(":")[2] != "all":
+    if source.startswith("wikipedia:") and source.split(":")[2] != "all":
         target = int(float(source.split(":")[2]) * 1e6)
     with open(corpus, "w", encoding="utf-8") as out:
         for paras in documents(source):
@@ -144,7 +191,7 @@ def prepare(d, source, stage):
                     say(f"{docs:,} documents · {words:,} words")
                     phase(phase="text", docs=docs, words=words, target=target, file=str(corpus))
     phase(phase="text", docs=docs, words=words, target=target, file=str(corpus), done=True)
-    if words < 50_000:
+    if words < (50_000 if stage == 1 else 5_000):  # a later stage only adjusts a model that already knows the language
         corpus.unlink(missing_ok=True)
         raise SystemExit(f"Only {words:,} words: a model needs at least a few hundred thousand to learn anything.")
 
@@ -261,7 +308,7 @@ def sample(model, tok, prompt, n=60, temp=0.8):
     return tok.decode(ids)
 
 
-def train(d, size, steps, stage=1, mix=0.0):
+def train(d, size, steps, stage=1, mix=0.0, base="model"):
     import mlx.core as mx, mlx.nn as nn, mlx.optimizers as optim
     from functools import partial
     from mlx.utils import tree_flatten
@@ -276,29 +323,31 @@ def train(d, size, steps, stage=1, mix=0.0):
     prog, out = d / f["progress"], d / f["model"]
     if prog.exists() and (out / "model.safetensors").exists():
         p = json.loads(prog.read_text())
-        if p.get("size") == size and p["step"] < steps and p.get("mix", mix) == mix:
+        if p.get("size") == size and p["step"] < steps and p.get("mix", mix) == mix and p.get("base", base) == base:
             model.load_weights(str(out / "model.safetensors"))
             done, meta = p["step"], {k: p.get(k, []) for k in keys}
             say(f"picking up at step {done} of {steps}")
-    if stage == 2 and not done:
-        if not (d / "model" / "model.safetensors").exists():
-            raise SystemExit("Train the model on the first texts before continuing it on others.")
-        model.load_weights(str(d / "model" / "model.safetensors"))  # where the first training ended
-        shutil.rmtree(d / "stage2", ignore_errors=True)  # a new second stage replaces the old one
-        prog.unlink(missing_ok=True)
-        say("starting from the model trained on the first texts")
+    if stage > 1 and not done:
+        if not (d / base / "model.safetensors").exists():
+            raise SystemExit("The version to start from isn't there: train the earlier stage first.")
+        model.load_weights(str(d / base / "model.safetensors"))  # where the chosen version stood
+        for later in range(stage, 10):  # a new stage replaces the old one, and whatever was built on it
+            shutil.rmtree(d / f"stage{later}", ignore_errors=True)
+            (d / names(later)["progress"]).unlink(missing_ok=True)
+        say(f"starting from {base}")
     mx.eval(model.parameters())
     n_params = sum(v.size for _, v in tree_flatten(model.parameters()))
     say(f"model: {n_params / 1e6:.1f} million parameters · {steps} steps of {BATCH * CTX:,} tokens")
 
     data = np.memmap(d / f["train"], dtype=np.uint16, mode="r")
     vdata = np.memmap(d / f["val"], dtype=np.uint16, mode="r")
-    first = np.memmap(d / "train.bin", dtype=np.uint16, mode="r") if stage == 2 else None
-    vfirst = np.memmap(d / "val.bin", dtype=np.uint16, mode="r") if stage == 2 else None
+    prev = names(stage_of(base))  # the texts of the stage the starting version came from: mixed in, and watched for forgetting
+    first = np.memmap(d / prev["train"], dtype=np.uint16, mode="r") if stage > 1 else None
+    vfirst = np.memmap(d / prev["val"], dtype=np.uint16, mode="r") if stage > 1 else None
     if len(data) <= CTX + 1:
         raise SystemExit("Not enough text to fill even one window.")
     rng = np.random.default_rng(done + 1000 * stage)
-    old_n = round(BATCH * mix) if stage == 2 else 0  # how many windows of each batch still come from the first texts
+    old_n = round(BATCH * mix) if stage > 1 else 0  # how many windows of each batch still come from the first texts
 
     def windows(src, n):
         start = rng.integers(0, len(src) - CTX - 1, n)
@@ -309,7 +358,7 @@ def train(d, size, steps, stage=1, mix=0.0):
         return mx.array(w[:, :-1]), mx.array(w[:, 1:])  # the target is the same text shifted by one token
 
     # the second stage starts from a trained model: a gentler learning rate, so it bends rather than breaks
-    lr = LR[size] * (0.3 if stage == 2 else 1)
+    lr = LR[size] * (0.3 if stage > 1 else 1)
     warm = min(500 if stage == 1 else 100, steps // 10)
     sched = optim.join_schedules([optim.linear_schedule(lr / 100, lr, warm), optim.cosine_decay(lr, max(1, steps - warm), lr / 10)], [warm])
     opt = optim.AdamW(learning_rate=sched, weight_decay=0.1)
@@ -331,7 +380,7 @@ def train(d, size, steps, stage=1, mix=0.0):
         return sum(loss_fn(model, *batch(src, 16)).item() for _ in range(10)) / 10 if len(src) > CTX + 1 else float("nan")
 
     # how often to check, save and write a sample: in stage 2, at 8 evenly spaced points, each kept as its own copy
-    every = max(10, steps // SNAPSHOTS) if stage == 2 else max(50, min(1000, steps // 20))
+    every = max(10, steps // SNAPSHOTS) if stage > 1 else max(50, min(1000, steps // 20))
     t0, start_step, run = time.time(), done, 0.0
     for i in range(done + 1, steps + 1):
         loss = step(*batch(data, old=old_n))
@@ -346,7 +395,7 @@ def train(d, size, steps, stage=1, mix=0.0):
             v = check(vdata)
             say(f"Iter {i}: Val loss {v:.3f}")
             meta["val"].append((i, round(v, 4)))
-            if stage == 2:  # how well it still knows the first texts: rising means it's forgetting them
+            if stage > 1:  # how well it still knows the earlier texts: rising means it's forgetting them
                 o = check(vfirst)
                 meta["old"].append((i, round(o, 4)))
                 say("@@OLD@@" + json.dumps([i, round(o, 4)]))
@@ -354,18 +403,21 @@ def train(d, size, steps, stage=1, mix=0.0):
             meta["samples"] = (meta["samples"] + [(i, text)])[-30:]
             say("@@SAMPLE@@" + json.dumps([i, text]))
             write_model(d, out, model, cfg)
-            if stage == 2:
-                shutil.copytree(out, d / "stage2" / f"step-{i:06d}", dirs_exist_ok=True)
-            prog.write_text(json.dumps({"step": i, "size": size, "steps": steps, "mix": mix, **meta}))
+            if stage > 1:
+                shutil.copytree(out, d / f"stage{stage}" / f"step-{i:06d}", dirs_exist_ok=True)
+            prog.write_text(json.dumps({"step": i, "size": size, "steps": steps, "mix": mix, "base": base, **meta}))
     say("finished")
 
 
-def try_it(d, prompt, which="model"):
+def try_it(d, prompt, which="model", question=False):
+    """Continues a text; or, for a question, frames it the way the questions-and-answers training did:
+    a fresh document (END), the question, then 'Risposta:' for the model to carry on. It stops at END."""
     from mlx_lm import load, generate
     from mlx_lm.sample_utils import make_sampler
     model, tok = load(str(d / which))
-    text = generate(model, tok, prompt=prompt, max_tokens=200, sampler=make_sampler(temp=0.8))
-    say("@@TRY@@" + json.dumps(prompt + text))
+    framed = f"{END}\n{QUESTION} {prompt.strip()}\n{ANSWER}" if question else prompt
+    text = generate(model, tok, prompt=framed, max_tokens=200, sampler=make_sampler(temp=0.7))
+    say("@@TRY@@" + json.dumps(text.split(END)[0].strip() if question else prompt + text))
 
 
 if __name__ == "__main__":
@@ -373,6 +425,7 @@ if __name__ == "__main__":
     if cmd == "prepare":
         prepare(d, sys.argv[3], int(sys.argv[4]) if len(sys.argv) > 4 else 1)
     elif cmd == "train":
-        train(d, sys.argv[3], int(sys.argv[4]), int(sys.argv[5]) if len(sys.argv) > 5 else 1, float(sys.argv[6]) if len(sys.argv) > 6 else 0.0)
+        train(d, sys.argv[3], int(sys.argv[4]), int(sys.argv[5]) if len(sys.argv) > 5 else 1, float(sys.argv[6]) if len(sys.argv) > 6 else 0.0,
+              sys.argv[7] if len(sys.argv) > 7 else "model")
     elif cmd == "try":
-        try_it(d, sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "model")
+        try_it(d, sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "model", len(sys.argv) > 5 and sys.argv[5] == "question")
