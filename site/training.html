@@ -158,6 +158,10 @@ footer { border-top: 1px dashed var(--line); padding-top: 22px; display: flex; j
 .ref thead th { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim) }
 .ref td:first-child { font-family: var(--mono); font-size: .85rem; color: var(--rust); white-space: nowrap }
 .note { border-left: 3px solid var(--rust); padding: 4px 0 4px 16px }
+.traces .wide { grid-column: 1 / -1 }
+.traces { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px } .traces pre { font-size: .74rem }
+@media (max-width: 860px) { .traces { grid-template-columns: minmax(0, 1fr) } }
+.merges code { margin-right: 6px; white-space: pre }
 h1.page { font-size: clamp(3rem, 7vw, 5rem); line-height: .95; text-transform: uppercase; color: var(--ink) }
 h1.page em { font-style: normal; color: var(--rust) }
 @media (max-width: 860px) { .doc { grid-template-columns: minmax(0, 1fr) } .toc { position: static; flex-direction: row; flex-wrap: wrap; gap: 14px } }
@@ -253,6 +257,106 @@ html { overflow-x: clip }  /* no sideways wobble on phones; tables keep their ow
           <li><strong>Learning the vocabulary.</strong> Joshua starts from the 256 possible bytes, so any character of any language can be written, then repeatedly joins the pair of pieces that appears most often into a new piece. This is <em>byte-pair encoding</em> (BPE), the method of GPT-2 and of most models since. It stops at 8,192 pieces, learned from the first 40 million words, which are plenty to choose them.</li>
           <li><strong>Turning the texts into numbers.</strong> Every paragraph is cut with that vocabulary and written as numbers. One paragraph in 50 is put aside, never studied, to check the model on text it hasn't seen.</li>
         </ol>
+        <h3>How the vocabulary is learned</h3>
+        <p>The second phase is the heart of tokenization. It starts from the smallest pieces there are, the 256 possible bytes. In European languages these are mostly single letters, digits and punctuation; an accented letter like é takes two bytes, a Chinese character three. Then Joshua counts every pair of pieces that stand side by side anywhere in the texts, joins the most frequent pair into a new piece, and counts again with the new piece in place. Each round adds one piece. After 7,935 rounds the vocabulary is full: 8,192 pieces, that is the 256 bytes, the end marker and 7,935 new pieces.</p>
+        <p>Since the most frequent pair always goes first, the first rounds show what each language uses most. These are the first ten pieces learned from each Wikipedia; ␣ is a space, which sticks to the piece after it, and no piece ever joins across a space:</p>
+        <div class="scroll">
+          <table class="ref merges">
+            <thead><tr><th>Wikipedia</th><th>The first ten pieces learned</th></tr></thead>
+            <tbody>
+              <tr><td>Italian</td><td><code>␣d</code> <code>on</code> <code>er</code> <code>␣c</code> <code>␣s</code> <code>el</code> <code>an</code> <code>in</code> <code>al</code> <code>en</code></td></tr>
+              <tr><td>English</td><td><code>␣t</code> <code>he</code> <code>␣a</code> <code>in</code> <code>er</code> <code>on</code> <code>␣the</code> <code>re</code> <code>␣o</code> <code>an</code></td></tr>
+              <tr><td>French</td><td><code>␣d</code> <code>é</code> <code>es</code> <code>␣l</code> <code>en</code> <code>on</code> <code>␣p</code> <code>an</code> <code>␣de</code> <code>re</code></td></tr>
+              <tr><td>German</td><td><code>er</code> <code>en</code> <code>ch</code> <code>␣d</code> <code>in</code> <code>un</code> <code>ie</code> <code>is</code> <code>an</code> <code>ei</code></td></tr>
+              <tr><td>Polish</td><td><code>ie</code> <code>ł</code> <code>␣p</code> <code>␣w</code> <code>ow</code> <code>st</code> <code>an</code> <code>cz</code> <code>sk</code> <code>ch</code></td></tr>
+              <tr><td>Chinese</td><td><code><span class="d">ef bc</span></code> <code><span class="d">e4 b8</span></code> <code><span class="d">e3 80</span></code> <code>，</code> <code><span class="d">e7 9a</span></code> <code>的</code> <code><span class="d">e4 ba</span></code> <code><span class="d">e6 9c</span></code> <code>。</code> <code><span class="d">e5 85</span></code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Accented letters are among the very first pieces, since each is two bytes that always go together: é in French, ł in Polish. In Chinese, the first rounds only put characters back together from their three bytes, shown here as numbers, and the most common characters come first: the comma, 的 ("of"), the full stop.</p>
+        <p>To cut a word, the rounds are replayed in the order they were learned, on that word alone. This is how the same word is built in each language, with the number of each round on the left:</p>
+        <div class="traces">
+          <div class="screen"><div class="bar"><i></i><i></i><span>Italian · Costituzione</span></div><pre><span class="d">      </span>  ␣|C|o|s|t|i|t|u|z|i|o|n|e
+<span class="d">     2</span>  ␣|C|o|s|t|i|t|u|z|i|on|e
+<span class="d">    15</span>  ␣|C|o|s|ti|t|u|z|i|on|e
+<span class="d">    34</span>  ␣|C|o|s|ti|t|u|zi|on|e
+<span class="d">    41</span>  ␣|C|o|s|ti|t|u|zi|one
+<span class="d">    51</span>  ␣|C|os|ti|t|u|zi|one
+<span class="d">    60</span>  ␣C|os|ti|t|u|zi|one
+<span class="d">    66</span>  ␣C|os|ti|t|u|zione
+<span class="d">    81</span>  ␣C|os|ti|tu|zione
+<span class="d">   501</span>  ␣C|os|titu|zione
+<span class="d"> 1,298</span>  ␣Cos|titu|zione
+<span class="d"> 3,951</span>  ␣Cos|tituzione
+<span class="d"> 6,984</span>  ␣Costituzione</pre></div>
+          <div class="screen"><div class="bar"><i></i><i></i><span>English · Constitution</span></div><pre><span class="d">      </span>  ␣|C|o|n|s|t|i|t|u|t|i|o|n
+<span class="d">     6</span>  ␣|C|on|s|t|i|t|u|t|i|on
+<span class="d">    20</span>  ␣|C|on|s|t|it|u|t|i|on
+<span class="d">    33</span>  ␣|C|on|s|t|it|u|t|ion
+<span class="d">    44</span>  ␣C|on|s|t|it|u|t|ion
+<span class="d">    47</span>  ␣C|on|st|it|u|t|ion
+<span class="d">    81</span>  ␣C|on|st|it|ut|ion
+<span class="d">   623</span>  ␣Con|st|it|ut|ion
+<span class="d">   640</span>  ␣Con|st|it|ution
+<span class="d"> 1,319</span>  ␣Con|stit|ution
+<span class="d"> 3,978</span>  ␣Con|stitution
+<span class="d"> 5,382</span>  ␣Constitution</pre></div>
+          <div class="screen"><div class="bar"><i></i><i></i><span>French · Constitution</span></div><pre><span class="d">      </span>  ␣|C|o|n|s|t|i|t|u|t|i|o|n
+<span class="d">     6</span>  ␣|C|on|s|t|i|t|u|t|i|on
+<span class="d">    12</span>  ␣|C|on|s|ti|t|u|ti|on
+<span class="d">    32</span>  ␣|C|on|s|ti|t|u|tion
+<span class="d">    65</span>  ␣C|on|s|ti|t|u|tion
+<span class="d">   163</span>  ␣C|on|s|ti|tu|tion
+<span class="d">   243</span>  ␣C|ons|ti|tu|tion
+<span class="d">   473</span>  ␣C|ons|titu|tion
+<span class="d"> 1,573</span>  ␣Cons|titu|tion
+<span class="d"> 2,459</span>  ␣Cons|titution
+<span class="d"> 4,146</span>  ␣Constitution</pre></div>
+          <div class="screen"><div class="bar"><i></i><i></i><span>German · Verfassung</span></div><pre><span class="d">      </span>  ␣|V|e|r|f|a|s|s|u|n|g
+<span class="d">     1</span>  ␣|V|er|f|a|s|s|u|n|g
+<span class="d">     6</span>  ␣|V|er|f|a|s|s|un|g
+<span class="d">    39</span>  ␣|V|er|f|a|s|s|ung
+<span class="d">    46</span>  ␣|V|er|f|as|s|ung
+<span class="d">    90</span>  ␣V|er|f|as|s|ung
+<span class="d">   160</span>  ␣Ver|f|as|s|ung
+<span class="d">   260</span>  ␣Ver|f|ass|ung
+<span class="d"> 1,514</span>  ␣Ver|f|assung
+<span class="d"> 1,979</span>  ␣Verf|assung
+<span class="d"> 3,662</span>  ␣Verfassung</pre></div>
+          <div class="screen"><div class="bar"><i></i><i></i><span>Polish · Konstytucja</span></div><pre><span class="d">      </span>  ␣|K|o|n|s|t|y|t|u|c|j|a
+<span class="d">     6</span>  ␣|K|o|n|st|y|t|u|c|j|a
+<span class="d">    66</span>  ␣|K|on|st|y|t|u|c|j|a
+<span class="d">    79</span>  ␣K|on|st|y|t|u|c|j|a
+<span class="d">    81</span>  ␣K|on|st|y|t|u|c|ja
+<span class="d">   117</span>  ␣K|on|st|y|tu|c|ja
+<span class="d">   231</span>  ␣K|on|st|y|tu|cja
+<span class="d">   237</span>  ␣K|on|sty|tu|cja
+<span class="d">   824</span>  ␣Kon|sty|tu|cja
+<span class="d"> 1,298</span>  ␣Kon|stytu|cja
+<span class="d"> 5,971</span>  ␣Konstytu|cja</pre></div>
+          <div class="screen wide"><div class="bar"><i></i><i></i><span>Chinese · 中华人民共和国</span></div><pre><span class="d">      </span>  <span class="d">e4</span>|<span class="d">b8</span>|<span class="d">ad</span>|<span class="d">e5</span>|<span class="d">8d</span>|<span class="d">8e</span>|<span class="d">e4</span>|<span class="d">ba</span>|<span class="d">ba</span>|<span class="d">e6</span>|<span class="d">b0</span>|<span class="d">91</span>|<span class="d">e5</span>|<span class="d">85</span>|<span class="d">b1</span>|<span class="d">e5</span>|<span class="d">92</span>|<span class="d">8c</span>|<span class="d">e5</span>|<span class="d">9b</span>|<span class="d">bd</span>
+<span class="d">     2</span>  <span class="d">e4 b8</span>|<span class="d">ad</span>|<span class="d">e5</span>|<span class="d">8d</span>|<span class="d">8e</span>|<span class="d">e4</span>|<span class="d">ba</span>|<span class="d">ba</span>|<span class="d">e6</span>|<span class="d">b0</span>|<span class="d">91</span>|<span class="d">e5</span>|<span class="d">85</span>|<span class="d">b1</span>|<span class="d">e5</span>|<span class="d">92</span>|<span class="d">8c</span>|<span class="d">e5</span>|<span class="d">9b</span>|<span class="d">bd</span>
+<span class="d">     7</span>  <span class="d">e4 b8</span>|<span class="d">ad</span>|<span class="d">e5</span>|<span class="d">8d</span>|<span class="d">8e</span>|<span class="d">e4 ba</span>|<span class="d">ba</span>|<span class="d">e6</span>|<span class="d">b0</span>|<span class="d">91</span>|<span class="d">e5</span>|<span class="d">85</span>|<span class="d">b1</span>|<span class="d">e5</span>|<span class="d">92</span>|<span class="d">8c</span>|<span class="d">e5</span>|<span class="d">9b</span>|<span class="d">bd</span>
+<span class="d">    10</span>  <span class="d">e4 b8</span>|<span class="d">ad</span>|<span class="d">e5</span>|<span class="d">8d</span>|<span class="d">8e</span>|<span class="d">e4 ba</span>|<span class="d">ba</span>|<span class="d">e6</span>|<span class="d">b0</span>|<span class="d">91</span>|<span class="d">e5 85</span>|<span class="d">b1</span>|<span class="d">e5</span>|<span class="d">92</span>|<span class="d">8c</span>|<span class="d">e5</span>|<span class="d">9b</span>|<span class="d">bd</span>
+<span class="d">    23</span>  <span class="d">e4 b8</span>|<span class="d">ad</span>|<span class="d">e5 8d</span>|<span class="d">8e</span>|<span class="d">e4 ba</span>|<span class="d">ba</span>|<span class="d">e6</span>|<span class="d">b0</span>|<span class="d">91</span>|<span class="d">e5 85</span>|<span class="d">b1</span>|<span class="d">e5</span>|<span class="d">92</span>|<span class="d">8c</span>|<span class="d">e5</span>|<span class="d">9b</span>|<span class="d">bd</span>
+<span class="d">    26</span>  <span class="d">e4 b8</span>|<span class="d">ad</span>|<span class="d">e5 8d</span>|<span class="d">8e</span>|<span class="d">e4 ba</span>|<span class="d">ba</span>|<span class="d">e6</span>|<span class="d">b0</span>|<span class="d">91</span>|<span class="d">e5 85</span>|<span class="d">b1</span>|<span class="d">e5</span>|<span class="d">92</span>|<span class="d">8c</span>|<span class="d">e5 9b</span>|<span class="d">bd</span>
+<span class="d">    32</span>  中|<span class="d">e5 8d</span>|<span class="d">8e</span>|<span class="d">e4 ba</span>|<span class="d">ba</span>|<span class="d">e6</span>|<span class="d">b0</span>|<span class="d">91</span>|<span class="d">e5 85</span>|<span class="d">b1</span>|<span class="d">e5</span>|<span class="d">92</span>|<span class="d">8c</span>|<span class="d">e5 9b</span>|<span class="d">bd</span>
+<span class="d">    37</span>  中|<span class="d">e5 8d</span>|<span class="d">8e</span>|人|<span class="d">e6</span>|<span class="d">b0</span>|<span class="d">91</span>|<span class="d">e5 85</span>|<span class="d">b1</span>|<span class="d">e5</span>|<span class="d">92</span>|<span class="d">8c</span>|<span class="d">e5 9b</span>|<span class="d">bd</span>
+<span class="d">    53</span>  中|<span class="d">e5 8d</span>|<span class="d">8e</span>|人|<span class="d">e6</span>|<span class="d">b0</span>|<span class="d">91</span>|<span class="d">e5 85</span>|<span class="d">b1</span>|<span class="d">e5 92</span>|<span class="d">8c</span>|<span class="d">e5 9b</span>|<span class="d">bd</span>
+<span class="d">    55</span>  中|<span class="d">e5 8d</span>|<span class="d">8e</span>|人|<span class="d">e6</span>|<span class="d">b0</span>|<span class="d">91</span>|<span class="d">e5 85</span>|<span class="d">b1</span>|<span class="d">e5 92</span>|<span class="d">8c</span>|国
+<span class="d">    57</span>  中|<span class="d">e5 8d</span>|<span class="d">8e</span>|人|<span class="d">e6 b0</span>|<span class="d">91</span>|<span class="d">e5 85</span>|<span class="d">b1</span>|<span class="d">e5 92</span>|<span class="d">8c</span>|国
+<span class="d">    58</span>  中|<span class="d">e5 8d</span>|<span class="d">8e</span>|人|<span class="d">e6 b0</span>|<span class="d">91</span>|<span class="d">e5 85</span>|<span class="d">b1</span>|和|国
+<span class="d">   126</span>  中|<span class="d">e5 8d</span>|<span class="d">8e</span>|人|民|<span class="d">e5 85</span>|<span class="d">b1</span>|和|国
+<span class="d">   253</span>  中|<span class="d">e5 8d</span>|<span class="d">8e</span>|人|民|共|和|国
+<span class="d">   537</span>  中|<span class="d">e5 8d</span>|<span class="d">8e</span>|人民|共|和|国
+<span class="d">   579</span>  中|华|人民|共|和|国
+<span class="d">   704</span>  中|华|人民|共和|国
+<span class="d"> 1,119</span>  中|华|人民共和|国
+<span class="d"> 1,208</span>  中华|人民共和|国
+<span class="d"> 1,445</span>  中华|人民共和国
+<span class="d"> 1,526</span>  中华人民共和国</pre></div>
+        </div>
+        <p>A frequent word ends up whole: Costituzione at round 6,984, Constitution at 5,382 in English, Verfassung at 3,662 in German. A rarer one stays in parts, like Konstytu|cja in Polish. Chinese has no spaces, so whole stretches of text are counted together and pieces can join several words: after rebuilding the characters, it joins 人民 ("people"), then 共和 ("republic"), until round 1,526 makes 中华人民共和国, "People's Republic of China", a single piece.</p>
         <p data-ex="tok-intro">Common words become a single piece, rarer ones are built from parts. These are real cuts from a vocabulary of 8,192 pieces learned the same way from the first part of the English Wikipedia (the space belongs to the piece that follows it):</p>
         <div class="screen" data-ex="tok"><div class="bar"><i></i><i></i><span>8,192 pieces · English Wikipedia</span></div><pre>The car is a motor vehicle.
 <b>The</b> | <b> car</b> | <b> is</b> | <b> a</b> | <b> motor</b> | <b> vehicle</b> | <b>.</b>
