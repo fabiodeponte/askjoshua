@@ -1756,8 +1756,10 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     if mem and learn_setting() and user_text and not job.stop.is_set():
         answer = next((m["content"] for m in reversed(msgs) if m["role"] == "assistant" and m.get("content")), "")
         # memory notes are written by a model on this computer when there is one, even after a cloud answer
-        writer = notes_model(model) if is_cloud(model) else resolve(conv.get("model") or model, False) if conv.get("model") == PAIR else model
-        if writer and (not is_cloud(writer) or share_memory_setting()):  # no local model: learn only if you let cloud models see your notes
+        # (and after an answer from a small model trained here from zero, which can't write them, by a regular one)
+        plain = model.removesuffix(":latest") in scratch.in_joshua()
+        writer = notes_model(model) if is_cloud(model) or plain else resolve(conv.get("model") or model, False) if conv.get("model") == PAIR else model
+        if writer and writer.removesuffix(":latest") not in scratch.in_joshua() and (not is_cloud(writer) or share_memory_setting()):  # no local model: learn only if you let cloud models see your notes
             extract_memory(writer, user_text, answer)
 
 
