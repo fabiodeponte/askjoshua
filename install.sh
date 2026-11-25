@@ -409,6 +409,13 @@ if [ "$IMAGES" = y ]; then
     [ -x "$APP/image-venv/bin/python" ] || "$UV" venv -q --python 3.12 "$APP/image-venv"
     "$UV" pip install -q --python "$APP/image-venv/bin/python" torch diffusers transformers accelerate safetensors pillow
     TEST=("$APP/image-venv/bin/python" "$APP/imagegen.py" --prompt "a small lighthouse at dusk" --width 256 --height 256 --out "$HOME_DIR/test-image.png")
+    # reading the image model (~16 GB) makes Ubuntu move open programs to swap, and the desktop freezes:
+    # swappiness 10 keeps programs in memory unless memory is really running out
+    if [ "$(cat /proc/sys/vm/swappiness)" -gt 10 ]; then
+      say "  ${dim}So the computer doesn't freeze while drawing, Joshua tells Linux to use swap less (asks for your password).${off}"
+      echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-joshua-swappiness.conf >/dev/null
+      sudo sysctl -q -p /etc/sysctl.d/99-joshua-swappiness.conf && ok "swap: used only when memory runs out"
+    fi
   fi
   say "  ${dim}Downloading the image model and drawing a test picture…${off}"
   if "${TEST[@]}" >"$HOME_DIR/image-test.log" 2>&1; then ok "working (test picture: $HOME_DIR/test-image.png)"
@@ -492,6 +499,7 @@ cat > "$HOME_DIR/uninstall.sh" <<EOF
 read -r -p "Remove Joshua, its chats and its Python? [y/N] " a </dev/tty; [[ "\$a" =~ ^[Yy] ]] || exit 0
 [ -f "$SERVICE" ] && { $HALT; systemctl --user disable joshua 2>/dev/null; rm -f "$SERVICE"; }
 pkill -f "$APP/web.py" || true
+[ -f /etc/sysctl.d/99-joshua-swappiness.conf ] && { sudo rm -f /etc/sysctl.d/99-joshua-swappiness.conf; sudo sysctl -q vm.swappiness=60; }  # Linux's usual swap setting again
 rm -rf "$HOME_DIR" "$LAUNCHER"
 read -r -p "Also delete the models from Ollama ($FAST $MODEL)? [y/N] " a </dev/tty
 [[ "\$a" =~ ^[Yy] ]] && "$OLLAMA" rm $FAST $MODEL
