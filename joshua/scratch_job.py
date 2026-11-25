@@ -269,7 +269,7 @@ def search_answer(title, paras):
     m = re.match(r"^(.{1,60}?)\s+(?:\(|è\b|sono\b|fu\b)", paras[0])  # "L'automobile è…" -> ask about "l'automobile"
     asked = m[1][0].lower() + m[1][1:] if m and subject.lower() in m[1].lower() and re.match(r"(?i)(l'|il |lo |la |i |gli |le )", m[1]) else subject
     named = subject[0].lower() + subject[1:] if asked != subject else subject  # a common noun: "parlami di automobile", not "di Automobile"
-    found = cut(" ".join(paras[:2]), FOUND_WORDS)
+    found = cut(" ".join(p for p in paras[:2] if len(p.split()) >= 8), FOUND_WORDS)  # a short second line is a section heading, which the search never gives back
     return [f"{QUESTION} {asked_as(asked, paras[0], named)}", f"{SEARCH} {subject}", f"{RESULT} {title}. {found}", f"{ANSWER} {found}"]
 
 
