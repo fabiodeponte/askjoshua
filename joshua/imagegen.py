@@ -16,4 +16,4 @@ if torch.cuda.get_device_properties(0).total_memory / 2**30 >= 20:
 else:
     pipe.enable_model_cpu_offload()  # keeps only the part in use on the card: fits about 12 GB, a bit slower
 refs = {"image": [Image.open(p).convert("RGB") for p in a.images]} if a.images else {}
-pipe(a.prompt, width=a.width, height=a.height, guidance_scale=1.0, num_inference_steps=4, **refs).images[0].save(a.out)
+pipe(prompt=a.prompt, width=a.width, height=a.height, guidance_scale=1.0, num_inference_steps=4, **refs).images[0].save(a.out)

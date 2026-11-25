@@ -331,6 +331,14 @@ if [ "$OS" = Linux ]; then
       ok "bubblewrap installed"
     else warn "without bubblewrap, Joshua's code runs without a sandbox; install the 'bubblewrap' package to add it"; fi
   fi
+  # Ubuntu 24.04 and later: AppArmor stops programs from making the private space bubblewrap needs, unless a profile allows it
+  if command -v bwrap >/dev/null && ! bwrap --ro-bind / / true 2>/dev/null && [ -d /etc/apparmor.d ]; then
+    say "  ${dim}This system's AppArmor blocks bubblewrap. Joshua will add a rule that allows it (asks for your password).${off}"
+    BW=$(command -v bwrap)
+    printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile bwrap %s flags=(unconfined) {\n  userns,\n  include if exists <local/bwrap>\n}\n' "$BW" | sudo tee /etc/apparmor.d/bwrap >/dev/null
+    sudo apparmor_parser -r /etc/apparmor.d/bwrap
+    if bwrap --ro-bind / / true 2>/dev/null; then ok "the sandbox works"; else warn "the sandbox still doesn't start: Joshua won't be able to run code"; fi
+  fi
 fi
 
 step "Python"

@@ -158,6 +158,9 @@ def run_python(code: str) -> str:
         r = subprocess.run(cmd, cwd=work, capture_output=True, text=True, timeout=CTX.timeout, env=dict(os.environ, MPLCONFIGDIR=tempfile.gettempdir(), PYTHONIOENCODING="utf-8"))
     except subprocess.TimeoutExpired:
         return f"Stopped: the code ran longer than {CTX.timeout} seconds."
+    if r.returncode and r.stderr.startswith("bwrap:"):  # the sandbox itself didn't start (on Ubuntu, AppArmor can block bubblewrap)
+        return ("Error: the sandbox for running code doesn't work on this computer (" + r.stderr.strip()[:200] + "). "
+                "Don't try again: tell the user to run Joshua's installer once more, which fixes it.")
     return ((r.stdout + r.stderr)[-4000:] or "(no output)") + note
 
 
@@ -648,7 +651,7 @@ def generate_image(prompt: str, name: str = "", width: int = 1024, height: int =
     w, h = (max(256, min(1536, int(v) // 16 * 16)) for v in (width, height))
     r = _draw(prompt, [], w, h, p, 900)
     if r.returncode or not p.exists():
-        return "Error: image generation failed. " + (r.stderr or r.stdout)[-500:]
+        return "Error: image generation failed." + " (A fault in Joshua on this computer, not in your prompt: don't try again. Tell the user it failed and show them the error.)\n" + (r.stderr or r.stdout)[-500:]
     CTX.last_image = str(p)
     return f"Saved image {p.name} and showed it to the user."
 
@@ -679,7 +682,7 @@ def edit_image(instruction: str, images: str, name: str = "") -> str:
     out = _path(f"{stem}-{datetime.datetime.now():%H%M%S}.png")
     r = _draw(instruction, paths, w, h, out, 1800)
     if r.returncode or not out.exists():
-        return "Error: image editing failed. " + (r.stderr or r.stdout)[-500:]
+        return "Error: image editing failed." + " (A fault in Joshua on this computer, not in your prompt: don't try again. Tell the user it failed and show them the error.)\n" + (r.stderr or r.stdout)[-500:]
     CTX.last_image = str(out)
     return f"Saved edited image {out.name} and showed it to the user."
 
