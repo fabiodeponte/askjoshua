@@ -54,6 +54,7 @@ def stage_of(version):
 
 
 QUESTION, ANSWER = "Domanda:", "Risposta:"  # how a question and its answer are laid out, in training and when asking
+SEARCH, RESULT = "Cerca:", "Risultato:"  # a model that looks things up: what it searches for, and what the search found
 
 
 # ---------- 1. the texts ----------
@@ -90,7 +91,7 @@ def need(package, module=None):
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", package], check=True)
 
 
-def from_wikipedia(lang, words, qa=None, files=None):
+def from_wikipedia(lang, words, qa=None, files=None, make=None):
     """Wikipedia in one language, article by article, until about `words` words (None: all of it). Downloaded a part
     at a time (each a few hundred MB) from Hugging Face into its cache folder, which keeps them, so preparing again
     doesn't download them again. With `files` (what step 1 downloaded) it reads only those, without the network."""
@@ -100,6 +101,8 @@ def from_wikipedia(lang, words, qa=None, files=None):
     from huggingface_hub.constants import HF_HUB_CACHE
     repo, date = WIKI
     parts = files or wiki_parts(lang)
+    if make is search_answer:  # the searches come from the other end of Wikipedia, so they aren't the questions already learned
+        parts = parts[::-1]
     got = 0
     for k, part in enumerate(parts, 1):
         if files:
@@ -115,7 +118,7 @@ def from_wikipedia(lang, words, qa=None, files=None):
             for title, text in zip(b.column(0).to_pylist(), b.column(1).to_pylist()):
                 paras = [p.strip() for p in text.split("\n") if len(p.strip()) > 1]
                 if qa:
-                    pair = question_answer(title, paras)
+                    pair = (make or question_answer)(title, paras)
                     if not pair:
                         continue
                     paras = pair
@@ -209,6 +212,61 @@ def question_answer(title, paras, words=120):
     return [f"{QUESTION} {q}", f"{ANSWER} {' '.join(out)}"]
 
 
+def cut(text, words):
+    """The first sentences of a text, up to about `words` words (always at least one sentence)."""
+    import re
+    out, n = [], 0
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        if n + len(sentence.split()) > words and out:
+            break
+        out.append(sentence)
+        n += len(sentence.split())
+    return " ".join(out)
+
+
+def search_answer(title, paras):
+    """A question answered by looking it up: after the question the model writes what to search for (the subject),
+    the search gives back the start of the article, and the answer is drawn from it. Copying from a text a few lines
+    above is much easier for a small model than remembering facts, so it learns to answer from what it found."""
+    import re
+    pair = question_answer(title, paras)
+    if not pair:
+        return None
+    subject = re.sub(r"\s*\([^)]*\)$", "", title).strip()
+    found = cut(paras[0], 90)
+    return [pair[0], f"{SEARCH} {subject}", f"{RESULT} {title}. {found}", f"{ANSWER} {cut(paras[0], 40)}"]
+
+
+def lookup(lang, query, words=90):
+    """What the search finds when a model asks: the start of the Wikipedia article that best matches, as in training.
+    Returns (title, text), or (None, None) if nothing is found or Wikipedia can't be reached."""
+    import urllib.parse, urllib.request
+    url = f"https://{lang}.wikipedia.org/w/api.php?" + urllib.parse.urlencode({
+        "action": "query", "format": "json", "generator": "search", "gsrsearch": query, "gsrlimit": 1,
+        "prop": "extracts", "exintro": 1, "explaintext": 1, "redirects": 1})
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "AskJoshua/1.0 (https://ask.joshua.earth)"})
+        pages = list((json.load(urllib.request.urlopen(req, timeout=15)).get("query") or {}).get("pages", {}).values())
+    except Exception:
+        return None, None
+    if not pages or not pages[0].get("extract", "").strip():
+        return None, None
+    first = next(p.strip() for p in pages[0]["extract"].split("\n") if p.strip())
+    return pages[0]["title"], cut(first, words)
+
+
+def searched(lang, question, generate):
+    """Asks with a search, the way the training did: the model writes what to search for, Wikipedia is searched,
+    the result goes into the text, and the model writes the answer. `generate(prompt, stop)` runs the model.
+    Returns (the text to continue for the answer, what it searched for, the title found or None)."""
+    asked = f"{END}\n{QUESTION} {question.strip()}\n{SEARCH}"
+    query = generate(asked, ["\n", END]).strip() or question.strip()
+    title, found = lookup(lang, query)
+    if not title:  # nothing found: it answers from what it knows
+        return f"{END}\n{QUESTION} {question.strip()}\n{ANSWER}", query, None
+    return f"{asked} {query}\n{RESULT} {title}. {found}\n{ANSWER}", query, title
+
+
 def documents(source, files=None):
     if source.startswith("wikipedia:"):
         _, lang, millions = source.split(":")
@@ -216,6 +274,9 @@ def documents(source, files=None):
     if source.startswith("wikiqa:"):  # questions and answers made from Wikipedia: wikiqa:LANG:HOW_MANY
         _, lang, n = source.split(":")
         return from_wikipedia(lang, None, qa=int(n))
+    if source.startswith("wikisearch:"):  # questions answered by searching Wikipedia: wikisearch:LANG:HOW_MANY
+        _, lang, n = source.split(":")
+        return from_wikipedia(lang, None, qa=int(n), make=search_answer)
     return from_folder(source)
 
 
@@ -295,12 +356,22 @@ def prepare(d, source, stage):
                     n_train += len(ids)
             batch.clear()
 
+        # an example made of several lines (a question and its answer, a search) stays whole: set aside or studied
+        # together, otherwise a question could end up next to someone else's answer
+        whole = str(source).startswith(("wikiqa:", "wikisearch:"))
+        doc = []
         for line in src:
             line = line.rstrip("\n")
             if not line:  # the end of a document
+                if doc:
+                    batch.append("\n".join(doc))
+                    doc.clear()
                 flush()
                 end.tofile(tr)
                 n_train += 1
+                continue
+            if whole:
+                doc.append(line)
                 continue
             batch.append(line)
             if len(batch) >= 5000:
@@ -463,15 +534,24 @@ def train(d, size, steps, stage=1, mix=0.0, base="model"):
     say("finished")
 
 
-def try_it(d, prompt, which="model", question=False):
+def try_it(d, prompt, which="model", question=False, lang=None):
     """Continues a text; or, for a question, frames it the way the questions-and-answers training did:
     a fresh document (END), the question, then 'Risposta:' for the model to carry on. It stops at END."""
     from mlx_lm import load, generate
     from mlx_lm.sample_utils import make_sampler
     model, tok = load(str(d / which))
     framed = f"{END}\n{QUESTION} {prompt.strip()}\n{ANSWER}" if question else prompt
+    head = ""
+    if question and lang:  # a version that learned to search: it looks the question up first
+        def run(text, stop):
+            out = generate(model, tok, prompt=text, max_tokens=24, sampler=make_sampler(temp=0.3))
+            for s in stop:
+                out = out.split(s)[0]
+            return out
+        framed, query, title = searched(lang, prompt, run)
+        head = f"🔎 {query} → " + (f"{title}\n\n" if title else "nothing found\n\n")
     text = generate(model, tok, prompt=framed, max_tokens=200, sampler=make_sampler(temp=0.7))
-    say("@@TRY@@" + json.dumps(text.split(END)[0].strip() if question else prompt + text))
+    say("@@TRY@@" + json.dumps(head + text.split(END)[0].strip() if question else prompt + text))
 
 
 if __name__ == "__main__":
@@ -484,4 +564,5 @@ if __name__ == "__main__":
         train(d, sys.argv[3], int(sys.argv[4]), int(sys.argv[5]) if len(sys.argv) > 5 else 1, float(sys.argv[6]) if len(sys.argv) > 6 else 0.0,
               sys.argv[7] if len(sys.argv) > 7 else "model")
     elif cmd == "try":
-        try_it(d, sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "model", len(sys.argv) > 5 and sys.argv[5] == "question")
+        try_it(d, sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "model", len(sys.argv) > 5 and sys.argv[5] == "question",
+               sys.argv[6] if len(sys.argv) > 6 else None)

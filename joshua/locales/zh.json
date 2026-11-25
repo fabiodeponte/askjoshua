@@ -900,5 +900,19 @@
  "There is already a model called {name}.": "已有一个名为 {name} 的模型。",
  "Couldn't rename {model}: {error}": "无法重命名 {model}：{error}",
  "New name for {model}:": "{model} 的新名称：",
- "Use letters, digits, dots, dashes or underscores for the name, like Wikipedia-Italian.": "名称请使用字母、数字、点、连字符或下划线，例如 Wikipedia-Italian。"
+ "Use letters, digits, dots, dashes or underscores for the name, like Wikipedia-Italian.": "名称请使用字母、数字、点、连字符或下划线，例如 Wikipedia-Italian。",
+ "Like a painting redone in the style of another painter: the earlier steps give the model its language and what it knows, this one its voice. Joshua takes the model from the last of steps 5, 4 and 3 that was done and trains it further on the new texts, with the same vocabulary and a gentler learning rate, so it bends rather than starts over.\n\n**The balance.** Too little of the new texts and it still sounds like before; too much and it forgets what it knew. So Joshua keeps a copy of the model at 8 points along the way: in step 7 you can try each one and choose. The chart has a third line, in grey: how well the model still knows the texts of the previous step. When it rises, the model is forgetting them.\n\n**Mixing.** A share of each training batch can still come from the texts of the previous step. It slows the forgetting: the model takes on the new voice while keeping more of what it knew.": "就像用另一位画家的风格重画一幅画：前面的步骤给模型语言和知识，这一步给它声音。Joshua 拿第 5、4、3 步中最后完成的那一步的模型，在新文本上继续训练，词表不变、学习速度更温和，让它弯曲而不是从头开始。\n\n**平衡。** 新文本学得太少，它听起来仍像以前；太多，它就忘了原来知道的东西。所以 Joshua 在过程中的 8 个点各保存一份模型副本：在第 7 步你可以逐一试用并选择。图表有第三条灰色的线：模型对上一步的文本还掌握得多好。它上升时，说明模型正在遗忘。\n\n**混合。** 每批训练数据中可以有一部分仍来自上一步的文本。这能减缓遗忘：模型学到新的声音，同时保留更多原有知识。",
+ "A question works once the model has done step 4. After step 5 it searches Wikipedia first.": "模型完成第 4 步后，提问才有效。完成第 5 步后，它会先在维基百科上搜索。",
+ "Each example is longer than a question and answer, so fewer are needed.": "每个样例都比一问一答长，所以需要的数量更少。",
+ "How many searches": "搜索数量",
+ "Optional, and it can be skipped. The model goes on learning from a folder of texts, the style of an author say, keeping what it knows. It starts from the last of steps 5, 4 and 3 that was done.": "可选，可以跳过。模型继续从一个文本文件夹中学习（比如某位作者的风格），同时保留已有的知识。它从第 5、4、3 步中最后完成的那一步开始。",
+ "Optional, and it can be skipped. The model learns to look things up instead of answering from memory: after the question it writes what to search for, Joshua searches Wikipedia and puts the start of the article in the text, and the model answers from it. The examples are made from Wikipedia, from other articles than step 4's. It starts from step 4.": "可选，可以跳过。模型学会查找资料，而不是凭记忆回答：在问题之后，它写出要搜索的内容，Joshua 在维基百科上搜索并把条目的开头放进文本，模型据此回答。样例来自维基百科，与第 4 步使用的条目不同。它从第 4 步开始。",
+ "Searched Wikipedia for “{query}”: nothing found": "在维基百科搜索了“{query}”：没有结果",
+ "Searched Wikipedia for “{query}”: {title}": "在维基百科搜索了“{query}”：{title}",
+ "Searching Wikipedia…": "正在维基百科上搜索……",
+ "Started. A copy of the model is kept at 8 points along the way: you can try each one in step 7.": "已开始。过程中会在 8 个点各保存一份模型副本：可以在第 7 步逐一试用。",
+ "The chosen version goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no tools and no memory; a version that went through step 5 searches Wikipedia.": "所选版本会以此名称加入 Joshua 的模型菜单，并加入 Ollama 供其他程序使用。在聊天中它只收到你的话：没有工具，也没有记忆；经过第 5 步的版本会在维基百科上搜索。",
+ "There is already a model trained here ({what}). Doing this again replaces it, and the steps built on it. Click again to go ahead.": "这里已有一个训练好的模型（{what}）。重做会替换它，以及建立在它之上的步骤。再点击一次以继续。",
+ "web search": "网络搜索",
+ "web search · step {n}": "网络搜索 · 第 {n} 步"
 }

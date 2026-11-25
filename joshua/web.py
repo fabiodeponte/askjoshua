@@ -1635,14 +1635,28 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
     plain = model.removesuffix(":latest") in scratch.in_joshua()
     try:
         if plain:  # a small model trained here from zero: no tools, no web, no memory; it just gets your words
+            question = user_text or msgs[-1]["content"]
+            lang = scratch.in_joshua().get(model.removesuffix(":latest"), {}).get("search")
+            source = ""
+            if lang:  # it learned to look things up: it writes what to search for, Joshua searches Wikipedia, it answers from that
+                box = {"role": "assistant", "content": "", "metadata": {"title": "🔎 " + t("Searching Wikipedia…"), "status": "pending"}}
+                shown.append(box)
+                job.publish(shown)
+                ask = lambda text, stop: ollama.generate(model, prompt=text, raw=True, options={"num_predict": 24, "stop": stop, "temperature": 0.3}).response
+                framed, query, title = scratch.job.searched(lang, question, ask)
+                box["metadata"] = {"title": "🔎 " + (t("Searched Wikipedia for “{query}”: {title}", query=query, title=title) if title else t("Searched Wikipedia for “{query}”: nothing found", query=query)), "status": "done"}
+                if title:
+                    source = f"\n\n[{title}](https://{lang}.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))})"
             reply = {"role": "assistant", "content": ""}
             shown.append(reply)
-            for chunk in ollama.generate(model, prompt=user_text or msgs[-1]["content"], stream=True, options={"num_predict": 300}):
+            stream = ollama.generate(model, prompt=framed, raw=True, stream=True, options={"num_predict": 300, "stop": [scratch.job.END]}) if lang else \
+                ollama.generate(model, prompt=question, stream=True, options={"num_predict": 300})
+            for chunk in stream:
                 reply["content"] += chunk.response
                 job.publish(shown)
                 if job.stop.is_set():
                     break
-            reply["content"] = reply["content"].strip() or "…"
+            reply["content"] = (reply["content"].strip() or "…") + source
             msgs.append({"role": "assistant", "content": reply["content"]})
             rounds, swarm, in_team = 0, 0, None
         if in_team:  # a team chat: the lead answers, and the members work when the lead asks them
@@ -3423,8 +3437,15 @@ API_FILE = pathlib.Path(__file__).parent / "api.json"
 API_PORT = 7861
 
 
+# Releases up to 2026.11.21.3.121 shipped one api.json by mistake, so every install that updated got the same key,
+# readable by anyone in the public download. Only its fingerprint is kept here: a key that matches it is replaced.
+SHIPPED_KEYS = {"6f5fb43c3a869308f23c9ba0f8ece6d5dd650dcdbda69a1668fa947d742cff9f"}
+
+
 def api_settings(**change):
     data = json.loads(API_FILE.read_text()) if API_FILE.exists() else {}
+    if hashlib.sha256(str(data.get("key", "")).encode()).hexdigest() in SHIPPED_KEYS:
+        data.pop("key")  # the public one: this computer gets a key of its own
     data.setdefault("key", "jsh-" + secrets.token_urlsafe(24))  # a password for programs; only this computer knows it
     data.setdefault("lan", False)  # False: only programs on this computer can connect
     data.update(change)

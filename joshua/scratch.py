@@ -112,6 +112,20 @@ def wikiqa(lang, n):
     return f"wikiqa:{lang}:{n}"
 
 
+def wikisearch(lang, n):
+    """n questions answered by looking them up: the question, what to search for, the start of the article, the answer."""
+    return f"wikisearch:{lang}:{n}"
+
+
+def searches(name, which):
+    """The language of Wikipedia a version searches, if it went through the web-search step; otherwise None."""
+    for st in range(2, job.stage_of(which) + 1):
+        source = str((data(name, st) or {}).get("source", ""))
+        if source.startswith("wikisearch:"):
+            return source.split(":")[1]
+    return None
+
+
 def clear(name, stage):
     """Reading new texts for a stage makes what was built on the old ones meaningless. New first texts mean
     a new vocabulary, so everything goes; new second texts only replace the second stage."""
@@ -175,7 +189,8 @@ def try_out(name, prompt, which="model", question=False):
         run.status = "writing"
         run.result = {}
         _catch(run, "@@TRY@@", lambda t: run.result.update(text=t))
-        return ft._stream(run, JOB + ["try", pdir(name), prompt, which] + (["question"] if question else [])) == 0 and "text" in run.result
+        lang = searches(name, which) if question else None  # a version that learned to search looks the question up first
+        return ft._stream(run, JOB + ["try", pdir(name), prompt, which] + (["question", lang] if lang else ["question"] if question else [])) == 0 and "text" in run.result
     return ft._start("continue", name, target)
 
 
@@ -254,7 +269,8 @@ def install(name, which="model", as_name=None):
         # a version that went through a questions-and-answers stage gets the same frame in Ollama, so you only type
         # the question there too; otherwise there's no template: the model continues whatever text it is given
         upto = job.stage_of(which)
-        answers = any(str((data(name, st) or {}).get("source", "")).startswith("wikiqa:") for st in range(2, upto + 1))
+        answers = any(str((data(name, st) or {}).get("source", "")).startswith(("wikiqa:", "wikisearch:")) for st in range(2, upto + 1))
+        lang = searches(name, which)  # Joshua's chat does the searching for it; Ollama alone gets the plain question frame
         frame = f"{job.END}\n{job.QUESTION} {{{{ .Prompt }}}}\n{job.ANSWER}" if answers else "{{ .Prompt }}"
         (d / "Modelfile").write_text(f'FROM ./{gguf.name}\nTEMPLATE """{frame}"""\nPARAMETER num_ctx {job.CTX}\n'
                                      f'PARAMETER stop "{job.END}"\nPARAMETER temperature 0.8\n')
@@ -262,7 +278,7 @@ def install(name, which="model", as_name=None):
         gguf.unlink(missing_ok=True)
         if code == 0:
             listed = in_joshua()
-            listed[as_name] = {"model": name, "version": which, "answers": answers}
+            listed[as_name] = {"model": name, "version": which, "answers": answers} | ({"search": lang} if lang else {})
             (ROOT / "in_joshua.json").write_text(json.dumps(listed, indent=1))
             run.say(f"Done: {as_name} is in Joshua's model menu. In a terminal: ollama run {as_name} " + ('"Che cos\'è l\'automobile?"' if answers else '"The beginning of a sentence"'))
         return code == 0
