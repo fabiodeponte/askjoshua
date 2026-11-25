@@ -167,8 +167,9 @@ def model_dir():
 
 
 def size_gb():
+    import hfcache
     p = model_dir()
-    return sum(f.stat().st_size for f in p.rglob("*") if f.is_file() and not f.is_symlink()) / 1e9 if p else 0
+    return hfcache.size_gb(p) if p else 0
 
 
 def download():
@@ -180,8 +181,8 @@ def download():
 
 def remove():
     global _model
-    import shutil
+    import hfcache
     p = model_dir()
     if p:
-        shutil.rmtree(p)
+        hfcache.remove(p)
     _model = None

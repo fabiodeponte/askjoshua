@@ -6,7 +6,7 @@ import copy, hashlib, html, inspect, json, os, pathlib, platform, re, secrets, s
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, desks, factcheck, falken, monitor, providers, ranking, reader, remote, scratch, teams, tune_ui
+import agent, apple, browser, hfcache, desks, factcheck, falken, monitor, providers, ranking, reader, remote, scratch, teams, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -280,7 +280,7 @@ def image_row():
     if not agent.IMAGES_OK:
         return ""
     p = agent.image_dir()
-    size = f"{sum(f.stat().st_size for f in p.rglob('*') if f.is_file() and not f.is_symlink()) / 1e9:.1f} GB" if p else t("downloads with the first picture")
+    size = f"{hfcache.size_gb(p):.1f} GB" if p else t("downloads with the first picture")
     return (f"<tr><td class='mname'>🎨 FLUX.2 klein 4B</td><td class='mdim'>{size}</td><td class='mdim'>" + t("creating and editing pictures, on this computer")
             + "</td><td class='mnote mbtns'>" + (act_button("rmimage", "flux", t("Remove")) if p else "") + "</td></tr>")
 
@@ -516,7 +516,7 @@ def row_action(act):
         tr.remove()
         yield gr.skip(), "<div class='cloudstat'>" + t("The speech model was removed. It downloads again the next time you ask for a transcription, or with Download.") + "</div>", gr.skip(), gr.skip()
     elif kind == "rmimage":
-        shutil.rmtree(agent.image_dir(), ignore_errors=True)
+        hfcache.remove(agent.image_dir())
         yield gr.skip(), "<div class='cloudstat'>" + t("The image model was removed. It downloads again the next time you ask for a picture.") + "</div>", gr.skip(), gr.skip()
     elif kind == "getspeech":
         import transcribe as tr
