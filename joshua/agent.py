@@ -646,8 +646,8 @@ def _draw(prompt, paths, w, h, out, timeout):
     # Ollama lets go of its models, which load again by themselves at the next answer, in a few seconds
     for m in ollama.ps().models:
         ollama.generate(model=m.model, keep_alive=0)
-    if not MAC:  # nice: low priority, so the rest of the computer stays responsive while it draws
-        cmd = ["nice", "-n", "15", str(IMAGE_PY), str(HERE / "imagegen.py"), "--prompt", prompt, "--width", str(w), "--height", str(h), "--out", str(out)] + (["--images", *paths] if paths else [])
+    if not MAC:  # low priority for the processor (nice) and for the disk (ionice -c3: reads only when nothing else needs it)
+        cmd = ["nice", "-n", "15", "ionice", "-c3", str(IMAGE_PY), str(HERE / "imagegen.py"), "--prompt", prompt, "--width", str(w), "--height", str(h), "--out", str(out)] + (["--images", *paths] if paths else [])
     elif paths:
         cmd = [str(MFLUX_EDIT), "--model", IMAGE_MODEL, "--image-paths", *paths, "--prompt", prompt, "--width", str(w), "--height", str(h), "--steps", "4", "--output", str(out)]
     else:
