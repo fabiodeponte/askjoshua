@@ -224,35 +224,81 @@ def cut(text, words):
     return " ".join(out)
 
 
+FOUND_WORDS = 100  # how much of the article the search gives back, in training and when asking: it has to fit in 512 pieces with the question and the answer
+STOP = [END, f"\n{QUESTION}", f"\n{SEARCH}", f"\n{RESULT}"]  # where an answer ends: never a new question, search or result
+
+
+def asked_as(subject, lead, named=None):
+    """The many ways a person asks about something, so the model learns to find the subject in any of them,
+    not only in "Che cos'è …?". Some only fit certain things: a place, a machine, a person of the past.
+    `subject` is how the article names it ("l'automobile"); `named` the bare name ("Automobile"), used after
+    "di" and "su", where Italian would merge the article ("dell'automobile")."""
+    import random, re
+    named = named or subject
+    forms = [f"Che cos'è {subject}?", f"Cos'è {subject}?", f"Parlami di {named}.", f"Cosa sai di {named}?", f"Dimmi qualcosa su {named}.",
+             f"Mi spieghi {subject}?", f"Che cosa sai dirmi di {named}?", f"Vorrei sapere di più su {named}.", f"{named}?", f"Informazioni su {named}."]
+    head = lead[:300]
+    person = re.search(r"\(.{0,80}\b\d{3,4}\b.{0,80}\)", head) and re.search(r"\b(è stat[oa]|è (un|una) .{0,40}(politic|scrittor|attor|cantant|musicist|calciator|giornalist|regist|pittor|scienziat|filosof|imprenditor))", head)
+    if person:  # nobody asks "what is" a person
+        forms = [f for f in forms if not f.startswith(("Che cos'è", "Cos'è", "Mi spieghi"))]
+    if re.search(r"\bè stat[oa]\b", head):
+        forms += [f"Chi era {subject}?", f"Chi è stato {subject}?", f"Cosa ha fatto {subject}?", f"Quando è vissuto {subject}?", f"Perché è famoso {subject}?"]
+    elif re.search(r"\bè (un|una) .{0,40}(politic|scrittor|attor|cantant|musicist|calciator|giornalist|regist|pittor|scienziat|filosof|imprenditor)", head):
+        forms += [f"Chi è {subject}?", f"Chi è {subject}? Cosa fa?", f"Di cosa si occupa {subject}?"]
+    if re.search(r"\b(comune|città|paese|frazione|regione|provincia|fiume|lago|monte|isola|capitale|quartiere)\b", head) and not re.search(r"\bè stat[oa]\b", head):
+        forms += [f"Dove si trova {subject}?", f"Dov'è {subject}?", f"Com'è {subject}?"]
+    if re.search(r"\b(motore|macchina|dispositivo|apparecchio|strumento|sistema|meccanismo|processo|tecnica|metodo|software|algoritmo|reazione)\b", head):
+        forms += [f"Come funziona {subject}?", f"A cosa serve {subject}?", f"Come si usa {subject}?"]
+    if re.search(r"\b(guerra|battaglia|rivoluzione|trattato|evento|crisi|elezioni|terremoto)\b", head):
+        forms += [f"Cosa è successo con {subject}?", f"Quando c'è stata {subject}?", f"Raccontami {subject}."]
+    q = random.choice(forms)
+    if random.random() < 0.3:  # people don't always use capitals and accents
+        q = q.lower()
+    return q
+
+
 def search_answer(title, paras):
     """A question answered by looking it up: after the question the model writes what to search for (the subject),
-    the search gives back the start of the article, and the answer is drawn from it. Copying from a text a few lines
+    the search gives back the start of the article, and the answer restates it. Copying from a text a few lines
     above is much easier for a small model than remembering facts, so it learns to answer from what it found."""
     import re
-    pair = question_answer(title, paras)
+    pair = question_answer(title, paras)  # same filters as the questions and answers: no lists, no disambiguation pages
     if not pair:
         return None
     subject = re.sub(r"\s*\([^)]*\)$", "", title).strip()
-    found = cut(paras[0], 90)
-    return [pair[0], f"{SEARCH} {subject}", f"{RESULT} {title}. {found}", f"{ANSWER} {cut(paras[0], 40)}"]
+    m = re.match(r"^(.{1,60}?)\s+(?:\(|è\b|sono\b|fu\b)", paras[0])  # "L'automobile è…" -> ask about "l'automobile"
+    asked = m[1][0].lower() + m[1][1:] if m and subject.lower() in m[1].lower() and re.match(r"(?i)(l'|il |lo |la |i |gli |le )", m[1]) else subject
+    named = subject[0].lower() + subject[1:] if asked != subject else subject  # a common noun: "parlami di automobile", not "di Automobile"
+    found = cut(" ".join(paras[:2]), FOUND_WORDS)
+    return [f"{QUESTION} {asked_as(asked, paras[0], named)}", f"{SEARCH} {subject}", f"{RESULT} {title}. {found}", f"{ANSWER} {found}"]
 
 
-def lookup(lang, query, words=90):
+# what a search doesn't need: the words of the question around the subject ("come funziona un motore a scoppio" -> "motore a scoppio")
+QUESTION_WORDS = r"(?i:^(chi|che|cosa|cos'|cos'è|è|che cos'è|che cosa|come|dove|dov'è|quando|perché|quale|quali|quanto|quanti|parlami|dimmi|spiegami|mi spieghi|vorrei sapere|informazioni|mi|sai|dirmi|di più|qualcosa|su|di|del|della|dello|dei|degli|delle|sul|sulla|a|per|funziona|funzionano|serve|servono|si usa|si trova|si trovano|c'è stata|c'è stato|è successo|successo|ha fatto|è vissuto|è vissuta|è famoso|è famosa|era|stato|stata)(?=\s|$|')\s*'?)|^(un|una|uno|un'|il|lo|la|l'|i|gli|le|l)(?=\s|$|')\s*'?"  # articles only in lowercase: "L'Aquila" keeps its own
+
+
+def lookup(lang, query, words=FOUND_WORDS):
     """What the search finds when a model asks: the start of the Wikipedia article that best matches, as in training.
-    Returns (title, text), or (None, None) if nothing is found or Wikipedia can't be reached."""
-    import urllib.parse, urllib.request
+    Wikipedia's own first result, skipping disambiguation pages. Returns (title, text), or (None, None) if nothing
+    is found or Wikipedia can't be reached."""
+    import re, urllib.parse, urllib.request
+    query = re.sub(r"[?.!]+$", "", query).strip()
+    for _ in range(8):  # a whole question searched as it is: take the question words off the front, one by one
+        query = re.sub(QUESTION_WORDS, "", query, count=1).strip() or query
     url = f"https://{lang}.wikipedia.org/w/api.php?" + urllib.parse.urlencode({
-        "action": "query", "format": "json", "generator": "search", "gsrsearch": query, "gsrlimit": 1,
-        "prop": "extracts", "exintro": 1, "explaintext": 1, "redirects": 1})
+        "action": "query", "format": "json", "generator": "search", "gsrsearch": query, "gsrlimit": 3,
+        "prop": "extracts", "exintro": 1, "explaintext": 1, "exlimit": 3, "redirects": 1})
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "AskJoshua/1.0 (https://ask.joshua.earth)"})
         pages = list((json.load(urllib.request.urlopen(req, timeout=15)).get("query") or {}).get("pages", {}).values())
     except Exception:
         return None, None
-    if not pages or not pages[0].get("extract", "").strip():
+    pages = [p for p in pages if p.get("extract", "").strip() and "disambigua" not in p.get("extract", "")[:300].lower()]
+    if not pages:
         return None, None
-    first = next(p.strip() for p in pages[0]["extract"].split("\n") if p.strip())
-    return pages[0]["title"], cut(first, words)
+    best = min(pages, key=lambda p: p.get("index", 9))  # the pages come back unordered; "index" is Wikipedia's rank
+    paras = [p.strip() for p in best["extract"].split("\n") if p.strip()]
+    return best["title"], cut(" ".join(paras[:2]), words)
 
 
 def searched(lang, question, generate):
@@ -265,6 +311,13 @@ def searched(lang, question, generate):
     if not title:  # nothing found: it answers from what it knows
         return f"{END}\n{QUESTION} {question.strip()}\n{ANSWER}", query, None
     return f"{asked} {query}\n{RESULT} {title}. {found}\n{ANSWER}", query, title
+
+
+def stop_at(text):
+    """An answer ends where the model starts a new question, search or result."""
+    for s in STOP:
+        text = text.split(s)[0]
+    return text
 
 
 def documents(source, files=None):
@@ -550,8 +603,8 @@ def try_it(d, prompt, which="model", question=False, lang=None):
             return out
         framed, query, title = searched(lang, prompt, run)
         head = f"🔎 {query} → " + (f"{title}\n\n" if title else "nothing found\n\n")
-    text = generate(model, tok, prompt=framed, max_tokens=200, sampler=make_sampler(temp=0.7))
-    say("@@TRY@@" + json.dumps(head + text.split(END)[0].strip() if question else prompt + text))
+    text = generate(model, tok, prompt=framed, max_tokens=240, sampler=make_sampler(temp=0.7))
+    say("@@TRY@@" + json.dumps(head + stop_at(text).strip() if question else prompt + text))
 
 
 if __name__ == "__main__":

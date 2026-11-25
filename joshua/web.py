@@ -1649,7 +1649,7 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
                     source = f"\n\n[{title}](https://{lang}.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))})"
             reply = {"role": "assistant", "content": ""}
             shown.append(reply)
-            stream = ollama.generate(model, prompt=framed, raw=True, stream=True, options={"num_predict": 300, "stop": [scratch.job.END]}) if lang else \
+            stream = ollama.generate(model, prompt=framed, raw=True, stream=True, options={"num_predict": 240, "stop": scratch.job.STOP}) if lang else \
                 ollama.generate(model, prompt=question, stream=True, options={"num_predict": 300})
             for chunk in stream:
                 reply["content"] += chunk.response
