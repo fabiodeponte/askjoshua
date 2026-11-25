@@ -282,9 +282,7 @@ def lookup(lang, query, words=FOUND_WORDS):
     Wikipedia's own first result, skipping disambiguation pages. Returns (title, text), or (None, None) if nothing
     is found or Wikipedia can't be reached."""
     import re, urllib.parse, urllib.request
-    query = re.sub(r"[?.!]+$", "", query).strip()
-    for _ in range(8):  # a whole question searched as it is: take the question words off the front, one by one
-        query = re.sub(QUESTION_WORDS, "", query, count=1).strip() or query
+    query = clean(query)  # a whole question searched as it is: the question words come off
     url = f"https://{lang}.wikipedia.org/w/api.php?" + urllib.parse.urlencode({
         "action": "query", "format": "json", "generator": "search", "gsrsearch": query, "gsrlimit": 3,
         "prop": "extracts", "exintro": 1, "explaintext": 1, "exlimit": 3, "redirects": 1})
@@ -301,12 +299,36 @@ def lookup(lang, query, words=FOUND_WORDS):
     return best["title"], cut(" ".join(paras[:2]), words)
 
 
+FILLER = {"che", "chi", "cosa", "come", "dove", "quando", "perché", "quale", "quali", "quanto", "sono", "era", "sai", "dirmi", "dimmi",
+          "parlami", "spiegami", "del", "della", "dello", "dei", "degli", "delle", "nel", "nella", "sul", "sulla", "per", "con", "una", "uno",
+          "gli", "les", "the", "questo", "questa", "molto", "più", "qualcosa", "informazioni", "vorrei", "sapere", "funziona", "serve", "trova"}
+
+
+def clean(query):
+    """A search without the words of the question around the subject: "come funziona un motore a scoppio" -> "motore a scoppio"."""
+    import re
+    query = re.sub(r"[?.!]+$", "", query).strip()
+    for _ in range(8):  # off the front, one by one
+        query = re.sub(QUESTION_WORDS, "", query, count=1).strip() or query
+    return query
+
+
+def related(query, question):
+    """Whether what the model wants to search, once cleaned, shares a real word with the question. A question with
+    nothing to look up ("Che cosa dobbiamo ai giovani?") makes it write a search out of nowhere; then it answers on its own."""
+    import re
+    words = lambda t: {w for w in re.findall(r"\w+", t.lower()) if len(w) >= 3 and w not in FILLER}
+    return bool(words(clean(query)) & words(question))
+
+
 def searched(lang, question, generate):
     """Asks with a search, the way the training did: the model writes what to search for, Wikipedia is searched,
     the result goes into the text, and the model writes the answer. `generate(prompt, stop)` runs the model.
-    Returns (the text to continue for the answer, what it searched for, the title found or None)."""
+    Returns (the text to continue for the answer, what it searched for or None if it didn't, the title found or None)."""
     asked = f"{END}\n{QUESTION} {question.strip()}\n{SEARCH}"
     query = generate(asked, ["\n", END]).strip() or question.strip()
+    if not related(query, question):  # a search that has nothing to do with the question: there was nothing to look up
+        return f"{END}\n{QUESTION} {question.strip()}\n{ANSWER}", None, None
     title, found = lookup(lang, query)
     if not title:  # nothing found: it answers from what it knows
         return f"{END}\n{QUESTION} {question.strip()}\n{ANSWER}", query, None
@@ -602,7 +624,7 @@ def try_it(d, prompt, which="model", question=False, lang=None):
                 out = out.split(s)[0]
             return out
         framed, query, title = searched(lang, prompt, run)
-        head = f"🔎 {query} → " + (f"{title}\n\n" if title else "nothing found\n\n")
+        head = (f"🔎 {query} → " + (f"{title}\n\n" if title else "nothing found\n\n")) if query else "🔎 no search: it answers on its own\n\n"
     text = generate(model, tok, prompt=framed, max_tokens=240, sampler=make_sampler(temp=0.7))
     say("@@TRY@@" + json.dumps(head + stop_at(text).strip() if question else prompt + text))
 

@@ -1644,7 +1644,8 @@ def worker(job, cid, conv, model, thinking, goal, rounds, net, timeout, swarm=0,
                 job.publish(shown)
                 ask = lambda text, stop: ollama.generate(model, prompt=text, raw=True, options={"num_predict": 24, "stop": stop, "temperature": 0.3}).response
                 framed, query, title = scratch.job.searched(lang, question, ask)
-                box["metadata"] = {"title": "🔎 " + (t("Searched Wikipedia for “{query}”: {title}", query=query, title=title) if title else t("Searched Wikipedia for “{query}”: nothing found", query=query)), "status": "done"}
+                box["metadata"] = {"title": "🔎 " + (t("Searched Wikipedia for “{query}”: {title}", query=query, title=title) if title else t("Searched Wikipedia for “{query}”: nothing found", query=query) if query
+                                                   else t("Nothing to look up: it answers on its own")), "status": "done"}
                 if title:
                     source = f"\n\n[{title}](https://{lang}.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))})"
             reply = {"role": "assistant", "content": ""}

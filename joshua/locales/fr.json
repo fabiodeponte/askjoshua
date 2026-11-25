@@ -914,5 +914,6 @@
  "The chosen version goes into Joshua's model menu with this name, and into Ollama for other programs. In the chat it gets only your words: no tools and no memory; a version that went through step 5 searches Wikipedia.": "La version choisie entre dans le menu des modèles de Joshua sous ce nom, et dans Ollama pour d'autres programmes. Dans la discussion, elle ne reçoit que vos mots : ni outils ni mémoire ; une version passée par l'étape 5 cherche sur Wikipédia.",
  "There is already a model trained here ({what}). Doing this again replaces it, and the steps built on it. Click again to go ahead.": "Il y a déjà un modèle entraîné ici ({what}). Le refaire le remplace, ainsi que les étapes construites dessus. Cliquez à nouveau pour continuer.",
  "web search": "recherche web",
- "web search · step {n}": "recherche web · pas {n}"
+ "web search · step {n}": "recherche web · pas {n}",
+ "Nothing to look up: it answers on its own": "Rien à chercher : il répond seul"
 }
