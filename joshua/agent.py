@@ -636,12 +636,16 @@ IMAGES_OK = MFLUX.exists() if MAC else IMAGE_PY.exists()
 def _draw(prompt, paths, w, h, out, timeout):
     """Run the image model: a new picture, or an edit of the pictures in 'paths'."""
     if not MAC:
+        # the graphics card can't hold the chat model and the image model together: Ollama lets go of its models
+        # (they load again by themselves at the next answer, in a few seconds)
+        for m in ollama.ps().models:
+            ollama.generate(model=m.model, keep_alive=0)
         cmd = [str(IMAGE_PY), str(HERE / "imagegen.py"), "--prompt", prompt, "--width", str(w), "--height", str(h), "--out", str(out)] + (["--images", *paths] if paths else [])
     elif paths:
         cmd = [str(MFLUX_EDIT), "--model", IMAGE_MODEL, "--image-paths", *paths, "--prompt", prompt, "--width", str(w), "--height", str(h), "--steps", "4", "--output", str(out)]
     else:
         cmd = [str(MFLUX), "--model", IMAGE_MODEL, "--prompt", prompt, "--width", str(w), "--height", str(h), "--steps", "4", "--output", str(out)]
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=dict(os.environ, PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"))
 
 
 def generate_image(prompt: str, name: str = "", width: int = 1024, height: int = 1024) -> str:
