@@ -915,5 +915,8 @@
  "There is already a model trained here ({what}). Doing this again replaces it, and the steps built on it. Click again to go ahead.": "这里已有一个训练好的模型（{what}）。重做会替换它，以及建立在它之上的步骤。再点击一次以继续。",
  "web search": "网络搜索",
  "web search · step {n}": "网络搜索 · 第 {n} 步",
- "Nothing to look up: it answers on its own": "无需搜索：它自己回答"
+ "Nothing to look up: it answers on its own": "无需搜索：它自己回答",
+ "downloads with the first picture": "首次生成图片时下载",
+ "creating and editing pictures, on this computer": "在本机生成和编辑图片",
+ "The image model was removed. It downloads again the next time you ask for a picture.": "图片模型已删除。下次请求图片时会重新下载。"
 }

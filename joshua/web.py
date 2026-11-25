@@ -272,7 +272,17 @@ def other_models_html():
     button = act_button("rmspeech", "whisper", t("Remove")) if here else act_button("getspeech", "whisper", t("Download"))
     return ("<h3 class='msub2'>" + t("Other models on this computer") + "</h3><table class='mrank'><tr><th>" + t("Model") + "</th><th>" + t("Size") + "</th><th>" + t("Used for") + "</th><th></th></tr>"
             + f"<tr><td class='mname'>🎙️ {tr.NAME}</td><td class='mdim'>{size}</td><td class='mdim'>" + t("transcribing audio and video, on this computer") + "</td><td class='mnote mbtns'>"
-            + button + "</td></tr></table>")
+            + button + "</td></tr>" + image_row() + "</table>")
+
+
+def image_row():
+    """The image model, when image generation is installed: its size, and a button to free the space."""
+    if not agent.IMAGES_OK:
+        return ""
+    p = agent.image_dir()
+    size = f"{sum(f.stat().st_size for f in p.rglob('*') if f.is_file() and not f.is_symlink()) / 1e9:.1f} GB" if p else t("downloads with the first picture")
+    return (f"<tr><td class='mname'>🎨 FLUX.2 klein 4B</td><td class='mdim'>{size}</td><td class='mdim'>" + t("creating and editing pictures, on this computer")
+            + "</td><td class='mnote mbtns'>" + (act_button("rmimage", "flux", t("Remove")) if p else "") + "</td></tr>")
 
 
 def cloud_catalog():
@@ -505,6 +515,9 @@ def row_action(act):
         import transcribe as tr
         tr.remove()
         yield gr.skip(), "<div class='cloudstat'>" + t("The speech model was removed. It downloads again the next time you ask for a transcription, or with Download.") + "</div>", gr.skip(), gr.skip()
+    elif kind == "rmimage":
+        shutil.rmtree(agent.image_dir(), ignore_errors=True)
+        yield gr.skip(), "<div class='cloudstat'>" + t("The image model was removed. It downloads again the next time you ask for a picture.") + "</div>", gr.skip(), gr.skip()
     elif kind == "getspeech":
         import transcribe as tr
         yield gr.skip(), "<div class='cloudstat'>" + t("Downloading the speech model (about 1.6 GB)…") + "</div>", gr.skip(), gr.skip()

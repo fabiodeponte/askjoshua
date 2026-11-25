@@ -915,5 +915,8 @@
  "There is already a model trained here ({what}). Doing this again replaces it, and the steps built on it. Click again to go ahead.": "Hier gibt es schon ein trainiertes Modell ({what}). Es noch einmal zu machen ersetzt es, samt den darauf aufbauenden Schritten. Klick noch einmal, um fortzufahren.",
  "web search": "Websuche",
  "web search · step {n}": "Websuche · Schritt {n}",
- "Nothing to look up: it answers on its own": "Nichts nachzuschlagen: Es antwortet selbst"
+ "Nothing to look up: it answers on its own": "Nichts nachzuschlagen: Es antwortet selbst",
+ "downloads with the first picture": "wird mit dem ersten Bild heruntergeladen",
+ "creating and editing pictures, on this computer": "Bilder erstellen und bearbeiten, auf diesem Computer",
+ "The image model was removed. It downloads again the next time you ask for a picture.": "Das Bildmodell wurde entfernt. Es wird erneut heruntergeladen, wenn Sie das nächste Mal ein Bild anfordern."
 }

@@ -631,6 +631,13 @@ IMAGE_MODEL = "RunPod/FLUX.2-klein-4B-mflux-4bit"
 MFLUX = HERE / "mflux-venv" / "bin" / "mflux-generate-flux2"  # Mac: mflux, built on Apple's MLX
 IMAGE_PY = HERE / "image-venv" / "bin" / "python"  # Linux: diffusers on an NVIDIA card, via imagegen.py
 IMAGES_OK = MFLUX.exists() if MAC else IMAGE_PY.exists()
+IMAGE_REPO = IMAGE_MODEL if MAC else "black-forest-labs/FLUX.2-klein-4B"  # the same name as in imagegen.py
+
+
+def image_dir():
+    """Where the image model is stored (Hugging Face's cache), if it has been downloaded."""
+    p = pathlib.Path(os.environ.get("HF_HOME") or pathlib.Path.home() / ".cache" / "huggingface") / "hub" / ("models--" + IMAGE_REPO.replace("/", "--"))
+    return p if p.exists() else None
 
 
 def _draw(prompt, paths, w, h, out, timeout):
