@@ -452,7 +452,8 @@ else
   KICK="systemctl --user start joshua"
   HALT="systemctl --user stop joshua 2>/dev/null"
   # its own window, without the browser's bars, when a Chromium-family browser is installed
-  OPEN_APP='for b in chromium chromium-browser google-chrome google-chrome-stable brave-browser microsoft-edge; do command -v $b >/dev/null && { nohup $b --app='$URL' >/dev/null 2>&1 & exit 0; }; done; xdg-open '$URL
+  # --class names the window "Joshua", so the dock puts it under Joshua's icon; that only works with its own browser profile
+  OPEN_APP='for b in chromium chromium-browser google-chrome google-chrome-stable brave-browser microsoft-edge; do command -v $b >/dev/null && { nohup $b --app='$URL' --class=Joshua --user-data-dir="'$HOME_DIR'/window" >/dev/null 2>&1 & exit 0; }; done; xdg-open '$URL
 fi
 cat > "$HOME_DIR/start.sh" <<EOF
 #!/bin/bash
@@ -573,8 +574,16 @@ Exec=$HOME_DIR/start.sh
 Icon=$APP/icon.png
 Terminal=false
 Categories=Utility;
+StartupWMClass=Joshua
 EOF
-  ok "Joshua is in your applications menu"
+  # pinned to the dock (GNOME, Ubuntu's desktop), unless it's there already
+  FAV=$(gsettings get org.gnome.shell favorite-apps 2>/dev/null || true)
+  case "$FAV" in
+    *joshua.desktop*|"") ;;
+    "@as []") gsettings set org.gnome.shell favorite-apps "['joshua.desktop']" ;;
+    *) gsettings set org.gnome.shell favorite-apps "${FAV%]*}, 'joshua.desktop']" ;;
+  esac
+  ok "Joshua is in your applications menu and in the dock"
 fi
 
 step "Done"
