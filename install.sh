@@ -411,9 +411,11 @@ if [ "$IMAGES" = y ]; then
     TEST=("$APP/image-venv/bin/python" "$APP/imagegen.py" --prompt "a small lighthouse at dusk" --width 256 --height 256 --out "$HOME_DIR/test-image.png")
   fi
   say "  ${dim}Downloading the image model and drawing a test picture…${off}"
-  "${TEST[@]}" >/dev/null 2>&1 \
-    && ok "working (test picture: $HOME_DIR/test-image.png)" \
-    || warn "the test picture failed; Joshua will retry the download the first time you ask for an image"
+  if "${TEST[@]}" >"$HOME_DIR/image-test.log" 2>&1; then ok "working (test picture: $HOME_DIR/test-image.png)"
+  else  # show the error's last line, and keep the whole message in a file
+    warn "the test picture failed: $(grep -v '^\s*$' "$HOME_DIR/image-test.log" | tail -1 | cut -c1-200)"
+    say "  ${dim}The full message is in $HOME_DIR/image-test.log${off}"
+  fi
 fi
 
 if [ "$OS" = Darwin ]; then TUNE_BASE="mlx-community/Qwen3-4B-Instruct-2507-4bit"; else TUNE_BASE="Qwen/Qwen3-4B-Instruct-2507"; fi
