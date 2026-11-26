@@ -6,7 +6,7 @@ import copy, hashlib, html, inspect, json, os, pathlib, platform, re, secrets, s
 from concurrent.futures import ThreadPoolExecutor, wait
 from itertools import zip_longest
 import gradio as gr, ollama
-import agent, apple, browser, hfcache, desks, factcheck, falken, monitor, providers, ranking, reader, remote, scratch, teams, tune_ui
+import agent, apple, browser, hfcache, desks, podcast_ui, factcheck, falken, monitor, providers, ranking, reader, remote, scratch, teams, tune_ui
 from i18n import t, LANG, LANGS
 import i18n
 tr = t  # the same, for functions where t is a scheduled task
@@ -1237,6 +1237,13 @@ def think_mode(model, thinking):
     if "thinking" not in caps(model) or (not thinking and is_cloud(model)):
         return {}
     return {"think": bool(thinking)}
+
+
+def podcast_write(model, prompt):
+    """A podcast script, piece by piece, from the model chosen on the Podcast page."""
+    m = resolve(model, False)
+    for chunk in ollama.chat(m, messages=[{"role": "user", "content": prompt}], stream=True, options={"num_ctx": 32768, "temperature": 0.7}, **think_mode(m, False)):
+        yield chunk.message.content or ""
 
 
 def ask_json(model, prompt, schema):
@@ -3854,8 +3861,11 @@ def css_text(text):
 
 
 CSS = CSS.replace("@@WHAT_HELP@@", css_text(t("Hello. What would you like to do today?"))).replace("@@ASK_HINT@@", css_text(t("Everything you write here is stored only on this computer."))).replace("@@MODEL@@", css_text(t("Model:")))
-CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage", "#teampage", "#readpage") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
-CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn", "#teambtn", "#readbtn", "#newmodelbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
+CSS += "\n" + "\n".join(re.sub(r"#tune(?=[\s.,{:])", "#podcast", line).replace("#tunetitle", "#podtitle") for line in CSS.splitlines() if re.search(r"#tune(title)?(?=[\s.,{:])", line) and line.count("{") == 1 and line.rstrip().endswith("}"))  # whole one-line rules only  # the Podcast page looks like the fine-tuning one
+CSS += "\n#podcast .podline {flex: 1} #podcast .podvoices {opacity: .8; margin: 4px 0 8px} #podscript textarea {font-family: 'IBM Plex Mono', monospace; font-size: .92rem; line-height: 1.55}"
+CSS += "\nbody:not(#a):not(#b):not(#c):not(#d):not(#e) #podcast .podfile button {height: auto !important; min-height: 96px !important; width: 100% !important; white-space: normal !important}"  # the drop area is a button: not the small size of the page's buttons
+CSS += "\n" + "\n".join(line.replace("#modelspage", pid) for pid in ("#mempage", "#setpage", "#binpage", "#teampage", "#readpage", "#podcast") for line in CSS.splitlines() if "#modelspage" in line and line.count("{") == 1)
+CSS += "\n" + "\n".join(line.replace("#tunebtn", b) for b in ("#membtn", "#setbtn", "#binbtn", "#teambtn", "#readbtn", "#newmodelbtn", "#podbtn") for line in CSS.splitlines() if "#tunebtn" in line and line.count("{") == 1)  # Memory and Settings look like Teach
 CSS += "\n#modelspage .mz0, #setpage .mz0 {background: color-mix(in srgb, var(--ink) 4%, var(--bg)) !important}"
 JS_TEXT = lambda text: json.dumps(text, ensure_ascii=False).replace("'", "\\'")  # a text inside the js="..." handlers below
 
@@ -3884,6 +3894,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 sched = gr.Button("⏰  " + t("Scheduled tasks"), size="sm", elem_id="schedbtn")
                 team_btn = gr.Button("👥  " + t("Teams"), size="sm", elem_id="teambtn")
                 read_btn = gr.Button("🎧  " + t("Reader"), size="sm", elem_id="readbtn")
+                pod_btn = gr.Button("🎙  " + t("Podcast"), size="sm", elem_id="podbtn")
                 rd_pos = gr.Textbox("", elem_id="rdpos", show_label=False, container=False)  # hidden: where the browser reports your place in the book, from any page
                 models_btn = gr.Button("🧩  " + t("Models"), size="sm", elem_id="modelsbtn")
                 mem_btn_open = gr.Button("🧠  " + t("Background"), size="sm", elem_id="membtn")  # what Joshua knows about you
@@ -3894,6 +3905,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 set_btn = gr.Button("⚙  " + t("Settings"), size="sm", elem_id="setbtn")
                 feedback = gr.Button("💬  " + t("Send feedback"), size="sm", elem_id="fbbtn")
         tune_panel, tune_back, tune_res, tune_refresh, tune_mode, tune_title = tune_ui.build(ROOT, conv_choices)
+        pod_panel, pod_back, (pod_open, pod_outs) = podcast_ui.build(ROOT, lambda: models(), podcast_write)
         RD_BAR = ("<div id='rdbar'><button id='rdprev' title='" + html.escape(t("Previous paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,47.88V208.12a16,16,0,0,1-24.43,13.43L64,146.77V216a8,8,0,0,1-16,0V40a8,8,0,0,1,16,0v69.23L183.57,34.45A15.95,15.95,0,0,1,208,47.88Z'/></svg></button>"
                             "<button id='rdplay' title='" + html.escape(t("Read aloud") + " / " + t("Pause")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M240,128a15.74,15.74,0,0,1-7.6,13.51L88.32,229.65a16,16,0,0,1-16.2.3A15.86,15.86,0,0,1,64,216.13V39.87a15.86,15.86,0,0,1,8.12-13.82,16,16,0,0,1,16.2.3L232.4,114.49A15.74,15.74,0,0,1,240,128Z'/></svg></button>"
                             "<button id='rdnext' title='" + html.escape(t("Next paragraph")) + "'><svg viewBox='0 0 256 256' fill='currentColor' aria-hidden='true'><path d='M208,40V216a8,8,0,0,1-16,0V146.77L72.43,221.55A15.95,15.95,0,0,1,48,208.12V47.88A15.95,15.95,0,0,1,72.43,34.45L192,109.23V40a8,8,0,0,1,16,0Z'/></svg></button>"
@@ -4263,12 +4275,13 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                     js="(d) => (d && confirm(" + JS_TEXT(t("Remove this desk? Its chats stay, at no desk. One of Joshua's desks can be brought back later.")) + ")) ? d : null")
     dk_back.click(desk_editor_back, dk_hidden, [dk_pick, desk] + DK + [dk_hiddenrow, dk_hidden])
 
-    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back), (bin_btn, bin_panel, bin_back), (team_btn, team_panel, team_back), (read_btn, read_panel, read_back)]:
-        rest = [x for x in (mem_panel, set_panel, bin_panel, team_panel, read_panel) if x is not panel]
+    for btn, panel, back in [(mem_btn_open, mem_panel, mem_back), (set_btn, set_panel, set_back), (bin_btn, bin_panel, bin_back), (team_btn, team_panel, team_back), (read_btn, read_panel, read_back), (pod_btn, pod_panel, pod_back)]:
+        rest = [x for x in (mem_panel, set_panel, bin_panel, team_panel, read_panel, pod_panel) if x is not panel]
         btn.click(lambda n=len(OTHER + rest): (gr.Column(visible=True),) + (gr.Column(visible=False),) * (2 + n), outputs=[panel, chatcol, rightcol] + OTHER + rest)
         back.click(lambda: (gr.Column(visible=False), gr.Column(visible=True), gr.Column(visible=True)), outputs=[panel, chatcol, rightcol])
         for o in (models_btn, sched, tune):  # opening another page closes this one
             o.click(lambda: gr.Column(visible=False), outputs=panel)
+    pod_btn.click(pod_open, outputs=pod_outs, show_progress="hidden")
     mem_btn_open.click(mem_view, mem_topic, [mem_topic, mem_text])
     bin_btn.click(bin_view, outputs=[bin_list, bin_pick, bin_controls])
     OPENED = [chatbot, cid, files, project, model, thinking, goal, swarm, offline, agents, *team, desk, starters]  # what opening a chat fills
@@ -4335,9 +4348,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     goal.change(lambda g: (gr.Column(visible=g), gr.MultimodalTextbox(placeholder=t("Describe a goal for Joshua to accomplish…") if g else t("Message Joshua, or drop files here…"))), goal, [goalpanel, box])
     new.click(new_chat, outputs=[chatbot, cid, convs, files, project, thinking, goal, swarm, offline, agents, *team, desk, starters])
     convs.input(open_conv, convs, OPENED).then(badge, model, cloudbadge)
-    to_chat = lambda: (gr.Column(visible=True), gr.Column(visible=True)) + (gr.Column(visible=False),) * 5
+    to_chat = lambda: (gr.Column(visible=True), gr.Column(visible=True)) + (gr.Column(visible=False),) * 6
     for e in (convs.input, new.click):  # a chat or New chat in the side column closes Models, Settings and the other pages
-        e(to_chat, outputs=[chatcol, rightcol, models_panel, sched_panel, tune_panel, mem_panel, set_panel], show_progress="hidden")
+        e(to_chat, outputs=[chatcol, rightcol, models_panel, sched_panel, tune_panel, mem_panel, set_panel, pod_panel], show_progress="hidden")
     for o in (thinking, goal, swarm, offline, agents, *team):
         o.input(save_opts, [cid, thinking, goal, swarm, offline, agents, *team, desk], show_progress="hidden")
 
