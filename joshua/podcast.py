@@ -242,9 +242,10 @@ def jingle(choice, folder):
 
 # ---------- the whole podcast ----------
 
-def make(script, cast, out, gap=0.35, pause=1.5, sting=False, intro=None, outro=None, jingles_dir=None, speed=1.0, progress=None):
+def make(script, cast, out, gap=0.35, pause=1.5, break_sound=None, intro=None, outro=None, jingles_dir=None, speed=1.0, bed=False, progress=None):
     """Reads the script with the voices in cast ({name: voice id}), with a gap between turns, a pause at each [BREAK]
-    (with a short jingle if sting), the intro and outro jingles, and saves it as an MP3."""
+    (with the break_sound jingle, if any), the intro and outro jingles, and saves it as an MP3 with the script beside it.
+    bed: the intro plays at full volume for up to 6 seconds, then fades and keeps playing softly under the voices."""
     _need(("soundfile", "soundfile"))
     import soundfile as sf
     steps = parse(script)
@@ -252,30 +253,42 @@ def make(script, cast, out, gap=0.35, pause=1.5, sting=False, intro=None, outro=
     if missing:
         raise ValueError("no voice for " + ", ".join(missing))
     silence = lambda s: np.zeros(int(s * RATE), np.float32)
-    parts = []
-    start = jingle(intro, jingles_dir)
-    if len(start):
-        parts += [start, silence(0.4)]
-    says = sum(s[0] == "say" for s in steps)
-    done = 0
+    sting = jingle(break_sound, jingles_dir) if break_sound else None
+    parts, says, done = [], sum(s[0] == "say" for s in steps), 0
     for s in steps:
         if s[0] == "break":
             parts.append(silence(s[1] if s[1] is not None else pause))
-            if sting and s[1] is None:
-                parts += [builtin_jingle("Calm")[: int(1.6 * RATE)] * np.linspace(1, 0, int(1.6 * RATE)), silence(0.3)]
+            if sting is not None and len(sting) and s[1] is None:
+                parts += [sting * 0.7, silence(0.4)]
         else:
             parts += [speak(cast[s[1]], s[2], speed), silence(gap)]
             done += 1
             if progress:
                 progress(done / says)
+    voice = np.concatenate(parts) if parts else silence(1)
+    start = jingle(intro, jingles_dir)
+    if bed and len(start) > 2 * RATE:
+        loud = min(len(start), 6 * RATE)  # like your old podcast: the music, then the voices over it, softly
+        fade = min(len(start) - loud, 3 * RATE)
+        level = np.ones(len(start), np.float32)
+        level[loud:loud + fade] = np.linspace(1, 0.06, fade)
+        level[loud + fade:] = 0.06
+        lead = loud + RATE  # the first voice starts one second into the fade
+        mix = np.zeros(max(len(start), lead + len(voice)), np.float32)
+        mix[:len(start)] += start * level
+        mix[lead:lead + len(voice)] += voice
+        voice = mix
+    elif len(start):
+        voice = np.concatenate([start, silence(0.4), voice])
     end = jingle(outro, jingles_dir)
     if len(end):
-        parts += [silence(0.6), end]
-    audio = np.concatenate(parts) if parts else silence(1)
-    audio = audio / max(1.0, np.abs(audio).max() / 0.95)  # never louder than the loudest a file can hold
+        voice = np.concatenate([voice, silence(0.6), end])
+    audio = voice / max(1.0, np.abs(voice).max() / 0.95)  # never louder than the loudest a file can hold
     out = pathlib.Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     sf.write(out, audio, RATE, format="MP3") if out.suffix.lower() == ".mp3" else sf.write(out, audio, RATE)
+    if out.suffix.lower() == ".mp3":
+        out.with_suffix(".txt").write_text(script, encoding="utf-8")  # the script, to open it again later
     return out, len(audio) / RATE
 
 
@@ -304,16 +317,53 @@ SOURCES
 {sources}"""
 
 
-def gather(texts, links, files, folder, budget=40000):
+CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
+
+
+def front_page(url, n):
+    """The latest articles on a news site's front page: links to the same site whose text looks like a headline
+    (long enough, and the address looks like an article: several parts, or a date or number in it)."""
+    import trafilatura
+    from bs4 import BeautifulSoup
+    from urllib.parse import urljoin, urlparse
+    raw = trafilatura.fetch_url(url)
+    if not raw:
+        return []
+    site = urlparse(url).netloc.removeprefix("www.")
+    found, seen = [], set()
+    for a in BeautifulSoup(raw, "html.parser").find_all("a", href=True):
+        link = urljoin(url, a["href"]).split("#")[0]
+        parts = urlparse(link)
+        title = " ".join(a.get_text(" ").split())
+        if not title or len(title) < 20:  # a headline may be next to the link, not inside it
+            box = a.find_parent(["article", "div", "li"])
+            h = box and box.find(["h1", "h2", "h3", "h4"])
+            title = " ".join(h.get_text(" ").split()) if h else title
+        long_enough = len(title) >= (8 if CJK.search(title) else 25) and len(title) < 300
+        article_like = parts.path.strip("/").count("/") >= 1 or re.search(r"\d{4,}", parts.path)
+        if site in parts.netloc and long_enough and article_like and link not in seen and link.rstrip("/") != url.rstrip("/"):
+            seen.add(link)
+            found.append((title, link))
+        if len(found) >= n:
+            break
+    return found
+
+
+def gather(texts, links, files, folder, budget=40000, front=0):
     """Every source as text, one after the other with its origin: the texts you pasted, the pages at the links,
-    the files (PDF, Word, LibreOffice, plain text). Each gets an equal share of the budget, in characters."""
+    the files (PDF, Word, LibreOffice, plain text). With front > 0 the links are news sites' front pages, and
+    their latest front articles are read instead. Each source gets an equal share of the budget, in characters."""
     import agent
     agent.set_workspace(folder)
     found = []
     if texts.strip():
         found.append(("Text", texts.strip()))
     for url in re.findall(r"https?://\S+", links or ""):
-        found.append((url, agent.read_page(url)))
+        if front:
+            for title, link in front_page(url, front):
+                found.append((title + " — " + link, agent.read_page(link)))
+        else:
+            found.append((url, agent.read_page(url)))
     for f in files or []:
         p = pathlib.Path(f)
         shutil.copy(p, agent._path(p.name))

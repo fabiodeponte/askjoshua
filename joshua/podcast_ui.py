@@ -64,6 +64,9 @@ def build(conv_root, model_choices, write):
             gr.Markdown("**1 · " + t("Sources") + "** " + t("Texts, links and files: the podcast uses only what is in them."))
             texts = gr.Textbox(label=t("Texts"), lines=5, placeholder=t("Paste one or more texts here"))
             links = gr.Textbox(label=t("Links"), lines=2, placeholder=t("One web address per line"))
+            with gr.Row(equal_height=True):
+                front = gr.Checkbox(False, label=t("These are news sites' front pages: read their latest articles"), scale=3)
+                per_page = gr.Slider(1, 15, value=5, step=1, label=t("Articles per site"), scale=2)
             files = gr.File(label=t("Files (PDF, Word, LibreOffice, text)"), file_count="multiple", file_types=[".pdf", ".docx", ".odt", ".txt", ".md", ".html"], elem_classes="podfile")
 
         with gr.Column(elem_classes="ftpane"):
@@ -95,12 +98,15 @@ def build(conv_root, model_choices, write):
                 gap = gr.Slider(0, 1.5, value=0.35, step=0.05, label=t("Pause between speakers (seconds)"))
                 pause = gr.Slider(0.5, 6, value=1.5, step=0.5, label=t("Pause at each [BREAK] (seconds)"))
                 speed = gr.Slider(0.7, 1.3, value=1.0, step=0.05, label=t("Speed"))
-            sting = gr.Checkbox(False, label=t("A short chime at each [BREAK]"))
             with gr.Row(equal_height=True):
                 intro = gr.Dropdown(jingle_choices(jingles), value="Morning", label=t("Opening jingle"), scale=3)
+                brk = gr.Dropdown(jingle_choices(jingles), value="", label=t("Sound at each [BREAK]"), scale=3)
                 outro = gr.Dropdown(jingle_choices(jingles), value="Calm", label=t("Closing jingle"), scale=3)
+            with gr.Row(equal_height=True):
                 hear_in = gr.Button("▶ " + t("Opening"), size="sm", scale=0, min_width=120)
+                hear_brk = gr.Button("▶ [BREAK]", size="sm", scale=0, min_width=120)
                 hear_out = gr.Button("▶ " + t("Closing"), size="sm", scale=0, min_width=120)
+            bed = gr.Checkbox(False, label=t("The opening music goes on softly under the first voices"))
             add_jingle = gr.File(label=t("Add your own jingle (MP3, WAV…)"), file_types=["audio"], elem_classes="podfile")
             with gr.Row():
                 makeb = gr.Button("🎙 " + t("Make the audio"), size="sm", scale=0, min_width=190, elem_classes="ftmain")
@@ -120,6 +126,13 @@ def build(conv_root, model_choices, write):
             catalog_b = gr.Button(t("Show the Piper voices"), size="sm", scale=0, min_width=200)
             vstatus = gr.HTML()
 
+        with gr.Column(elem_classes="ftpane"):
+            gr.Markdown("**5 · " + t("Your podcasts") + "** " + t("The ones you made, newest first, with their scripts."))
+            with gr.Row(equal_height=True):
+                past = gr.Dropdown([], label=t("Podcast"), scale=4)
+                reopen = gr.Button("✎ " + t("Open its script"), size="sm", scale=0, min_width=170)
+            past_audio = gr.Audio(visible=False, show_label=False, type="filepath", interactive=False)
+
     # ---------- what the controls do ----------
 
     def refresh_voices(code, n, *current):
@@ -129,6 +142,18 @@ def build(conv_root, model_choices, write):
         fits = {v["id"] for v in pc.voices() if v["code"] == code}  # a voice you picked stays if it speaks this language
         picks = default_voices(code, MAX_SPEAKERS)
         return [gr.Dropdown(choices=choices, value=cur if cur in fits or (cur and not fits) else picks[i]) for i, cur in enumerate(current)] + [voices_html()]
+
+    def past_list(value=None):
+        files = sorted(home.glob("*.mp3"), key=lambda p: p.stat().st_mtime, reverse=True)
+        choices = [(f"{p.stem} · {datetime.datetime.fromtimestamp(p.stat().st_mtime):%d %b %Y %H:%M}", p.name) for p in files]
+        return gr.Dropdown(choices=choices, value=value)
+
+    def play_past(name):
+        return gr.Audio(value=str(home / name), visible=True) if name and (home / name).exists() else gr.Audio(visible=False)
+
+    def open_script(name):
+        f = (home / (name or "")).with_suffix(".txt")
+        return f.read_text(encoding="utf-8") if name and f.exists() else gr.skip()
 
     def kokoro_button():
         return gr.Button("✓ " + t("Kokoro is installed.") if pc.kokoro_ready() else "⬇ " + t("Install Kokoro"), interactive=not pc.kokoro_ready())
@@ -156,19 +181,19 @@ def build(conv_root, model_choices, write):
 
     def add_own(f):
         if not f:
-            return gr.skip(), gr.skip(), None
+            return gr.skip(), gr.skip(), gr.skip(), None
         name = re.sub(r"[^\w.-]+", "-", pathlib.Path(f).name)
         shutil.copy(f, jingles / name)
         choices = jingle_choices(jingles)
-        return gr.Dropdown(choices=choices, value=name), gr.Dropdown(choices=choices), None
+        return gr.Dropdown(choices=choices, value=name), gr.Dropdown(choices=choices), gr.Dropdown(choices=choices), None
 
-    def write_script(texts_, links_, files_, title_, code, minutes_, n, model_, notes_, *names_):
+    def write_script(texts_, links_, front_, per_page_, files_, title_, code, minutes_, n, model_, notes_, *names_):
         if not model_:
             yield gr.skip(), "<div class='ftempty'>" + t("Choose the model that writes.") + "</div>", gr.skip()
             return
         yield gr.skip(), "<div class='ftres'>" + t("Reading the sources…") + "</div>", gr.skip()
         try:
-            sources, used = pc.gather(texts_ or "", links_ or "", [getattr(f, "name", f) for f in files_ or []], home / "sources")
+            sources, used = pc.gather(texts_ or "", links_ or "", [getattr(f, "name", f) for f in files_ or []], home / "sources", front=int(per_page_) if front_ else 0)
         except Exception as e:
             yield gr.skip(), "<div class='ftempty'>" + t("Couldn't read the sources: {error}", error=html.escape(str(e))) + "</div>", gr.skip()
             return
@@ -191,15 +216,15 @@ def build(conv_root, model_choices, write):
         yield got, "<div class='ftres'>" + t("Done: about {m} min. Edit it as you like, then make the audio.", m=max(1, round(len(got.split()) / 150))) + "</div>" + (
             "<div class='ftempty'>" + t("Names in the script without a voice: {names}. Rename them, or give the speakers those names.", names=html.escape(", ".join(unknown))) + "</div>" if unknown else ""), code
 
-    def make_audio(script_, title_, gap_, pause_, sting_, intro_, outro_, speed_, n, *rest):
+    def make_audio(script_, title_, gap_, pause_, brk_, intro_, outro_, speed_, bed_, n, *rest):
         names_, voices_ = rest[:MAX_SPEAKERS], rest[MAX_SPEAKERS:]
         cast = {names_[i].strip(): voices_[i] for i in range(int(n)) if names_[i].strip() and voices_[i]}
         if not script_.strip():
-            yield "<div class='ftempty'>" + t("Write or paste a script first.") + "</div>", gr.skip()
+            yield "<div class='ftempty'>" + t("Write or paste a script first.") + "</div>", gr.skip(), gr.skip()
             return
         missing = [s for s in pc.speakers_in(script_) if s not in cast]
         if missing:
-            yield "<div class='ftempty'>" + t("Names in the script without a voice: {names}. Rename them, or give the speakers those names.", names=html.escape(", ".join(missing))) + "</div>", gr.skip()
+            yield "<div class='ftempty'>" + t("Names in the script without a voice: {names}. Rename them, or give the speakers those names.", names=html.escape(", ".join(missing))) + "</div>", gr.skip(), gr.skip()
             return
         slug = re.sub(r"\W+", "-", (title_ or "podcast").lower()).strip("-")[:40] or "podcast"
         out = home / f"{slug}-{datetime.datetime.now():%Y%m%d-%H%M}.mp3"
@@ -207,19 +232,19 @@ def build(conv_root, model_choices, write):
 
         def run():
             try:
-                job["file"], job["secs"] = pc.make(script_, cast, out, gap_, pause_, sting_, intro_ or None, outro_ or None, jingles, speed_, progress=lambda x: job.update(done=x))
+                job["file"], job["secs"] = pc.make(script_, cast, out, gap_, pause_, brk_ or None, intro_ or None, outro_ or None, jingles, speed_, bed_, progress=lambda x: job.update(done=x))
             except Exception as e:
                 job["error"] = str(e)
         threading.Thread(target=run, daemon=True).start()
         while not job["file"] and not job["error"]:
             time.sleep(1)
             left = (time.time() - job["start"]) * (1 - job["done"]) / job["done"] if job["done"] > 0.02 else None
-            yield ("<div class='ftres'>" + t("Reading the script aloud: {p}%", p=int(job["done"] * 100)) + (" · " + t("about {m} min left", m=max(1, round(left / 60))) if left else "") + "</div>"), gr.skip()
+            yield ("<div class='ftres'>" + t("Reading the script aloud: {p}%", p=int(job["done"] * 100)) + (" · " + t("about {m} min left", m=max(1, round(left / 60))) if left else "") + "</div>"), gr.skip(), gr.skip()
         if job["error"]:
-            yield "<div class='ftempty'>" + t("The audio failed: {error}", error=html.escape(job["error"])) + "</div>", gr.skip()
+            yield "<div class='ftempty'>" + t("The audio failed: {error}", error=html.escape(job["error"])) + "</div>", gr.skip(), gr.skip()
             return
         yield ("<div class='ftres'>" + t("Ready: {m} min {s} s, saved as {file}", m=int(job["secs"] // 60), s=int(job["secs"] % 60), file=html.escape(str(job["file"]))) + "</div>",
-               gr.Audio(value=str(job["file"]), visible=True))
+               gr.Audio(value=str(job["file"]), visible=True), past_list(job["file"].name))
 
     def install_kokoro():
         state = {"p": 0.0, "done": False, "error": None}
@@ -267,8 +292,8 @@ def build(conv_root, model_choices, write):
         yield "<div class='ftempty'>" + t("Couldn't install: {error}", error=html.escape(state["error"])) + "</div>" if state["error"] else "<div class='ftres'>" + t("The voice is installed.") + "</div>"
 
     # the draft is kept, so leaving the page or closing Joshua doesn't lose it
-    fields = [texts, links, title, lang, minutes, count, notes, script, gap, pause, sting, speed, intro, outro, *names, *voices]
-    keys = ["texts", "links", "title", "lang", "minutes", "count", "notes", "script", "gap", "pause", "sting", "speed", "intro", "outro"] + \
+    fields = [texts, links, front, per_page, title, lang, minutes, count, notes, script, gap, pause, brk, speed, bed, intro, outro, *names, *voices]
+    keys = ["texts", "links", "front", "per_page", "title", "lang", "minutes", "count", "notes", "script", "gap", "pause", "brk", "speed", "bed", "intro", "outro"] + \
            [f"name{i}" for i in range(MAX_SPEAKERS)] + [f"voice{i}" for i in range(MAX_SPEAKERS)]
 
     def save(*vals):
@@ -289,12 +314,12 @@ def build(conv_root, model_choices, write):
             if k.startswith("voice"):
                 v = d.get(k)
                 out.append(gr.Dropdown(choices=choices, value=v if v in ids else picks[int(k[5:])]))
-            elif k in ("intro", "outro"):
-                out.append(gr.Dropdown(choices=jl, value=d.get(k, "Morning" if k == "intro" else "Calm")))
+            elif k in ("intro", "outro", "brk"):
+                out.append(gr.Dropdown(choices=jl, value=d.get(k, {"intro": "Morning", "outro": "Calm", "brk": ""}[k])))
             else:
                 out.append(d[k] if k in d else gr.skip())
-        return out + show_speakers(int(d.get("count", 2))) + [voices_html(), gr.Dropdown(choices=model_choices()), kokoro_button()]
-    open_outputs = fields + rows + [have, model, kokoro_b]
+        return out + show_speakers(int(d.get("count", 2))) + [voices_html(), gr.Dropdown(choices=model_choices()), kokoro_button(), past_list()]
+    open_outputs = fields + rows + [have, model, kokoro_b, past]
 
     count.change(show_speakers, count, rows, show_progress="hidden")
     vargs = [lang, count, *voices]
@@ -302,9 +327,12 @@ def build(conv_root, model_choices, write):
         samples[i].click(sample, [voices[i], names[i], lang], sample_audio)
     hear_in.click(hear_jingle, intro, sample_audio)
     hear_out.click(hear_jingle, outro, sample_audio)
-    add_jingle.upload(add_own, add_jingle, [intro, outro, add_jingle])
-    writeb.click(write_script, [texts, links, files, title, lang, minutes, count, model, notes, *names], [script, status, lang]).then(save, fields, None)
-    makeb.click(save, fields, None).then(make_audio, [script, title, gap, pause, sting, intro, outro, speed, count, *names, *voices], [progress, result])
+    hear_brk.click(hear_jingle, brk, sample_audio)
+    past.change(play_past, past, past_audio, show_progress="hidden")
+    reopen.click(open_script, past, script)
+    add_jingle.upload(add_own, add_jingle, [intro, outro, brk, add_jingle])
+    writeb.click(write_script, [texts, links, front, per_page, files, title, lang, minutes, count, model, notes, *names], [script, status, lang]).then(save, fields, None)
+    makeb.click(save, fields, None).then(make_audio, [script, title, gap, pause, brk, intro, outro, speed, bed, count, *names, *voices], [progress, result, past])
     kokoro_b.click(install_kokoro, None, vstatus).then(refresh_voices, vargs, [*voices, have]).then(kokoro_button, None, kokoro_b)
     catalog_b.click(show_catalog, None, [plang, vstatus])
     plang.change(piper_voices, plang, pvoice, show_progress="hidden")

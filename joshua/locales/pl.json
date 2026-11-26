@@ -1001,5 +1001,12 @@
  "bright notes going up": "jasne, wznoszące się dźwięki",
  "a soft chord": "łagodny akord",
  "a pulse, like a newscast": "rytm jak w serwisie informacyjnym",
- "Podcast": "Podcast"
+ "Podcast": "Podcast",
+ "These are news sites' front pages: read their latest articles": "To strony główne serwisów informacyjnych: przeczytaj ich najnowsze artykuły",
+ "Articles per site": "Artykuły na serwis",
+ "Sound at each [BREAK]": "Dźwięk przy każdym [BREAK]",
+ "The opening music goes on softly under the first voices": "Muzyka otwierająca gra cicho pod pierwszymi głosami",
+ "Your podcasts": "Twoje podcasty",
+ "The ones you made, newest first, with their scripts.": "Te, które zrobiłeś, od najnowszych, razem ze scenariuszami.",
+ "Open its script": "Otwórz jego scenariusz"
 }

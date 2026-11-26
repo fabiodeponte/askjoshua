@@ -1001,5 +1001,12 @@
  "bright notes going up": "明亮的上行音符",
  "a soft chord": "柔和的和弦",
  "a pulse, like a newscast": "像新闻节目那样的节拍",
- "Podcast": "播客"
+ "Podcast": "播客",
+ "These are news sites' front pages: read their latest articles": "这些是新闻网站首页：读取它们的最新文章",
+ "Articles per site": "每个网站的文章数",
+ "Sound at each [BREAK]": "每个 [BREAK] 处的声音",
+ "The opening music goes on softly under the first voices": "片头音乐在开头的人声下轻轻继续",
+ "Your podcasts": "你的播客",
+ "The ones you made, newest first, with their scripts.": "你做过的播客，按时间从新到旧，附带脚本。",
+ "Open its script": "打开其脚本"
 }
