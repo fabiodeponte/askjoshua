@@ -55,10 +55,18 @@ def build(conv_root, model_choices, write):
     draft_file = home / "draft.json"
 
     with gr.Column(visible=False, scale=5, elem_id="podcast") as panel:
-        with gr.Row():
+        with gr.Row(elem_classes="pagehead"):
             gr.HTML("<div id='podtitle'>" + t("PODCAST") + "</div>")
             back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
         gr.Markdown(t("A podcast from your sources: Joshua writes the dialogue, you edit it, then the voices on this computer read it."), elem_classes="ftlead")
+
+        with gr.Column(elem_classes="ftpane"):
+            gr.Markdown("**" + t("Your podcasts") + "** " + t("The ones you made, newest first, with their scripts."))
+            with gr.Row(equal_height=True):
+                past = gr.Dropdown([], label=t("Podcast"), scale=4)
+                reopen = gr.Button("✎ " + t("Open its script"), size="sm", scale=0, min_width=170)
+            past_audio = gr.Audio(visible=False, show_label=False, type="filepath", interactive=False)
+
 
         with gr.Column(elem_classes="ftpane"):
             gr.Markdown("**1 · " + t("Sources") + "** " + t("Texts, links and files: the podcast uses only what is in them."))
@@ -66,7 +74,7 @@ def build(conv_root, model_choices, write):
             links = gr.Textbox(label=t("Links"), lines=2, placeholder=t("One web address per line"))
             with gr.Row(equal_height=True):
                 front = gr.Checkbox(False, label=t("These are news sites' front pages: read their latest articles"), scale=3)
-                per_page = gr.Slider(1, 15, value=5, step=1, label=t("Articles per site"), scale=2)
+                per_page = gr.Slider(1, 15, value=5, step=1, label=t("Articles per site"), scale=2, interactive=False)  # only for news front pages
             files = gr.File(label=t("Files (PDF, Word, LibreOffice, text)"), file_count="multiple", file_types=[".pdf", ".docx", ".odt", ".txt", ".md", ".html"], elem_classes="podfile")
 
         with gr.Column(elem_classes="ftpane"):
@@ -83,6 +91,7 @@ def build(conv_root, model_choices, write):
                     voices.append(gr.Dropdown([], label=t("Voice"), scale=4))
                     samples.append(gr.Button("▶ " + t("Listen"), size="sm", scale=0, min_width=110))
                 rows.append(row)
+            gr.Markdown(t("More voices can be installed at the bottom of this page."), elem_classes="podvoices")
             sample_audio = gr.Audio(visible=False, autoplay=True, show_label=False, elem_id="podsample")
             notes = gr.Textbox(label=t("Instructions"), lines=2, placeholder=t("Tone, audience, what to stress or leave out…"))
             with gr.Row():
@@ -96,15 +105,15 @@ def build(conv_root, model_choices, write):
             gr.Markdown("**3 · " + t("The sound") + "** " + t("Pauses and music around the voices."))
             with gr.Row():
                 gap = gr.Slider(0, 1.5, value=0.35, step=0.05, label=t("Pause between speakers (seconds)"))
-                pause = gr.Slider(0.5, 6, value=1.5, step=0.5, label=t("Pause at each [BREAK] (seconds)"))
+                pause = gr.Slider(0.5, 6, value=1.5, step=0.5, label=t("Pause between sections (seconds)"))
                 speed = gr.Slider(0.7, 1.3, value=1.0, step=0.05, label=t("Speed"))
             with gr.Row(equal_height=True):
                 intro = gr.Dropdown(jingle_choices(jingles), value="Morning", label=t("Opening jingle"), scale=3)
-                brk = gr.Dropdown(jingle_choices(jingles), value="", label=t("Sound at each [BREAK]"), scale=3)
+                brk = gr.Dropdown(jingle_choices(jingles), value="", label=t("Sound between sections"), scale=3)
                 outro = gr.Dropdown(jingle_choices(jingles), value="Calm", label=t("Closing jingle"), scale=3)
             with gr.Row(equal_height=True):
                 hear_in = gr.Button("▶ " + t("Opening"), size="sm", scale=0, min_width=120)
-                hear_brk = gr.Button("▶ [BREAK]", size="sm", scale=0, min_width=120)
+                hear_brk = gr.Button("▶ " + t("Between sections"), size="sm", scale=0, min_width=120)
                 hear_out = gr.Button("▶ " + t("Closing"), size="sm", scale=0, min_width=120)
             bed = gr.Checkbox(False, label=t("The opening music goes on softly under the first voices"))
             add_jingle = gr.File(label=t("Add your own jingle (MP3, WAV…)"), file_types=["audio"], elem_classes="podfile")
@@ -114,24 +123,17 @@ def build(conv_root, model_choices, write):
             result = gr.Audio(visible=False, label=t("Your podcast"), type="filepath", interactive=False)
 
         with gr.Column(elem_classes="ftpane"):
-            gr.Markdown("**4 · " + t("Voices") + "** " + t("The voices installed on this computer, and more to add. They all work without internet once installed."))
+            gr.Markdown("**" + t("More voices (optional)") + "** " + t("The voices installed on this computer, and more to add. They all work without internet once installed."))
             have = gr.HTML(voices_html())
             with gr.Row(equal_height=True):
-                gr.Markdown(t("**Kokoro**: 54 natural voices in English, Italian, French, Spanish, Portuguese, Japanese, Chinese and Hindi. About 205 MB."), elem_classes="podline")
+                gr.Markdown(t("**Kokoro** (extra free voices): 54 natural voices in English, Italian, French, Spanish, Portuguese, Japanese, Chinese and Hindi. About 205 MB."), elem_classes="podline")
                 kokoro_b = gr.Button("⬇ " + t("Install Kokoro"), size="sm", scale=0, min_width=170)
             with gr.Row(equal_height=True):
-                plang = gr.Dropdown([], label=t("Piper voices, in many more languages"), scale=2)
+                plang = gr.Dropdown([], label=t("More free voices (Piper), in many more languages"), scale=2)
                 pvoice = gr.Dropdown([], label=t("Voice"), scale=3)
                 piper_b = gr.Button("⬇ " + t("Install this voice"), size="sm", scale=0, min_width=170)
             catalog_b = gr.Button(t("Show the Piper voices"), size="sm", scale=0, min_width=200)
             vstatus = gr.HTML()
-
-        with gr.Column(elem_classes="ftpane"):
-            gr.Markdown("**5 · " + t("Your podcasts") + "** " + t("The ones you made, newest first, with their scripts."))
-            with gr.Row(equal_height=True):
-                past = gr.Dropdown([], label=t("Podcast"), scale=4)
-                reopen = gr.Button("✎ " + t("Open its script"), size="sm", scale=0, min_width=170)
-            past_audio = gr.Audio(visible=False, show_label=False, type="filepath", interactive=False)
 
     # ---------- what the controls do ----------
 
@@ -331,6 +333,7 @@ def build(conv_root, model_choices, write):
     past.change(play_past, past, past_audio, show_progress="hidden")
     reopen.click(open_script, past, script)
     add_jingle.upload(add_own, add_jingle, [intro, outro, brk, add_jingle])
+    front.change(lambda f: gr.Slider(interactive=bool(f)), front, per_page, show_progress="hidden")  # Articles per site only means something for news front pages
     writeb.click(write_script, [texts, links, front, per_page, files, title, lang, minutes, count, model, notes, *names], [script, status, lang]).then(save, fields, None)
     makeb.click(save, fields, None).then(make_audio, [script, title, gap, pause, brk, intro, outro, speed, bed, count, *names, *voices], [progress, result, past])
     kokoro_b.click(install_kokoro, None, vstatus).then(refresh_voices, vargs, [*voices, have]).then(kokoro_button, None, kokoro_b)

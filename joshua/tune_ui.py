@@ -18,7 +18,7 @@ but it will invent the details. For facts, Joshua already has better tools: memo
 (an *adapter*, a few tens of MB) on top of it. It takes 15–60 minutes, entirely on your computer.
 Your examples never leave it.
 
-**What you get.** A new model in Joshua's menu, named `joshua-<your name>`, that answers the way you taught it.
+**What you get.** A new model in Joshua's menu, named `joshua-<project name>`, that answers the way you taught it.
 **You choose which model to teach** in step ①: any open model your computer has room for. Bigger ones learn better and keep
 more of their skills, but take longer. The result works with text only, even if the original could also see images.
 
@@ -208,7 +208,7 @@ def download_html(n, res=None):
 def new_info(n):
     d = sc.data(n) if n else None
     if not d:
-        return "<div class='ftempty'>" + (t("Press Tokenize.") if n and sc.downloaded(n) else t("First do step 1.")) + "</div>"
+        return "<div class='ftempty'>" + (t("Press Prepare the texts.") if n and sc.downloaded(n) else t("First do step 1.")) + "</div>"
     best = sc.best_size(n)
     note = (" " + t("That is little text: the model will mostly learn to repeat it. More text helps more than a bigger model.")) if d["train_tokens"] < 20 * sc.params(sc.SIZES[0]) else ""
     return "<div class='ftres'>" + data_line(d) + " " + t("Suggested size: {size}.", size=best) + html.escape(note) + "</div>" + where_html(d.get("where"))
@@ -398,7 +398,12 @@ REFRESH = []  # (function, outputs) to run each time the page is opened: the lis
 
 def picker_state(choices):
     has = bool(choices)
-    return gr.Radio(value="open" if has else "new", visible=has), gr.Row(visible=has), gr.Dropdown(choices=choices), gr.Row(visible=not has)
+    return gr.Radio(value="open" if has else "new", visible=has), gr.Row(visible=has), gr.Dropdown(choices=choices, info=made_note(choices)), gr.Row(visible=not has)
+
+
+def made_note(choices):
+    """Under the list: how many there are, so an empty-looking list doesn't seem to have nothing in it."""
+    return t("{n} made so far: pick one to open it.", n=len(choices)) if choices else None
 
 
 def pick_folder(current):
@@ -420,9 +425,9 @@ def project_picker(label, choices, placeholder, elem=None):
     has = bool(choices)
     pick = gr.Radio([(t("Open one I've made"), "open"), (t("Make a new one"), "new")], value="open" if has else "new", show_label=False, elem_classes="ftpick", visible=has)  # none yet: just the name field
     with gr.Row(visible=has, equal_height=True, elem_id="ftproject") as openrow:
-        name = gr.Dropdown(choices=choices, value=None, label=label, scale=3, elem_id=elem)
-    with gr.Row(visible=not has, equal_height=True) as newrow:
-        newname = gr.Textbox(show_label=False, placeholder=placeholder, max_lines=1, scale=3, container=False)
+        name = gr.Dropdown(choices=choices, value=None, label=label, info=made_note(choices), scale=3, elem_id=elem)
+    with gr.Row(visible=not has, equal_height=False, elem_classes="ftnewrow") as newrow:
+        newname = gr.Textbox(label=t("Name of the new one"), placeholder=placeholder, max_lines=1, scale=3)
         create = gr.Button(t("Create"), size="sm", scale=0, min_width=110)
     pick.change(lambda p: (gr.Row(visible=p == "open"), gr.Row(visible=p == "new")), pick, [openrow, newrow], show_progress="hidden")
     return pick, openrow, name, newrow, newname, create
@@ -472,9 +477,9 @@ def build_new():
                     stop1b = gr.Button("■ " + t("Stop"), size="sm", scale=0, min_width=100)
                 dl = gr.HTML(download_html(None))
             with gr.Column(elem_classes="ftpane"):
-                gr.Markdown("**2 · " + t("Tokenization") + "** " + t("The texts from step 1 are extracted into one plain file, a vocabulary of 8,192 pieces is learned from them, and every paragraph becomes a list of numbers: the form the model learns from."))
+                gr.Markdown("**2 · " + t("Preparing the texts") + "** " + t("The texts from step 1 are extracted into one plain file, a vocabulary of 8,192 pieces is learned from them, and every paragraph becomes a list of numbers: the form the model learns from."))
                 with gr.Row():
-                    readb = gr.Button(t("Tokenize"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
+                    readb = gr.Button(t("Prepare the texts"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
                 info = gr.HTML(new_info(None))
             with gr.Column(elem_classes="ftpane"):
                 gr.Markdown("**3 · " + t("Pre-training") + "** " + t("The model learns to continue those texts, starting from random numbers. Bigger models learn more, but need more text and more time. You can stop and carry on later."))
@@ -839,13 +844,13 @@ def build_new():
 
 def build(conv_root, conv_choices):
     with gr.Column(visible=False, scale=5, elem_id="tune") as panel:
-        with gr.Row():
-            title = gr.HTML("<div id='tunetitle'>" + t("FINE-TUNING") + "</div>")
+        with gr.Row(elem_classes="pagehead"):
+            title = gr.HTML("<div id='tunetitle'>" + t("TEACH A MODEL YOUR STYLE") + "</div>")
             back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="tuneback", elem_classes="backbtn")
         mode = gr.Radio([(t("Teach an existing model"), "teach"), (t("Train a new model from zero"), "new")], value="teach", show_label=False, elem_id="ftmode", visible=False)  # chosen by the two menu entries
         with gr.Column() as teachcol:
             gr.Markdown(t("Teach a model your style from examples, here on your computer. The result is a new model in Joshua's menu."), elem_classes="ftlead")
-            res = gr.HTML()
+            res = gr.HTML(elem_id="ftres")
             more(INTRO, t("What fine-tuning is, and what it can't do"))
             # the project: open one, or start a new one
             pick, openrow, name, newrow, newname, create = project_picker(t("Project"), ft.projects(), t("a short name in lowercase, like newsroom-style"), "ftname")
@@ -907,8 +912,8 @@ def build(conv_root, conv_choices):
                         delb = gr.Button(t("Delete this project"), size="sm", scale=0, min_width=170, elem_id="ftdel")
                     more(STEP5)
         newcol = build_new()
-        status = gr.HTML("<div class='ftstatus'>" + t("Ready when you are") + "</div>")
-        showlog = gr.Checkbox(False, label=t("Show the console"))
+        status = gr.HTML("<div class='ftidle'>" + t("Ready when you are") + "</div>")  # plain text until something runs: it is not a field
+        showlog = gr.Checkbox(False, label=t("Show technical details"))
         with gr.Column(visible=False) as logbox:
             log = gr.Textbox(show_label=False, lines=10, max_lines=10, autoscroll=True, interactive=False, elem_id="ftlog")
         seen = gr.State(None)
