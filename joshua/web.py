@@ -4080,13 +4080,14 @@ X #convs input[type=radio] {display: block !important; position: absolute !impor
 X #convs label:focus-within {box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand) 55%, transparent) !important}
 
 /* the model menu under the message box: wide enough for the names, solid, with where each model runs */
-X #model ul.options {width: max-content !important; min-width: 300px !important; max-width: min(460px, 92vw) !important; left: auto !important; right: 14px !important;
+X #model .options:not(.option-list) {width: max-content !important; min-width: 300px !important; max-width: min(460px, 92vw) !important; left: auto !important; right: 14px !important;
   background: var(--panel) !important; opacity: 1 !important; border: 1px solid color-mix(in srgb, var(--line) 90%, transparent) !important; border-radius: 12px !important;
   box-shadow: 0 12px 32px rgba(0, 0, 0, .18) !important; padding: 6px !important; font-size: .9rem !important; z-index: 2147480001 !important}
-X #model ul.options li {white-space: nowrap !important; display: flex !important; align-items: center; gap: 6px; padding: 7px 10px !important; border-radius: 8px; background: transparent}
-X #model ul.options li:hover, X #model ul.options li.active {background: color-mix(in srgb, var(--brand) 10%, transparent) !important}
-X #model ul.options li[data-kind]::after {content: attr(data-kind); margin-left: auto; padding-left: 18px; font-size: .74rem; color: color-mix(in srgb, var(--ink) 55%, transparent)}
-X #model ul.options li.jadd {border-top: 1px solid color-mix(in srgb, var(--line) 90%, transparent); margin-top: 4px; border-radius: 0 0 8px 8px; color: var(--brand)}
+X #model .options > ul.option-list {width: auto !important; min-width: 0 !important; max-width: none !important; border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; background: transparent !important; position: static !important}
+X #model .options li {white-space: nowrap !important; display: flex !important; align-items: center; gap: 6px; padding: 7px 10px !important; border-radius: 8px; background: transparent}
+X #model .options li:hover, X #model .options li.active {background: color-mix(in srgb, var(--brand) 10%, transparent) !important}
+X #model .options li[data-kind]::after {content: attr(data-kind); margin-left: auto; padding-left: 18px; font-size: .74rem; color: color-mix(in srgb, var(--ink) 55%, transparent)}
+X #model .options li.jadd {border-top: 1px solid color-mix(in srgb, var(--line) 90%, transparent); margin-top: 4px; border-radius: 0 0 8px 8px; color: var(--brand)}
 
 /* the chat's bar: its files have a named button of their own, next to the ⋯ */
 X #chatbarbtns {display: flex !important; align-items: center; gap: 4px; padding: 0 !important; border: none !important; background: transparent !important; box-shadow: none !important; min-width: 0 !important; flex: 0 0 auto !important}
@@ -5244,7 +5245,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           document.querySelectorAll('#deskpick label').forEach(l => { const i = l.querySelector('input'), tip = i && T.desks[i.value]; if (tip && l.title !== tip) l.title = tip; });
         };
         // ---- the model menu: where each model runs, and "Add a model" set apart
-        const kinds = () => document.querySelectorAll('#model ul.options li').forEach(li => { if (li.dataset.kindDone) return; li.dataset.kindDone = 1;
+        const kinds = () => document.querySelectorAll('#model .options li').forEach(li => { if (li.dataset.kindDone) return; li.dataset.kindDone = 1;
           const txt = li.textContent.trim();
           if (/^[+＋]/.test(txt) || li.dataset.value === '+add') { li.classList.add('jadd'); return; }
           const k = li.querySelector('.ji-key') || txt.includes('🔑') ? T.key : li.querySelector('.ji-cloud') || txt.includes('☁') ? T.cloud : txt.includes('★') ? T.yours : T.local;
