@@ -4044,7 +4044,7 @@ body.narrow:not(#a):not(#b) :is(#binpage, #podcast) {min-width: 0 !important; wi
 # ---------- UX review of 28 November 2026: one set of rules, last, so it wins over the older ones above ----------
 # (the long :not(#…) chains only raise the priority of a rule; they match every page)
 X = "body:not(#x1):not(#x2):not(#x3):not(#x4):not(#x5):not(#x6)"
-PAGES_SEL = ":is(#modelspage, #setpage, #mempage, #schedpanel, #binpage, #readpage, #teampage, #podcast, #tune)"
+PAGES_SEL = ":is(#modelspage, #setpage, #mempage, #schedpanel, #binpage, #readpage, #teampage, #podcast, #tune, #chatopts)"
 CSS += ("""
 /* the side column: small headings over three groups; the chats get the room they need, with a scrollbar you can see */
 X .navheadwrap, X #chatsheadwrap {padding: 0 !important; margin: 0 !important; min-height: 0 !important; border: none !important; background: transparent !important; box-shadow: none !important}
@@ -4084,7 +4084,7 @@ X #model .options:not(.option-list) {width: max-content !important; min-width: 3
   background: var(--panel) !important; opacity: 1 !important; border: 1px solid color-mix(in srgb, var(--line) 90%, transparent) !important; border-radius: 12px !important;
   box-shadow: 0 12px 32px rgba(0, 0, 0, .18) !important; padding: 6px !important; font-size: .9rem !important; z-index: 2147480001 !important}
 X #model .options > ul.option-list {width: auto !important; min-width: 0 !important; max-width: none !important; border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; background: transparent !important; position: static !important}
-X #model .options li {white-space: nowrap !important; display: flex !important; align-items: center; gap: 6px; padding: 7px 10px !important; border-radius: 8px; background: transparent}
+X #model .options li {width: auto !important; white-space: nowrap !important; display: flex !important; align-items: center; gap: 6px; padding: 7px 10px !important; border-radius: 8px; background: transparent}
 X #model .options li:hover, X #model .options li.active {background: color-mix(in srgb, var(--brand) 10%, transparent) !important}
 X #model .options li[data-kind]::after {content: attr(data-kind); margin-left: auto; padding-left: 18px; font-size: .74rem; color: color-mix(in srgb, var(--ink) 55%, transparent)}
 X #model .options li.jadd {border-top: 1px solid color-mix(in srgb, var(--line) 90%, transparent); margin-top: 4px; border-radius: 0 0 8px 8px; color: var(--brand)}
@@ -4125,7 +4125,7 @@ X #deskpick label {flex: 0 0 auto !important; white-space: nowrap !important}
 X #modelrow .bicon svg, X #modelrow .bicon .ji svg {width: 1.05em !important; height: 1.05em !important}
 /* while Joshua works: the status shows just above the message box, and the ■ takes the place of the send arrow */
 X #modelrow #working .working {display: none !important}
-#jstatus {position: absolute; left: 50%; transform: translateX(-50%); z-index: 40; display: none; align-items: center; gap: 8px; max-width: calc(100% - 40px); padding: 6px 14px; border-radius: 999px;
+#jstatus {position: absolute; left: 50%; width: max-content; transform: translateX(-50%); z-index: 40; display: none; align-items: center; gap: 8px; max-width: calc(100% - 40px); padding: 6px 14px; border-radius: 999px;
   background: var(--panel); border: 1px solid color-mix(in srgb, var(--line) 90%, transparent); box-shadow: 0 6px 18px rgba(0, 0, 0, .1); font-size: .88rem; color: var(--dim);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none}
 #jstatus.on {display: flex}
@@ -4143,12 +4143,12 @@ X #chat .message-buttons button:hover {opacity: 1}
 X #chat .message-buttons svg {width: 16px !important; height: 16px !important}
 
 /* ---------- every page: one look for buttons, choices, titles and help ---------- */
-X PAGES button.secondary:not(.backbtn):not(.mhidden) {background: transparent !important; border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--line)) !important; color: var(--brand) !important; box-shadow: none !important}
-X PAGES button.secondary:not(.backbtn):not(.mhidden):hover {background: color-mix(in srgb, var(--brand) 8%, transparent) !important}
-X PAGES button.primary, X PAGES button.ftmain.primary {background: var(--brand) !important; border: 1px solid var(--brand) !important; color: #fff !important}
+X PAGES button.secondary:not(.backbtn):not(.mhidden):not(#twcancel):not(.ftmain) {background: transparent !important; border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--line)) !important; color: var(--brand) !important; box-shadow: none !important}
+X PAGES button.secondary:not(.backbtn):not(.mhidden):not(#twcancel):not(.ftmain):hover {background: color-mix(in srgb, var(--brand) 8%, transparent) !important}
+X PAGES button.primary, X PAGES button.ftmain {background: var(--brand) !important; border: 1px solid var(--brand) !important; color: #fff !important}
 X PAGES button.danger, X button.danger, X PAGES button.mact.danger, X #binpage button.binact.red {background: transparent !important; color: var(--red, #b3261e) !important; border: 1px solid color-mix(in srgb, var(--red, #b3261e) 50%, transparent) !important}
 X PAGES button.danger:hover, X button.danger:hover, X #binpage button.binact.red:hover {background: color-mix(in srgb, var(--red, #b3261e) 8%, transparent) !important}
-X PAGES .column > button:not(.mhidden), X PAGES .form > button:not(.mhidden) {width: auto !important; align-self: flex-start !important; min-width: 160px; flex-grow: 0 !important}
+X PAGES > button:not(.mhidden), X PAGES .column > button:not(.mhidden), X PAGES .form > button:not(.mhidden) {width: auto !important; align-self: flex-start !important; min-width: 160px; flex-grow: 0 !important}
 X #schedform > button {align-self: flex-start !important}
 /* a choice of one: the chosen one filled; several ticks: tinted, with the tick */
 X PAGES fieldset:not(#ftsteps) .wrap label {border-radius: 999px !important; border: 1px solid color-mix(in srgb, var(--line) 95%, transparent) !important; background: transparent !important; color: var(--ink) !important; box-shadow: none !important}
@@ -4164,7 +4164,7 @@ X PAGES h2.msec {font-size: 1.2rem !important; line-height: 1.25 !important; fon
 X #modelspage :is(.mz1, .mz2, .mz3) {background: color-mix(in srgb, var(--ink) 4%, var(--bg)) !important}
 /* a field's name over it, help under it: readable */
 X PAGES .info-text, X PAGES [data-testid="block-info"] {color: color-mix(in srgb, var(--ink) 74%, transparent) !important; font-size: .86rem !important}
-X .fieldlabel {font-size: .9rem; font-weight: 600; color: var(--ink); margin: 8px 0 4px}
+X .fieldlabel {font-size: .86rem !important; font-weight: 600 !important; color: var(--ink); margin: 8px 0 4px}
 /* the links to a page's parts: "On this page:", then plain links */
 X .pagenav {align-items: baseline; gap: 4px 14px !important; margin: 4px 0 10px !important}
 X .pagenav .pnlab {font-size: .85rem; color: color-mix(in srgb, var(--ink) 60%, transparent)}
@@ -4192,6 +4192,7 @@ X details.mcost summary::after {content: " ▾"}
 X details.mcost[open] summary::after {content: " ▴"}
 X details.mcost .pwrap {position: static !important; width: auto !important; max-width: 320px !important; margin: 6px 0 2px !important; box-shadow: none !important}
 X details.mcost[open] {display: block !important; margin-left: 0 !important; margin-top: 4px}
+X details.mcost[open] > summary {display: inline-block}
 X #okeyrow, X #kkeyrow, X #kaddrow {align-items: flex-end !important}
 X :is(#okeyrow, #kkeyrow, #kaddrow) > button {margin-bottom: 4px}
 
@@ -4215,7 +4216,8 @@ X .rdrow .rdplayicon {flex: 0 0 auto; display: inline-flex; align-items: center;
   background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); font-size: .8rem}
 X .rdrow:hover .rdplayicon {background: var(--brand); color: #fff}
 X .rdrow .rdname {white-space: nowrap; overflow: hidden; text-overflow: ellipsis}
-X #rdbar .rdlab {display: inline-flex; flex-direction: column; gap: 1px; font-size: .7rem; color: color-mix(in srgb, var(--ink) 60%, transparent)}
+X #rdbar .rdlab {display: inline-flex; flex-direction: column; gap: 1px}
+X #rdbar .rdlab > span {font-size: .7rem !important; line-height: 1.1 !important; color: color-mix(in srgb, var(--ink) 60%, transparent) !important}
 X #rdbar {box-shadow: 0 6px 12px -8px rgba(0, 0, 0, .25) !important; border-bottom: 1px solid color-mix(in srgb, var(--line) 90%, transparent) !important}
 
 /* Podcast */
@@ -4228,9 +4230,9 @@ X #podcast .podvoices a {color: var(--brand)}
 X #memlist .memrow {display: flex; align-items: flex-start; gap: 8px; padding: 7px 10px; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent)}
 X #memlist .memrow .memtxt {flex: 1 1 auto; min-width: 0; line-height: 1.4}
 X #memlist .memrow input {flex: 1 1 auto; font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink)}
-X #memlist .memrow button, X #memlist .memadd, X #memlist .memastext {flex: 0 0 auto; padding: 3px 10px; border-radius: 8px; font: inherit; font-size: .82rem; cursor: pointer;
-  border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--line)); background: transparent; color: var(--brand)}
-X #memlist .memrow button.memdel {color: var(--red, #b3261e); border-color: color-mix(in srgb, var(--red, #b3261e) 45%, transparent)}
+X #memlist .memrow button, X #memlist .memadd, X #memlist .memastext {flex: 0 0 auto !important; padding: 3px 10px !important; border-radius: 8px !important; font-size: .82rem !important; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--line)) !important; background: transparent !important; color: var(--brand) !important; width: auto !important; min-width: 0 !important; height: auto !important}
+X #memlist .memrow button.memdel {color: var(--red, #b3261e) !important; border-color: color-mix(in srgb, var(--red, #b3261e) 45%, transparent) !important}
 X #memlist .memtools {display: flex; gap: 8px; margin: 10px 0 4px; align-items: center}
 X #memlist .memwarn {color: var(--red, #b3261e); font-size: .85rem}
 X #memlist .memempty {padding: 8px 0; color: color-mix(in srgb, var(--ink) 65%, transparent)}
@@ -4250,6 +4252,12 @@ X #tune #ftdel {margin-left: auto !important}
 
 /* Bin */
 X #binpage button.binact {height: 32px; padding: 0 14px}
+/* the same Back to chat, and the same title size, on every page */
+X button.backbtn {background: color-mix(in srgb, var(--ink) 6%, transparent) !important; border: none !important; box-shadow: none !important; color: var(--brand) !important}
+X :is(#schedtitle, #tunetitle, #podtitle) {font-size: 1.3rem !important}
+X #tune #ftdel.danger, X #tune button.danger {color: var(--red, #b3261e) !important; border: 1px solid color-mix(in srgb, var(--red, #b3261e) 50%, transparent) !important; background: transparent !important}
+X PAGES button.mact:not(.danger) {background: transparent !important; border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--line)) !important; color: var(--brand) !important}
+X #teampage #twcancel {border: none !important; background: transparent !important; text-decoration: underline}
 
 /* Settings */
 X #setpage #szlook fieldset {margin-bottom: 14px !important}
@@ -4489,7 +4497,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
                 gr.HTML("<h2 class='msec'>" + t("Log") + "</h2><div class='msub'>" + t("What Joshua did and what went wrong, with the time. If something breaks, copy it and send it to whoever helps you.") + "</div>")
                 log_box = gr.Textbox("", show_label=False, lines=12, max_lines=12, interactive=False, autoscroll=True, buttons=["copy"], elem_id="logbox")
                 with gr.Row():
-                    gr.HTML("<button type='button' class='logcopy' onclick=\"const a = document.querySelector('#logbox textarea'); if (a) { navigator.clipboard.writeText(a.value); this.textContent = " + html.escape(json.dumps(t("Copied")), quote=True) + "; }\">" + t("Copy the log") + "</button>", elem_classes="logcopywrap")
+                    log_copy = gr.Button(t("Copy the log"), size="sm", scale=0, min_width=160)
                     log_refresh = gr.Button(t("Show the latest"), size="sm", scale=0, min_width=160)
                     log_open = gr.Button(t("Open the folder"), size="sm", scale=0, min_width=160)
                 gr.HTML("<div class='msub'>" + html.escape(str(jlog.PATH)) + "</div>")
@@ -4729,6 +4737,7 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
     gr.api(tts_voices, api_name="voices", queue=False)
     gr.api(client_log, api_name="client_log", queue=False)
     log_refresh.click(log_view, outputs=log_box)
+    log_copy.click(None, js="() => { const a = document.querySelector('#logbox textarea'); if (a) navigator.clipboard.writeText(a.value); }")
     log_open.click(log_folder)
     set_btn.click(log_view, outputs=log_box)
     gr.api(tts, api_name="tts", concurrency_limit=2)
@@ -5246,8 +5255,8 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
         };
         // ---- the model menu: where each model runs, and "Add a model" set apart
         const kinds = () => document.querySelectorAll('#model .options li').forEach(li => { if (li.dataset.kindDone) return; li.dataset.kindDone = 1;
-          const txt = li.textContent.trim();
-          if (/^[+＋]/.test(txt) || li.dataset.value === '+add') { li.classList.add('jadd'); return; }
+          const txt = (li.getAttribute('aria-label') || li.textContent).trim();  // the label as written, before the page swaps emoji for icons
+          if (/^[+＋]/.test(txt)) { li.classList.add('jadd'); return; }
           const k = li.querySelector('.ji-key') || txt.includes('🔑') ? T.key : li.querySelector('.ji-cloud') || txt.includes('☁') ? T.cloud : txt.includes('★') ? T.yours : T.local;
           li.dataset.kind = k; });
         // ---- while Joshua works: a status just above the message box, at once when you send
@@ -5270,9 +5279,9 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
           const notes = lines.map((l, i) => [l, i]).filter(([l]) => l.trim() && !/^#/.test(l.trim()));
           let h = notes.length ? '' : "<div class='memempty'>" + esc(D.empty) + '</div>';
           notes.forEach(([l, i]) => { h += "<div class='memrow' data-i='" + i + "'><span class='memtxt'>" + esc(l.replace(/^\\s*-\\s*/, '').replace(/^\\[stated\\]\\s*/, '')) + "</span><button type='button' class='memedit'>" + esc(D.edit) + "</button><button type='button' class='memdel'>" + esc(D.del) + '</button></div>'; });
-          h += "<div class='memtools'><button type='button' class='memadd'>" + esc(D.add) + "</button><button type='button' class='memastext'>" + esc(D.astext) + "</button>" + (box.dataset.unsaved ? "<span class='memwarn'>" + esc(D.unsaved) + '</span>' : '') + '</div>';
+          h += "<div class='memtools'><button type='button' class='memadd'>" + esc(D.add) + "</button><button type='button' class='memastext'>" + esc(D.astext) + "</button>" + (box.dataset.dirty ? "<span class='memwarn'>" + esc(D.unsaved) + '</span>' : '') + '</div>';
           box.innerHTML = h; };
-        const setText = (v) => { const ta = document.querySelector('#memtext textarea'), box = document.querySelector('#memlist'); ta.value = v; ta.dispatchEvent(new Event('input', {bubbles: true})); box.dataset.unsaved = 1; box.dataset.drawn = ''; memlist(); };
+        const setText = (v) => { const ta = document.querySelector('#memtext textarea'), box = document.querySelector('#memlist'); ta.value = v; ta.dispatchEvent(new Event('input', {bubbles: true})); box.dataset.dirty = 1; box.dataset.drawn = ''; memlist(); };
         document.addEventListener('click', (e) => { const box = e.target.closest('#memlist'); if (!box) return; const ta = document.querySelector('#memtext textarea'); if (!ta) return;
           const lines = ta.value.split('\\n'), row = e.target.closest('.memrow'), i = row ? +row.dataset.i : -1;
           if (e.target.closest('.memdel')) { lines.splice(i, 1); setText(lines.join('\\n')); return; }
@@ -5285,14 +5294,16 @@ with gr.Blocks(title="Joshua", fill_width=True) as demo:
             f.focus(); };
           if (e.target.closest('.memedit')) return edit(i, lines[i].replace(/^\\s*-\\s*/, ''));
           if (e.target.closest('.memadd')) return edit(-1, ''); });
-        document.addEventListener('click', (e) => { if (e.target.closest('#memsave')) { const b = document.querySelector('#memlist'); if (b) { b.dataset.unsaved = ''; b.dataset.drawn = ''; } } }, true);
+        document.addEventListener('click', (e) => { if (e.target.closest('#memsave')) { const b = document.querySelector('#memlist'); if (b) { b.dataset.dirty = ''; b.dataset.drawn = ''; } } }, true);
         // ---- Teach and Build: the model's real name where it will be installed; technical details only when asked for
         const tune = () => { const n = document.querySelector('#ftproject input'), c = document.querySelector('.ftinstname');
           if (n && c) { const v = 'joshua-' + (n.value || '…'); if (c.textContent !== v) c.textContent = v; }
           const tech = document.querySelector('#ftshowtech input'); if (tech) document.body.classList.toggle('showtech', tech.checked); };
         // ---- the Reader: a book can be opened with the keyboard too
         document.addEventListener('keydown', (e) => { const r = e.target.closest && e.target.closest('.rdrow[role=button]'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); r.click(); } });
-        const all = () => { side(); kinds(); status(); memlist(); tune(); };
+        let lastBad = null;
+        const bad = () => { const b = [...document.querySelectorAll('.invalid')].find(x => x.offsetParent); if (b && b !== lastBad) { b.scrollIntoView({block: 'center', behavior: 'smooth'}); const f = b.querySelector('input, textarea'); if (f) f.focus({preventScroll: true}); } lastBad = b || null; };
+        const all = () => { side(); kinds(); status(); memlist(); tune(); bad(); };
         new MutationObserver(() => { clearTimeout(window.joshuaUx); window.joshuaUx = setTimeout(all, 120); }).observe(document.body, {childList: true, subtree: true, characterData: true});
         setInterval(status, 1000); all(); }""")
 

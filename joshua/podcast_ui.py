@@ -109,13 +109,13 @@ def build(conv_root, model_choices, write):
                 pause = gr.Slider(0.5, 6, value=1.5, step=0.5, label=t("Pause between sections (seconds)"))
                 speed = gr.Slider(0.7, 1.3, value=1.0, step=0.05, label=t("Speed"))
             with gr.Row(equal_height=False):  # each jingle with its own ▶ under it
-                with gr.Column(scale=3):
+                with gr.Column(scale=3, min_width=150):
                     intro = gr.Dropdown(jingle_choices(jingles), value="Morning", label=t("Opening jingle"))
                     hear_in = gr.Button("▶ " + t("Listen"), size="sm", scale=0, min_width=120)
-                with gr.Column(scale=3):
+                with gr.Column(scale=3, min_width=150):
                     brk = gr.Dropdown(jingle_choices(jingles), value="", label=t("Sound between sections"))
                     hear_brk = gr.Button("▶ " + t("Listen"), size="sm", scale=0, min_width=120)
-                with gr.Column(scale=3):
+                with gr.Column(scale=3, min_width=150):
                     outro = gr.Dropdown(jingle_choices(jingles), value="Calm", label=t("Closing jingle"))
                     hear_out = gr.Button("▶ " + t("Listen"), size="sm", scale=0, min_width=120)
             add_jingle = gr.File(label=t("Add your own jingle (MP3, WAV…)"), file_types=["audio"], elem_classes="podfile")
