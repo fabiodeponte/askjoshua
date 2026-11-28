@@ -4067,8 +4067,9 @@ X #convs {overflow-y: auto !important; scrollbar-width: thin; scrollbar-color: c
 #convs::-webkit-scrollbar {width: 8px}
 #convs::-webkit-scrollbar-thumb {background: color-mix(in srgb, var(--ink) 28%, transparent); border-radius: 8px}
 #convs::-webkit-scrollbar-track {background: transparent}
+X #convs .wrap {padding-top: 16px !important}
 X #convs label.grpstart {margin-top: 18px !important}
-X #convs label.grpstart:first-child {margin-top: 14px !important}
+X #convs .wrap > label.grpstart:first-of-type {margin-top: 0 !important}
 X #convs label.grpstart::after {content: attr(data-group); position: absolute; left: 10px; top: -17px; font-size: .7rem; font-weight: 600; letter-spacing: .03em; pointer-events: none;
   color: color-mix(in srgb, var(--ink) 50%, transparent); background: none !important}
 X #convs label.jhide {display: none !important}
