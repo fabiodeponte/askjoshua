@@ -56,7 +56,7 @@ def build(conv_root, model_choices, write):
 
     with gr.Column(visible=False, scale=5, elem_id="podcast") as panel:
         with gr.Row(elem_classes="pagehead"):
-            gr.HTML("<div id='podtitle'>" + t("PODCAST") + "</div>")
+            gr.HTML("<div id='podtitle'>" + t("Podcast") + "</div>")
             back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_classes="backbtn")
         gr.Markdown(t("A podcast from your sources: Joshua writes the dialogue, you edit it, then the voices on this computer read it."), elem_classes="ftlead")
 
@@ -64,7 +64,7 @@ def build(conv_root, model_choices, write):
             gr.Markdown("**" + t("Your podcasts") + "** " + t("The ones you made, newest first, with their scripts."))
             with gr.Row(equal_height=True):
                 past = gr.Dropdown([], label=t("Podcast"), scale=4)
-                reopen = gr.Button("✎ " + t("Open its script"), size="sm", scale=0, min_width=170)
+                reopen = gr.Button("✎ " + t("Open its script"), size="sm", scale=0, min_width=170, interactive=False)  # until a podcast is chosen
             past_audio = gr.Audio(visible=False, show_label=False, type="filepath", interactive=False)
 
 
@@ -80,23 +80,24 @@ def build(conv_root, model_choices, write):
         with gr.Column(elem_classes="ftpane"):
             gr.Markdown("**2 · " + t("The script") + "** " + t("Who speaks, for how long and how. Then Joshua writes the dialogue: change it as you like before making the audio."))
             with gr.Row():
-                title = gr.Textbox(label=t("Title"), max_lines=1, scale=3)
-                lang = gr.Dropdown([(t("Same as the sources"), "auto")] + [(t(n), c) for c, n in LANGUAGES.items()], value="auto", label=t("Language"), scale=2)
-                minutes = gr.Slider(1, 30, value=5, step=1, label=t("Minutes"), scale=2)
-                count = gr.Slider(1, MAX_SPEAKERS, value=2, step=1, label=t("Speakers"), scale=2)
+                title = gr.Textbox(label=t("Title"), placeholder=t("e.g. Week in review"), max_lines=1, scale=3)
+                lang = gr.Dropdown([(t("Same as the sources"), "auto")] + [(t(n), c) for c, n in LANGUAGES.items()], value="auto", label=t("Language"), scale=3)
+            with gr.Row():
+                minutes = gr.Slider(1, 30, value=5, step=1, label=t("Minutes"), scale=3)
+                count = gr.Slider(1, MAX_SPEAKERS, value=2, step=1, label=t("Speakers"), scale=3)
             names, voices, samples, rows = [], [], [], []
             for i in range(MAX_SPEAKERS):
-                with gr.Row(visible=i < 2, equal_height=True) as row:
+                with gr.Row(visible=i < 2, equal_height=False, elem_classes="podspeaker") as row:
                     names.append(gr.Textbox(DEFAULT_NAMES[i], label=t("Speaker {n}", n=i + 1), max_lines=1, scale=2))
                     voices.append(gr.Dropdown([], label=t("Voice"), scale=4))
                     samples.append(gr.Button("▶ " + t("Listen"), size="sm", scale=0, min_width=110))
                 rows.append(row)
-            gr.Markdown(t("More voices can be installed at the bottom of this page."), elem_classes="podvoices")
+            gr.HTML("<div class='podvoices'><a href='#' onclick=\"document.getElementById('podmorevoices').scrollIntoView({behavior: 'smooth'}); return false\">" + t("More voices can be installed at the bottom of this page.") + "</a></div>")
             sample_audio = gr.Audio(visible=False, autoplay=True, show_label=False, elem_id="podsample")
             notes = gr.Textbox(label=t("Instructions"), lines=2, placeholder=t("Tone, audience, what to stress or leave out…"))
+            model = gr.Dropdown(model_choices(), label=t("Model that writes"))
             with gr.Row():
-                model = gr.Dropdown(model_choices(), label=t("Model that writes"), scale=3)
-                writeb = gr.Button("✍ " + t("Write the script"), size="sm", scale=0, min_width=190, elem_classes="ftmain")
+                writeb = gr.Button("✍ " + t("Write the script"), size="sm", scale=0, min_width=190, elem_classes="ftmain", variant="primary")
             status = gr.HTML()
             script = gr.Textbox(label=t("Script"), lines=22, max_lines=60, buttons=["copy"], elem_id="podscript",
                                 placeholder=t("Anna: Good morning and welcome…\nMarco: …\n[BREAK]\n\nOne line per turn: the speaker's name, a colon, what they say. [BREAK] is a pause between parts; [BREAK 3] lasts 3 seconds."))
@@ -107,22 +108,24 @@ def build(conv_root, model_choices, write):
                 gap = gr.Slider(0, 1.5, value=0.35, step=0.05, label=t("Pause between speakers (seconds)"))
                 pause = gr.Slider(0.5, 6, value=1.5, step=0.5, label=t("Pause between sections (seconds)"))
                 speed = gr.Slider(0.7, 1.3, value=1.0, step=0.05, label=t("Speed"))
-            with gr.Row(equal_height=True):
-                intro = gr.Dropdown(jingle_choices(jingles), value="Morning", label=t("Opening jingle"), scale=3)
-                brk = gr.Dropdown(jingle_choices(jingles), value="", label=t("Sound between sections"), scale=3)
-                outro = gr.Dropdown(jingle_choices(jingles), value="Calm", label=t("Closing jingle"), scale=3)
-            with gr.Row(equal_height=True):
-                hear_in = gr.Button("▶ " + t("Opening"), size="sm", scale=0, min_width=120)
-                hear_brk = gr.Button("▶ " + t("Between sections"), size="sm", scale=0, min_width=120)
-                hear_out = gr.Button("▶ " + t("Closing"), size="sm", scale=0, min_width=120)
-            bed = gr.Checkbox(False, label=t("The opening music goes on softly under the first voices"))
+            with gr.Row(equal_height=False):  # each jingle with its own ▶ under it
+                with gr.Column(scale=3):
+                    intro = gr.Dropdown(jingle_choices(jingles), value="Morning", label=t("Opening jingle"))
+                    hear_in = gr.Button("▶ " + t("Listen"), size="sm", scale=0, min_width=120)
+                with gr.Column(scale=3):
+                    brk = gr.Dropdown(jingle_choices(jingles), value="", label=t("Sound between sections"))
+                    hear_brk = gr.Button("▶ " + t("Listen"), size="sm", scale=0, min_width=120)
+                with gr.Column(scale=3):
+                    outro = gr.Dropdown(jingle_choices(jingles), value="Calm", label=t("Closing jingle"))
+                    hear_out = gr.Button("▶ " + t("Listen"), size="sm", scale=0, min_width=120)
             add_jingle = gr.File(label=t("Add your own jingle (MP3, WAV…)"), file_types=["audio"], elem_classes="podfile")
+            bed = gr.Checkbox(False, label=t("The opening music goes on softly under the first voices"))
             with gr.Row():
-                makeb = gr.Button("🎙 " + t("Make the audio"), size="sm", scale=0, min_width=190, elem_classes="ftmain")
+                makeb = gr.Button("🎙 " + t("Make the audio"), size="sm", scale=0, min_width=190, elem_classes="ftmain", variant="primary")
             progress = gr.HTML()
             result = gr.Audio(visible=False, label=t("Your podcast"), type="filepath", interactive=False)
 
-        with gr.Column(elem_classes="ftpane"):
+        with gr.Column(elem_classes="ftpane", elem_id="podmorevoices"):
             gr.Markdown("**" + t("More voices (optional)") + "** " + t("The voices installed on this computer, and more to add. They all work without internet once installed."))
             have = gr.HTML(voices_html())
             with gr.Row(equal_height=True):
@@ -331,6 +334,7 @@ def build(conv_root, model_choices, write):
     hear_out.click(hear_jingle, outro, sample_audio)
     hear_brk.click(hear_jingle, brk, sample_audio)
     past.change(play_past, past, past_audio, show_progress="hidden")
+    past.change(lambda v: gr.Button(interactive=bool(v)), past, reopen, show_progress="hidden")
     reopen.click(open_script, past, script)
     add_jingle.upload(add_own, add_jingle, [intro, outro, brk, add_jingle])
     front.change(lambda f: gr.Slider(interactive=bool(f)), front, per_page, show_progress="hidden")  # Articles per site only means something for news front pages

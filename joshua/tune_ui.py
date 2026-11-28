@@ -142,7 +142,21 @@ def loss_svg(train, val, old=()):
     ticks = "".join(f"<text x='{X(v):.1f}' y='{H - 6}' text-anchor='{('start', 'middle', 'middle', 'middle', 'end')[k]}'>{int(v)}</text>" for k, v in enumerate(x0 + (x1 - x0) * k / 4 for k in range(5)))  # the end ones inside the chart
     last = f"{t('step')} {int(xs[-1] if not val else max(xs))} · " + (t("training") + f" {train[-1][1]:.2f}" if train else "") + (f" · {t('validation')} {val[-1][1]:.2f}" if val else "") + (f" · {t('previous texts')} {old[-1][1]:.2f}" if old else "")
     return (head + f"<svg viewBox='0 0 {W} {H}'><g class='grid'>{grid}</g><g class='ticks'>{ticks}</g>"
-            + line(train, "tr") + line(val, "va") + line(old, "ol") + f"</svg><div class='ftchart-last'>{html.escape(last)}</div></div>")
+            + line(train, "tr") + line(val, "va") + line(old, "ol") + f"</svg><div class='ftchart-last'>{html.escape(last)}</div>" + verdict(train, val) + "</div>")
+
+
+def verdict(train, val):
+    """What the chart says, in plain words: the validation line is the one that matters (texts the model never trains on)."""
+    if len(val) < 3:
+        return ""
+    best, now, first = min(v for _, v in val), val[-1][1], val[0][1]
+    if now > best * 1.04 and train and train[-1][1] < best:  # it gets better on its own examples and worse on new ones
+        text, cls = t("Starting to memorise its examples: the model was best a little earlier. Stop here, or add more examples."), "warn"
+    elif now < first * 0.92:
+        text, cls = t("Learning well: the orange line, on texts it never trains on, keeps going down."), "ok"
+    else:
+        text, cls = t("Not learning much yet: wait a little longer, or add more and more varied examples."), "dim"
+    return f"<div class='ftverdict {cls}'>{html.escape(text)}</div>"
 
 
 def more(text, label=None):
@@ -199,7 +213,7 @@ def download_html(n, res=None):
         out += "<div class='ftres'>" + html.escape(t("{n} files, {mb} MB, in {folder}.", n=got["n"], mb=got["mb"], folder=home(got["folder"]))) + "</div>"
         out += "<div class='ftwhere'>" + html.escape(t("Nothing to download: step 2 reads them where they are, without changing them.")) + "</div>"
     elif n and sc.data(n):
-        out += "<div class='ftres'>" + html.escape(t("These texts were got before this step existed; step 2 has already read them.")) + "</div>"
+        out += "<div class='ftres'>" + html.escape(t("Texts already downloaded: step 2 has used them.")) + "</div>"
     elif not out:
         out = "<div class='ftempty'>" + t("Choose where the texts come from, then press Get the texts.") + "</div>"
     return out
@@ -343,7 +357,8 @@ def source_of(kind, path, lang, millions, whole=False, qcount=50000):
 def size_choices(n):
     if not (n and sc.data(n)):
         return [(s, s) for s in sc.SIZES]
-    return [(f"{s} · {when(sc.hours(n, s))}", s) for s in sc.SIZES]
+    best = sc.best_size(n)
+    return [(f"{s} · {when(sc.hours(n, s))}" + (" · " + t("suggested") if s == best else ""), s) for s in sc.SIZES]
 
 
 def arch_html(size, n=None):
@@ -352,7 +367,7 @@ def arch_html(size, n=None):
     d = sc.data(n) if n else None
     h, layers, heads, inter = job.SIZES[size]
     p = sc.params(size, d["vocab"] if d else job.VOCAB)
-    return ("<div class='ftres'>" + t("{p} million parameters · {layers} layers · width {h} · {heads} attention heads · middle width {inter} · vocabulary of {vocab} pieces · it sees {ctx} pieces at a time",
+    return ("<div class='ftres ftarch'>" + t("{p} million parameters · {layers} layers · width {h} · {heads} attention heads · middle width {inter} · vocabulary of {vocab} pieces · it sees {ctx} pieces at a time",
             p=f"{p / 1e6:.1f}", layers=layers, h=h, heads=heads, inter=inter, vocab=f"{(d['vocab'] if d else job.VOCAB):,}", ctx=job.CTX)
             + (" · " + t("{n} steps", n=f"{sc.steps(n, size):,}") if d else "") + "</div>")
 
@@ -428,7 +443,7 @@ def project_picker(label, choices, placeholder, elem=None):
         name = gr.Dropdown(choices=choices, value=None, label=label, info=made_note(choices), scale=3, elem_id=elem)
     with gr.Row(visible=not has, equal_height=False, elem_classes="ftnewrow") as newrow:
         newname = gr.Textbox(label=t("Name of the new one"), placeholder=placeholder, max_lines=1, scale=3)
-        create = gr.Button(t("Create"), size="sm", scale=0, min_width=110)
+        create = gr.Button(t("Create"), size="sm", scale=0, min_width=110, variant="primary")
     pick.change(lambda p: (gr.Row(visible=p == "open"), gr.Row(visible=p == "new")), pick, [openrow, newrow], show_progress="hidden")
     return pick, openrow, name, newrow, newname, create
 
@@ -498,7 +513,7 @@ def build_new():
                     q3 = gr.Number(50000, label=t("How many questions"), info=t("A few tens of thousands are enough to learn the format."), minimum=100, maximum=1000000, precision=0, scale=2)
                 mix3 = gr.Slider(0, 50, value=20, step=5, label=t("Share of each batch still from the pre-training texts (%)"), info=t("More keeps more of what it knew; less takes on the new texts faster."))
                 with gr.Row():
-                    read3b = gr.Button(t("Read them"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
+                    read3b = gr.Button(t("Prepare the questions"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
                     train3b = gr.Button("▶ " + t("Start training"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
                     stop3b = gr.Button("■ " + t("Stop"), size="sm", scale=0, min_width=100)
                 info3 = gr.HTML(step_info(None, sc.SIZES[0], QA))
@@ -512,7 +527,7 @@ def build_new():
                     qs = gr.Number(20000, label=t("How many searches"), info=t("Each example is longer than a question and answer, so fewer are needed."), minimum=100, maximum=1000000, precision=0, scale=2)
                 mixs = gr.Slider(0, 50, value=20, step=5, label=t("Share of each batch still from the previous step's texts (%)"), info=t("More keeps more of what it knew; less takes on the new texts faster."))
                 with gr.Row():
-                    reads = gr.Button(t("Read them"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
+                    reads = gr.Button(t("Prepare the searches"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
                     trains = gr.Button("▶ " + t("Start training"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
                     stops = gr.Button("■ " + t("Stop"), size="sm", scale=0, min_width=100)
                 infos = gr.HTML(step_info(None, sc.SIZES[0], SEARCH))
@@ -528,7 +543,7 @@ def build_new():
                 browse4.click(pick_folder, path4, path4, show_progress="hidden")
                 mix4 = gr.Slider(0, 50, value=20, step=5, label=t("Share of each batch still from the previous step's texts (%)"), info=t("More keeps more of what it knew; less takes on the new texts faster."))
                 with gr.Row():
-                    read4b = gr.Button(t("Read them"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
+                    read4b = gr.Button(t("Read the folder"), size="sm", scale=0, min_width=130, elem_classes="ftmain")
                     train4b = gr.Button("▶ " + t("Start training"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
                     stop4b = gr.Button("■ " + t("Stop"), size="sm", scale=0, min_width=100)
                 info4 = gr.HTML(step_info(None, sc.SIZES[0], TUNE))
@@ -548,7 +563,7 @@ def build_new():
                 with gr.Row(equal_height=True):
                     asname = gr.Textbox(show_label=False, placeholder=t("its name in the menu, like Wikipedia-Italian"), max_lines=1, scale=3, container=False)
                     instb = gr.Button("⬇ " + t("Add to Joshua"), size="sm", scale=0, min_width=170, elem_classes="ftmain")
-                    delb = gr.Button(t("Delete this model"), size="sm", scale=0, min_width=170, elem_id="ftdel")
+                    delb = gr.Button(t("Delete this model"), size="sm", scale=0, min_width=170, elem_id="ftdel", elem_classes=["danger"])
         seen = gr.State(None)
         armed = gr.State(None)
 
@@ -845,7 +860,7 @@ def build_new():
 def build(conv_root, conv_choices):
     with gr.Column(visible=False, scale=5, elem_id="tune") as panel:
         with gr.Row(elem_classes="pagehead"):
-            title = gr.HTML("<div id='tunetitle'>" + t("TEACH A MODEL YOUR STYLE") + "</div>")
+            title = gr.HTML("<div id='tunetitle'>" + t("Teach a model your style") + "</div>")
             back = gr.Button("← " + t("Back to chat"), size="sm", scale=0, min_width=160, elem_id="tuneback", elem_classes="backbtn")
         mode = gr.Radio([(t("Teach an existing model"), "teach"), (t("Train a new model from zero"), "new")], value="teach", show_label=False, elem_id="ftmode", visible=False)  # chosen by the two menu entries
         with gr.Column() as teachcol:
@@ -854,7 +869,7 @@ def build(conv_root, conv_choices):
             more(INTRO, t("What fine-tuning is, and what it can't do"))
             # the project: open one, or start a new one
             pick, openrow, name, newrow, newname, create = project_picker(t("Project"), ft.projects(), t("a short name in lowercase, like newsroom-style"), "ftname")
-            REFRESH.append((lambda: picker_state(ft.projects()), [pick, openrow, name, newrow]))
+            pass  # the page's refresh is registered further down, once open_project exists: with one project it opens it
             with gr.Column() as noproj:
                 gr.HTML("<div class='ftempty'>" + t("Open a project, or start a new one: each project has its own examples and training.") + "</div>")
             with gr.Column(visible=False) as work:
@@ -869,13 +884,15 @@ def build(conv_root, conv_choices):
                     more(STEP1)
                 with gr.Column(visible=False, elem_classes="ftpane") as s2:
                     gr.Markdown(t("**Show the model what you want:** something you might say, and the exact answer you'd like back. 100–500 good examples work best."))
-                    with gr.Row(equal_height=True, elem_classes="ftadd"):
+                    with gr.Column(elem_classes="ftway"):
+                        gr.HTML("<div class='fieldlabel'>" + t("From a file") + " <span class='mdim'>(.jsonl, .json, .csv)</span></div>")
                         upload = gr.UploadButton("📄 " + t("Add from a file"), file_types=[".jsonl", ".json", ".csv"], type="filepath", size="sm", scale=0, min_width=170)
-                        chats = gr.Dropdown(choices=conv_choices(), multiselect=True, label=t("…or pick some of your chats"), scale=3, elem_id="ftchats")
+                    with gr.Row(equal_height=False, elem_classes=["ftadd", "ftway"]):
+                        chats = gr.Dropdown(choices=conv_choices(), multiselect=True, label=t("From your chats"), scale=3, elem_id="ftchats")
                         addchats = gr.Button(t("Add from these chats"), size="sm", scale=0, min_width=170)
-                    with gr.Row(equal_height=True, elem_classes="ftadd"):
-                        q = gr.Textbox(show_label=False, placeholder=t("You say…"), lines=1, max_lines=6, scale=2, container=False)
-                        a = gr.Textbox(show_label=False, placeholder=t("…and Joshua answers"), lines=1, max_lines=6, scale=3, container=False)
+                    with gr.Row(equal_height=False, elem_classes=["ftadd", "ftway"]):
+                        q = gr.Textbox(label=t("You say"), placeholder=t("You say…"), lines=1, max_lines=6, scale=2)
+                        a = gr.Textbox(label=t("Joshua answers"), placeholder=t("…and Joshua answers"), lines=1, max_lines=6, scale=3)
                         add = gr.Button(t("Add"), size="sm", scale=0, min_width=80)
                     grid = gr.Dataframe(table([]), headers=[t("You say"), t("Joshua answers")], column_count=(2, "fixed"), interactive=True, wrap=True, max_height=380,
                                         buttons=[], show_search="search", elem_id="ftgrid")
@@ -902,18 +919,22 @@ def build(conv_root, conv_choices):
                         tq = gr.Textbox(show_label=False, placeholder=t("A question that is not in your examples"), scale=4, container=False)
                         tryb = gr.Button(t("Ask both"), size="sm", scale=0, min_width=120, elem_classes="ftmain")
                     with gr.Row():
-                        before = gr.Markdown("", label=t("Before"), elem_classes="ftans", container=True)
-                        after = gr.Markdown("", label=t("After"), elem_classes="ftans", container=True)
+                        with gr.Column():
+                            gr.HTML("<div class='fieldlabel'>" + t("Before training") + "</div>")
+                            before = gr.Markdown("", label=t("Before"), elem_classes="ftans", container=True)
+                        with gr.Column():
+                            gr.HTML("<div class='fieldlabel'>" + t("After training") + "</div>")
+                            after = gr.Markdown("", label=t("After"), elem_classes="ftans", container=True)
                     more(STEP4)
                 with gr.Column(visible=False, elem_classes="ftpane") as s5:
-                    gr.Markdown(t("**Install it.** Your trained model becomes `joshua-<name>` in the model menu."))
+                    gr.HTML("<p><b>" + t("Install it.") + "</b> " + t("Your trained model becomes {name} in the model menu.", name="<code class='ftinstname'>joshua-…</code>") + "</p>")
                     with gr.Row():
                         instb = gr.Button("⬇ " + t("Install into Joshua"), size="sm", scale=0, min_width=190, elem_classes="ftmain")
-                        delb = gr.Button(t("Delete this project"), size="sm", scale=0, min_width=170, elem_id="ftdel")
+                        delb = gr.Button(t("Delete this project"), size="sm", scale=0, min_width=170, elem_id="ftdel", elem_classes=["danger"])
                     more(STEP5)
         newcol = build_new()
         status = gr.HTML("<div class='ftidle'>" + t("Ready when you are") + "</div>")  # plain text until something runs: it is not a field
-        showlog = gr.Checkbox(False, label=t("Show technical details"))
+        showlog = gr.Checkbox(False, label=t("Show technical details"), elem_id="ftshowtech")
         with gr.Column(visible=False) as logbox:
             log = gr.Textbox(show_label=False, lines=10, max_lines=10, autoscroll=True, interactive=False, elem_id="ftlog")
         seen = gr.State(None)
@@ -1092,6 +1113,17 @@ def build(conv_root, conv_choices):
         return [gr.Column(visible=str(k + 1) == str(v)) for k in range(5)]
 
     opened = [name, grid, count, chats, plot, basepick, hfrow, hfrepo, baseinfo, noproj, work, steps, *panes, newrow, newname, pick, openrow]
+
+    def refresh_teach():
+        """Each time the page opens: the list of projects; with only one, it opens at once."""
+        ps = ft.projects()
+        if len(ps) == 1:
+            return open_project(ps[0])
+        pk, orow, nm, nrow = picker_state(ps)
+        out = [gr.skip()] * len(opened)
+        out[0], out[-4], out[-2], out[-1] = nm, nrow, pk, orow
+        return tuple(out)
+    REFRESH.append((refresh_teach, opened))
     name.focus(lambda: gr.Dropdown(choices=ft.projects()), None, name, show_progress="hidden")
     mode.change(lambda m: (gr.Column(visible=m == "teach"), gr.Column(visible=m == "new")), mode, [teachcol, newcol], show_progress="hidden")
     name.input(open_project, name, opened)
