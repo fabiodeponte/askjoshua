@@ -4048,17 +4048,21 @@ PAGES_SEL = ":is(#modelspage, #setpage, #mempage, #schedpanel, #binpage, #readpa
 CSS += ("""
 /* the side column: small headings over three groups; the chats get the room they need, with a scrollbar you can see */
 X .navheadwrap, X #chatsheadwrap {padding: 0 !important; margin: 0 !important; min-height: 0 !important; border: none !important; background: transparent !important; box-shadow: none !important}
-X .navhead {display: flex; align-items: center; gap: 6px; width: 100%; box-sizing: border-box; padding: 10px 10px 3px; margin: 0; font: inherit; font-size: .74rem !important; font-weight: 600; letter-spacing: .03em;
+X :is(.navheadwrap, #chatsheadwrap) :is(.html-container, .prose) {padding: 0 !important; margin: 0 !important; min-height: 0 !important}
+X #panels button {padding-top: .22rem !important; padding-bottom: .22rem !important}
+body.short X #brand {zoom: .78; padding-top: 14px !important}
+body.short X #leftcol > .block:has(#brand) {margin-bottom: 2px !important}
+X .navhead {display: flex; align-items: center; gap: 6px; width: 100%; box-sizing: border-box; padding: 7px 10px 2px; margin: 0; font: inherit; font-size: .74rem !important; font-weight: 600; letter-spacing: .03em;
   color: color-mix(in srgb, var(--ink) 55%, transparent) !important; background: transparent !important; border: none !important; text-align: left; text-transform: none !important}
 X button.navfold {cursor: pointer; border-radius: 8px !important}
 X button.navfold:hover {color: var(--ink) !important; background: color-mix(in srgb, var(--ink) 6%, transparent) !important}
 X button.navfold::after {content: "▸"; margin-left: auto; font-size: .8rem}
 X button.navfold[aria-expanded="true"]::after {content: "▾"}
 body:not(.navadv-open) #panels button.navadv:not([aria-current]) {display: none !important}
-X #chatshead {padding-bottom: 4px}
+X #chatshead {padding-top: 2px; padding-bottom: 4px}
 X #chatshead input.chatsearch {flex: 1 1 auto; min-width: 0; margin-left: 8px; padding: 3px 8px; font: inherit; font-size: .8rem; font-weight: 400; letter-spacing: 0; border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--line) 90%, transparent); background: var(--panel); color: var(--ink)}
-X #leftcol > .form:has(#convs), X #leftcol > #convs {flex: 1 1 0 !important; min-height: 216px !important}
+X #leftcol > .form:has(#convs), X #leftcol > #convs {flex: 1 1 0 !important; min-height: 196px !important}
 X #convs {overflow-y: auto !important; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 30%, transparent) transparent; scrollbar-gutter: stable}
 #convs::-webkit-scrollbar {width: 8px}
 #convs::-webkit-scrollbar-thumb {background: color-mix(in srgb, var(--ink) 28%, transparent); border-radius: 8px}
